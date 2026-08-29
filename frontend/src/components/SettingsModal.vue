@@ -20,14 +20,9 @@
             <button class="ghost-btn" @click="restoreModel">恢复默认</button>
           </div>
         </div>
-        <div class="modal-section">
-          <h4>工作目录</h4>
-          <label>目录路径</label>
-          <input v-model="path" placeholder="例如: D:/workspace" />
-          <div class="btn-row">
-            <button class="primary-btn" @click="saveWorkplace">设置工作目录</button>
-          </div>
-        </div>
+        <p class="workspace-hint">
+          工作目录已改为「会话级」配置：请在对话框右上角的目录徽章或输入框下方的"选择工作目录"按钮中，为每个会话单独绑定。
+        </p>
       </div>
     </div>
   </div>
@@ -46,7 +41,6 @@ const store = useChatStore()
 const model = ref('')
 const baseUrl = ref('')
 const apiKey = ref('')
-const path = ref('')
 
 watch(
   () => props.visible,
@@ -55,7 +49,6 @@ watch(
       model.value = store.modelConfig.model
       baseUrl.value = store.modelConfig.base_url
       apiKey.value = store.modelConfig.api_key
-      path.value = store.workplace
     }
   }
 )
@@ -81,14 +74,6 @@ async function restoreModel() {
     await store.restoreModel()
   } catch (e) {
     console.error('恢复默认模型失败', e)
-  }
-}
-
-async function saveWorkplace() {
-  try {
-    await store.setWorkplace(path.value)
-  } catch (e) {
-    console.error('设置工作目录失败', e)
   }
 }
 </script>

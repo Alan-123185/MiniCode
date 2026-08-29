@@ -1,10 +1,12 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 
 const isDev = !app.isPackaged
 
+let mainWindow = null
+
 function createWindow () {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 900,
@@ -42,4 +44,16 @@ app.on('window-all-closed', () => {
 ipcMain.handle('get-api-base-url', () => {
   // 生产模式下后端地址在这里调整
   return 'http://127.0.0.1:8000'
+})
+
+// 唤起操作系统原生目录选择器，返回所选绝对路径；用户取消时返回 null
+ipcMain.handle('select-workspace-directory', async () => {
+  if (!mainWindow) return null
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: '选择工作目录',
+    buttonLabel: '选择此目录',
+    properties: ['openDirectory', 'createDirectory'],
+  })
+  if (canceled || !filePaths || filePaths.length === 0) return null
+  return filePaths[0]
 })

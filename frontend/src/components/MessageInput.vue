@@ -33,17 +33,33 @@
         </svg>
       </button>
     </div>
-    <div class="hint">Enter 发送 · Shift + Enter 换行</div>
+    <!-- 底部操作区: 左侧为会话级工作目录选择按钮, 右侧为快捷键提示 -->
+    <div class="input-footer">
+      <WorkspacePicker :path="store.currentWorkspacePath" @error="showError" />
+      <transition name="fade">
+        <span v-if="errorMsg" class="footer-error">{{ errorMsg }}</span>
+      </transition>
+      <span class="hint">Enter 发送 · Shift + Enter 换行</span>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, nextTick } from 'vue'
 import { useChatStore } from '../stores/chat'
+import WorkspacePicker from './WorkspacePicker.vue'
 
 const store = useChatStore()
 const text = ref('')
 const ta = ref(null)
+const errorMsg = ref('')
+
+let errorTimer = null
+function showError(message) {
+  errorMsg.value = message
+  clearTimeout(errorTimer)
+  errorTimer = setTimeout(() => (errorMsg.value = ''), 3200)
+}
 
 const canSend = computed(() => text.value.trim() && !store.isStreaming)
 
@@ -128,11 +144,32 @@ async function submit() {
   animation: spin 0.7s linear infinite;
 }
 
-.hint {
+.input-footer {
   margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.footer-error {
+  font-size: 12px;
+  color: var(--error);
+  animation: shake 0.35s var(--ease-out);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.hint {
+  margin-left: auto;
   font-size: 12px;
   color: var(--text-secondary);
   opacity: 0.7;
-  text-align: right;
 }
 </style>

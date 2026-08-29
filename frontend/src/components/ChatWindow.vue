@@ -1,11 +1,15 @@
 <template>
   <div class="chat-window">
     <div class="chat-header">
-      <span class="session-title">{{ store.currentTitle }}</span>
-      <span v-if="store.isStreaming" class="streaming-indicator">
-        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-        AI 正在思考
-      </span>
+      <div class="header-left">
+        <span class="session-title">{{ store.currentTitle }}</span>
+        <span v-if="store.isStreaming" class="streaming-indicator">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          AI 正在思考
+        </span>
+      </div>
+      <!-- 右上角: 当前会话绑定的工作目录徽章 -->
+      <WorkspaceBadge />
     </div>
     <div class="message-list" ref="messageList">
       <div v-if="store.currentMessages.length === 0" class="empty-state">
@@ -49,6 +53,7 @@ import { ref, watch, nextTick } from 'vue'
 import { marked } from 'marked'
 import { useChatStore } from '../stores/chat'
 import MessageInput from './MessageInput.vue'
+import WorkspaceBadge from './WorkspaceBadge.vue'
 
 const store = useChatStore()
 const messageList = ref(null)
@@ -329,6 +334,16 @@ watch(
 .approval-actions {
   display: flex;
   gap: 10px;
+}
+
+.approval-actions button {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+.approval-actions button:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 .approval-actions .reject {

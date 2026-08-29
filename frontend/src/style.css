@@ -1,271 +1,290 @@
+/* =========================================================
+   MiniCodex 全局样式
+   设计基调: 简约 / 高级 (Notion & Linear 质感)
+   —— 柔和阴影、大圆角、低饱和度主色、细腻微交互
+   ========================================================= */
+
+/* ---------- 1. CSS 变量: 统一管理主题 ---------- */
 :root {
+  /* 背景 / 前景 */
   --bg-primary: #ffffff;
-  --bg-secondary: var(--bg-primary);
-  --bg-tertiary: var(--bg-primary);
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f3f4f6;
+
   --text-primary: #1f2328;
-  --text-secondary: #656d76;
-  --accent: #3b82f6;
-  --accent-hover: #2f6fd6;
-  --accent-light: #e8f1fd;
+  --text-secondary: #6b7280;
+
+  /* 边框 */
   --border-color: #e5e7eb;
-  --success: #10b981;
-  --error: #ef4444;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-duration: 3.5s;
-  --transition-timing: cubic-bezier(0.3, 0.0, 0.3, 1.0);
+  --accent-border: #c7d7f8;
+
+  /* 主色: 低饱和度浅蓝 */
+  --accent: #4f7cf0;
+  --accent-hover: #3f6ce2;
+  --accent-light: #eef3fe;
+  --accent-ring: rgba(79, 124, 240, 0.35);
+
+  /* 状态色 */
+  --error: #e05252;
+  --success: #34a97b;
+
+  /* 动效曲线 */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* 柔和阴影体系 (Soft Shadows) */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.14);
+
+  /* 圆角 */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 }
 
-html.dark-mode,
-body.dark-mode {
-  --bg-primary: #1e1e1e;
-  --text-primary: #f0f0f0;
-  --text-secondary: #a0a0a0;
-  --border-color: #333;
-  --accent: #4f46e5;
-  --accent-light: rgba(75, 70, 229, 0.06);
+/* ---------- 2. 暗色主题 (App.vue 切换 .dark-mode) ---------- */
+.dark-mode {
+  --bg-primary: #1d1f24;
+  --bg-secondary: #17181c;
+  --bg-tertiary: #26282f;
+
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa1ac;
+
+  --border-color: #33363e;
+  --accent-border: #3a4f85;
+
+  --accent: #6b93f5;
+  --accent-hover: #7fa1f7;
+  --accent-light: #26314a;
+  --accent-ring: rgba(107, 147, 245, 0.4);
+
+  --error: #e06c6c;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 
+/* ---------- 3. Reset ---------- */
 * {
   box-sizing: border-box;
+}
+
+html,
+body,
+#app {
   margin: 0;
   padding: 0;
-}
-
-html, body, #app {
   height: 100%;
-  width: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, sans-serif;
-  color: var(--text-primary);
-  background: var(--bg-primary);
-}
-
-button {
-  cursor: pointer;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  padding: 8px 18px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 14px;
-  transition: border-color 0.25s, color 0.25s;
-}
-
-/* Light mode white buttons */
-body:not(.dark-mode) .session-header button,
-body:not(.dark-mode) .send-btn {
-  transition: border-color 0.25s, color 0.25s;
-  border: 1px solid var(--border-color) !important;
-  color: var(--text-primary) !important;
-  transition: border-color 0.25s, color 0.25s;
-}
-
-body:not(.dark-mode) .session-header button:hover,
-body:not(.dark-mode) .send-btn:hover {
-  transition: border-color 0.25s, color 0.25s;
-  border-color: var(--text-primary) !important;
-  color: var(--text-primary) !important;
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-
-:root.dark-mode .session-header button:hover,
-:root.dark-mode .send-btn:hover {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-}
-
-:root.dark-mode .session-header button:hover,
-:root.dark-mode .send-btn:hover {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-
-:root.dark-mode .session-header button:hover,
-:root.dark-mode .send-btn:hover {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-}
-}
-}
-
-button:hover {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-
-:root.dark-mode .session-header button:hover,
-:root.dark-mode .send-btn:hover {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-}
-
-:root.dark-mode .session-header button:hover,
-:root.dark-mode .send-btn:hover {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-
-:root.dark-mode .session-header button:hover,
-:root.dark-mode .send-btn:hover {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-}
-}
-}
-
-input, select, textarea {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border: 1px solid var(--accent);
-  border-radius: 12px;
-  padding: 9px 12px;
-  font-size: 14px;
-}
-
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-/* 全局过渡设置 */
-:root {
-  --bg-primary: #ffffff;
-  --text-primary: #1f2328;
-  --accent: #3b82f6;
-  --border-color: #e5e7eb;
-  --transition-duration: 3.5s;
-  --transition-timing: cubic-bezier(0.3, 0.0, 0.3, 1.0);
-}
-
-/* 最简单有效的方式 */
-
-:root.dark-mode {
-  --accent-hover: #4b3a84;
-}
-html, body {
-  transition: border-color 0.25s, color 0.25s;
-  transition: background-color var(--transition-duration) var(--transition-timing),
-            color var(--transition-duration) var(--transition-timing),
-            border-color var(--transition-duration) var(--transition-timing),
-            background var(--transition-duration) var(--transition-timing) !important;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  transition: background-color var(--transition-duration) var(--transition-timing),
-            color var(--transition-duration) var(--transition-timing),
-            border-color var(--transition-duration) var(--transition-timing),
-            background var(--transition-duration) var(--transition-timing);
-}
-
-/* 基础样式 */
-* {
-  box-sizing: border-box;
 }
 
 body {
-  transition: border-color 0.25s, color 0.25s;
-  transition: background-color var(--transition-duration) var(--transition-timing),
-            color var(--transition-duration) var(--transition-timing),
-            border-color var(--transition-duration) var(--transition-timing),
-            background var(--transition-duration) var(--transition-timing) !important;
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, sans-serif;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  overflow: hidden;
-}
-
-button, input, textarea, select {
-  transition: none !important;
-  color: var(--text-primary) !important;
-}
-
-/* 其他样式保持不变... */
-button {
-  cursor: pointer;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  padding: 8px 18px;
-  background: var(--accent);
-  color: #fff;
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', -apple-system,
+    BlinkMacSystemFont, sans-serif;
   font-size: 14px;
-  transition: border-color 0.25s, color 0.25s;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* Light mode white buttons */
-body:not(.dark-mode) .session-header button,
-body:not(.dark-mode) .send-btn {
-  transition: border-color 0.25s, color 0.25s;
-  border: 1px solid var(--border-color) !important;
-  color: var(--text-primary) !important;
-  transition: border-color 0.25s, color 0.25s;
+::selection {
+  background: var(--accent-ring);
 }
 
-body:not(.dark-mode) .session-header button:hover,
-body:not(.dark-mode) .send-btn:hover {
-  transition: border-color 0.25s, color 0.25s;
-  border-color: var(--text-primary) !important;
-  color: var(--text-primary) !important;
+/* ---------- 4. 全局按钮微交互 (任务一核心) ---------- */
+/*
+  所有按钮默认获得:
+  - 平滑过渡        transition: all 0.2s ease-in-out
+  - Hover 上浮      translateY(-1px) + 背景加深 + 阴影加深 (呼吸感)
+  - Active 按压     scale(0.96), 松手快速回弹
+  组件内可用更高特异性的 scoped 规则定制背景色, 微交互自动继承。
+*/
+button {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Hover: 极轻微上浮 + 阴影加深, 营造"可点击"的呼吸感 */
+button:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.06),
+    rgba(0, 0, 0, 0.04)
+  );
   transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-
-:root.dark-mode .session-header button:hover,
-:root.dark-mode .send-btn:hover {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
+  box-shadow: var(--shadow-sm);
 }
 
-:root.dark-mode .session-header button:hover,
-:root.dark-mode .send-btn:hover {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-
-:root.dark-mode .session-header button:hover,
-:root.dark-mode .send-btn:hover {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px);
-  transition: border-color 0.25s, color 0.25s;
-}
-}
+/* Active: 明显按压反馈, 按下瞬时生效(短时长), 松开后由默认 0.2s 回弹 */
+button:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+  box-shadow: var(--shadow-xs);
+  transition-duration: 0.08s;
 }
 
-input, select, textarea {
+/* 键盘可达性: 焦点环 */
+button:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Disabled: 禁用态禁止一切动效 */
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ---------- 5. 输入控件 ---------- */
+input,
+textarea {
+  font: inherit;
+  color: var(--text-primary);
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 9px 12px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
-/* 其他样式可以保留，但关键是全局过渡 */
-
-:root.dark-mode {
-  --bg-primary: #1e1e1e;
-  --text-primary: #f0f0f0;
-  --border-color: #333;
+input:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+/* ---------- 6. 滚动条美化 (Linear 风格的纤细滚动条) ---------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(107, 114, 128, 0.3);
+  border-radius: 999px;
+  transition: background 0.2s ease-in-out;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.5);
+}
+
+.dark-mode ::-webkit-scrollbar-thumb {
+  background: rgba(150, 156, 168, 0.28);
+}
+
+.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 156, 168, 0.48);
+}
+
+/* ---------- 7. 全局共享动画 (组件中被引用的 keyframes 统一定义) ---------- */
+
+/* 元素上滑淡入: 消息气泡 / 空状态 / 审批卡片入场 */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 弹窗弹出: SettingsModal 面板入场 */
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 会话列表项自左滑入 */
+@keyframes slideLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 打字等待点: 上下轻跳 */
+@keyframes typingBounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* 流式输出光标闪烁 */
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 加载转圈 */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- 8. 动效偏好: 尊重系统"减少动态效果"设置 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

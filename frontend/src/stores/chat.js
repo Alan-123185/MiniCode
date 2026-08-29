@@ -28,13 +28,34 @@ function localTitle(content) {
   return content.replace(/\s+/g, ' ').trim().slice(0, 20)
 }
 
-/** 后端 DB 列名为 id/name/user_id/created_at，前端兼容两种命名风格 */
-function normalizeSession(row) {
+/** 后端 DB 列名为 id/name/user_id/created_at，前端兼容两种命名风格。
+ *  workspacePath 为「会话级」工作目录：以后端 workplace 列为准，本地缓存兜底 */
+function normalizeSession(row, workspaceCache = {}) {
+  const id = row.id || row.session_id
   return {
-    id: row.id || row.session_id,
+    id,
     title: row.name || row.session_name || '新会话',
-    workplace: row.workplace || '',
+    workspacePath: row.workplace || row.workspace_path || workspaceCache[id] || '',
     createTime: row.created_at || row.create_time || 0,
+  }
+}
+
+/** 会话级工作目录的本地缓存（仅前端持久化，后端字段缺失时兜底） */
+const SESSION_WORKSPACE_KEY = 'minicodex_session_workspaces'
+
+function loadWorkspaceCache() {
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_WORKSPACE_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function saveWorkspaceCache(cache) {
+  try {
+    localStorage.setItem(SESSION_WORKSPACE_KEY, JSON.stringify(cache))
+  } catch (e) {
+    console.error('保存工作目录缓存失败', e)
   }
 }
 
@@ -57,7 +78,7 @@ export const useChatStore = defineStore('chat', () => {
   const isStreaming = ref(false)
   const pendingApproval = ref(null)
   const modelConfig = ref({ base_url: '', api_key: '', model: '', extra_params: {} })
-  const workplace = ref('')
+  const workspaceCache = loadWorkspaceCache()
 
   const currentMessages = computed(() => messages.value)
   const currentTitle = computed(() => {
@@ -74,7 +95,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const res = await listSessions(userId.value)
       const rows = res?.response || []
-      const remote = rows.map(normalizeSession)
+      const remote = rows.map((row) => normalizeSession(row, workspaceCache))
       for (const s of remote) {
         if (s.title === '新会话') {
           const local = sessions.value.find((ls) => ls.id === s.id)
@@ -225,7 +246,12 @@ export const useChatStore = defineStore('chat', () => {
     currentSessionId.value = sessionId
     messages.value = []
     pendingApproval.value = null
-    sessions.value.unshift({ id: sessionId, title: '新会话', workplace: '', createTime: Date.now() })
+    sessions.value.unshift({
+      id: sessionId,
+      title: '新会话',
+      workspacePath: '',
+      createTime: Date.now(),
+    })
     try {
       await newChat({ message: '', user_id: userId.value, session_id: sessionId })
       await refreshSessions()
@@ -299,19 +325,50 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function setWorkplace(path) {
+  /** 当前会话绑定的会话级工作目录（切换会话时自动跟随） */
+  const currentWorkspacePath = computed(() => {
+    const session = sessions.value.find((s) => s.id === currentSessionId.value)
+    return session?.workspacePath || ''
+  })
+
+  /**
+   * 为指定会话绑定工作目录（会话级，非全局）。
+   * 乐观更新 UI -> 同步后端 -> 本地缓存兜底；失败时回滚并抛错。
+   */
+  async function setSessionWorkspace(sessionId, path) {
+    if (!sessionId) throw new Error('当前没有可用的会话')
+    const session = sessions.value.find((s) => s.id === sessionId)
+    const prevPath = session?.workspacePath || ''
+
+    // 乐观更新: 先让 UI 立即响应
+    if (session) session.workspacePath = path
+    workspaceCache[sessionId] = path
+    saveWorkspaceCache(workspaceCache)
+
     try {
       const res = await chooseWorkplace({
         workplace: path,
         user_id: userId.value,
-        session_id: currentSessionId.value,
+        session_id: sessionId,
       })
-      workplace.value = path
       return res
     } catch (e) {
+      // 后端失败: 回滚 UI 与缓存，保证状态一致
+      if (session) session.workspacePath = prevPath
+      if (prevPath) {
+        workspaceCache[sessionId] = prevPath
+      } else {
+        delete workspaceCache[sessionId]
+      }
+      saveWorkspaceCache(workspaceCache)
       console.error('设置工作目录失败', e)
       throw e
     }
+  }
+
+  /** 仅清除当前会话绑定的目录（用于徽章上的"取消绑定"操作） */
+  async function clearSessionWorkspace(sessionId) {
+    return setSessionWorkspace(sessionId, '')
   }
 
   return {
@@ -322,9 +379,9 @@ export const useChatStore = defineStore('chat', () => {
     isStreaming,
     pendingApproval,
     modelConfig,
-    workplace,
     currentMessages,
     currentTitle,
+    currentWorkspacePath,
     init,
     sendMessage,
     approve,
@@ -333,6 +390,7 @@ export const useChatStore = defineStore('chat', () => {
     removeSession,
     switchModel,
     restoreModel,
-    setWorkplace,
+    setSessionWorkspace,
+    clearSessionWorkspace,
   }
 })
