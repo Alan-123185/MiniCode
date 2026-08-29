@@ -1,0 +1,271 @@
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: var(--bg-primary);
+  --bg-tertiary: var(--bg-primary);
+  --text-primary: #1f2328;
+  --text-secondary: #656d76;
+  --accent: #3b82f6;
+  --accent-hover: #2f6fd6;
+  --accent-light: #e8f1fd;
+  --border-color: #e5e7eb;
+  --success: #10b981;
+  --error: #ef4444;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-duration: 3.5s;
+  --transition-timing: cubic-bezier(0.3, 0.0, 0.3, 1.0);
+}
+
+html.dark-mode,
+body.dark-mode {
+  --bg-primary: #1e1e1e;
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --border-color: #333;
+  --accent: #4f46e5;
+  --accent-light: rgba(75, 70, 229, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #app {
+  height: 100%;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, sans-serif;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 8px 18px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  transition: border-color 0.25s, color 0.25s;
+}
+
+/* Light mode white buttons */
+body:not(.dark-mode) .session-header button,
+body:not(.dark-mode) .send-btn {
+  transition: border-color 0.25s, color 0.25s;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+  transition: border-color 0.25s, color 0.25s;
+}
+
+body:not(.dark-mode) .session-header button:hover,
+body:not(.dark-mode) .send-btn:hover {
+  transition: border-color 0.25s, color 0.25s;
+  border-color: var(--text-primary) !important;
+  color: var(--text-primary) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+
+:root.dark-mode .session-header button:hover,
+:root.dark-mode .send-btn:hover {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+}
+
+:root.dark-mode .session-header button:hover,
+:root.dark-mode .send-btn:hover {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+
+:root.dark-mode .session-header button:hover,
+:root.dark-mode .send-btn:hover {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+}
+}
+}
+
+button:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+
+:root.dark-mode .session-header button:hover,
+:root.dark-mode .send-btn:hover {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+}
+
+:root.dark-mode .session-header button:hover,
+:root.dark-mode .send-btn:hover {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+
+:root.dark-mode .session-header button:hover,
+:root.dark-mode .send-btn:hover {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+}
+}
+}
+
+input, select, textarea {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* 全局过渡设置 */
+:root {
+  --bg-primary: #ffffff;
+  --text-primary: #1f2328;
+  --accent: #3b82f6;
+  --border-color: #e5e7eb;
+  --transition-duration: 3.5s;
+  --transition-timing: cubic-bezier(0.3, 0.0, 0.3, 1.0);
+}
+
+/* 最简单有效的方式 */
+
+:root.dark-mode {
+  --accent-hover: #4b3a84;
+}
+html, body {
+  transition: border-color 0.25s, color 0.25s;
+  transition: background-color var(--transition-duration) var(--transition-timing),
+            color var(--transition-duration) var(--transition-timing),
+            border-color var(--transition-duration) var(--transition-timing),
+            background var(--transition-duration) var(--transition-timing) !important;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color var(--transition-duration) var(--transition-timing),
+            color var(--transition-duration) var(--transition-timing),
+            border-color var(--transition-duration) var(--transition-timing),
+            background var(--transition-duration) var(--transition-timing);
+}
+
+/* 基础样式 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  transition: border-color 0.25s, color 0.25s;
+  transition: background-color var(--transition-duration) var(--transition-timing),
+            color var(--transition-duration) var(--transition-timing),
+            border-color var(--transition-duration) var(--transition-timing),
+            background var(--transition-duration) var(--transition-timing) !important;
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+button, input, textarea, select {
+  transition: none !important;
+  color: var(--text-primary) !important;
+}
+
+/* 其他样式保持不变... */
+button {
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 8px 18px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  transition: border-color 0.25s, color 0.25s;
+}
+
+/* Light mode white buttons */
+body:not(.dark-mode) .session-header button,
+body:not(.dark-mode) .send-btn {
+  transition: border-color 0.25s, color 0.25s;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+  transition: border-color 0.25s, color 0.25s;
+}
+
+body:not(.dark-mode) .session-header button:hover,
+body:not(.dark-mode) .send-btn:hover {
+  transition: border-color 0.25s, color 0.25s;
+  border-color: var(--text-primary) !important;
+  color: var(--text-primary) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+
+:root.dark-mode .session-header button:hover,
+:root.dark-mode .send-btn:hover {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+}
+
+:root.dark-mode .session-header button:hover,
+:root.dark-mode .send-btn:hover {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+
+:root.dark-mode .session-header button:hover,
+:root.dark-mode .send-btn:hover {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  transform: translateY(-1px);
+  transition: border-color 0.25s, color 0.25s;
+}
+}
+}
+
+input, select, textarea {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+
+/* 其他样式可以保留，但关键是全局过渡 */
+
+:root.dark-mode {
+  --bg-primary: #1e1e1e;
+  --text-primary: #f0f0f0;
+  --border-color: #333;
+}

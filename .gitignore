@@ -1,0 +1,32 @@
+# 环境变量（含密钥）
+.env
+
+# Python 缓存文件
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE 配置（PyCharm/IDEA）
+.idea/
+.vscode/
+.venv/
+.claude/
+# 测试和日志
+tests/__pycache__/
+*.log
+
+# SQLite 数据库文件
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+# 如果有静态资源生成目录，也可忽略（视情况，如果你自己写的静态文件则保留）
+
+
+node_modules/
+static/
+临时文件/
+扩展/
+数据库控制台/
+

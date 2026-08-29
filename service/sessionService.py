@@ -1,0 +1,53 @@
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from config.chatConfig import chat_config
+from config.dependencies import create_chat_config
+from mappercommon.Session import Session
+
+
+class sessionService:
+
+    def __init__(self, graph,fileMapper,operationgroupMapper,sessionMapper) -> None:
+        self.fileMapper = fileMapper
+        self.operationgroupMapper = operationgroupMapper
+        self.sessionMapper = sessionMapper
+        self.graph = graph
+
+
+    async def get_history(self, session_id: str) -> list[BaseMessage]:
+        config = create_chat_config(thread_id=session_id)
+        chat_config["value"] = config
+        # 直接用 graph 获取最新状态
+        state = await self.graph.aget_state(config)
+        if not state:
+            return []
+        # state.values 就是当前的完整状态
+        messages = state.values.get("messages", [])
+        res = []
+        for msg in messages:
+            if isinstance(msg, HumanMessage) or (isinstance(msg, AIMessage) and not msg.tool_calls):
+                res.append(msg)
+        return res
+
+
+    def delete_chat(self, session_id: str) -> None:
+        self.graph.checkpointer.adelete_thread(session_id)
+        self.sessionMapper.delete_session(session_id)
+        self.fileMapper.delete_operation_by_session(session_id)
+
+
+    def list_session(self,user_id) -> list[Session]:
+        return self.sessionMapper.query_session_by_user_id(user_id=user_id)
+
+
+
+
+
+
+
+
+
+
+
+
+
+

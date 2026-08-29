@@ -1,0 +1,53 @@
+from exceptions import BizException
+from requestcommon.ModelRequest import ModelChooseRequest, ModelUpdateRequest
+
+
+class modelMapper:
+
+    def __init__(self,db):
+        self.db=db
+
+    def add_model(self, model:ModelChooseRequest) -> None:
+        self.db.execute(
+            "INSERT INTO model (model_name,api_key,base_url,is_default) VALUES (?, ?, ?, ?)",
+            (model.model_name, model.api_key, model.base_url, model.is_default),
+        )
+
+    def delete_model(self,id:int) -> None:
+        self.db.execute("DELETE FROM model WHERE id = ?", (id,))
+
+
+
+    def update_model(self,model: ModelUpdateRequest) -> None:
+        try:
+            self.db.con.execute("BEGIN TRANSACTION")
+            if model.is_default:
+                self.db.conn.execute("UPDATE model SET is_default = 0 WHERE is_default = 1")
+                self.db.conn.execute(
+                    "UPDATE model SET is_default = 1 WHERE id = ?",(model.id,)
+                )
+            if model.api_key:
+                self.db.conn.execute("UPDATE model SET api_key = ? WHERE id = ?",(model.api_key,model.id))
+            if model.base_url:
+                self.db.conn.execute("UPDATE model SET base_url = ? WHERE id = ?",(model.base_url,model.id))
+            if model.model_name:
+                self.db.conn.execute("UPDATE model SET model_name = ? WHERE id = ?",(model.model_name,model.id))
+            self.db.conn.commit()
+        except Exception as e:
+            self.db.conn.rollback()
+            raise BizException(message=f"Failed to update model to default: {e}")
+
+    def reload_settings(self) -> dict:
+        model_dict = self.db.execute("select * from model where is_default = 1")
+        if not model_dict:
+            model_dict = self.db.execute("select * from model order by id desc limit 1")
+        return {s['key']: s['value'] for s in model_dict}
+
+
+    def query_model(self,id:int) -> dict:
+        return self.db.execute("select * from model where id = ?", (id,))
+
+
+
+
+
