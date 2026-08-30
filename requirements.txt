@@ -308,3 +308,8 @@ youtube_transcript_api==1.2.4
 yt_dlp==2026.8.19
 zep_python==2.0.2
 zttp==0.0.27
+
+langgraph
+langchain-core
+loguru
+pydantic

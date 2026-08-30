@@ -79,6 +79,10 @@ export const useChatStore = defineStore('chat', () => {
   const pendingApproval = ref(null)
   const modelConfig = ref({ base_url: '', api_key: '', model: '', extra_params: {} })
   const workspaceCache = loadWorkspaceCache()
+  /* 「新建对话」空会话拦截状态: 聚焦输入框信号 + 轻提示显隐 */
+  const inputFocusSignal = ref(0)
+  const emptySessionToast = ref(false)
+  let emptyToastTimer = null
 
   const currentMessages = computed(() => messages.value)
   const currentTitle = computed(() => {
@@ -241,6 +245,46 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 独立判断函数: 当前活跃会话是否为"空会话"
+   * (已创建会话但尚未发送任何消息, 即 messages 数组为空)
+   * @returns {boolean}
+   */
+  function isActiveSessionEmpty() {
+    return currentSessionId.value != null && messages.value.length === 0
+  }
+
+  /** 通过自增信号通知 MessageInput 组件聚焦输入框 (跨组件通信) */
+  function focusMessageInput() {
+    inputFocusSignal.value++
+  }
+
+  /** 在输入框上方弹出轻提示, 2 秒后自动消失 */
+  function showEmptySessionToast() {
+    emptySessionToast.value = true
+    clearTimeout(emptyToastTimer)
+    emptyToastTimer = setTimeout(() => {
+      emptySessionToast.value = false
+    }, 2000)
+  }
+
+  /**
+   * 「新建对话」统一入口 (供 UI 按钮调用):
+   * - 当前会话已创建但还没有任何消息 → 不再新建空会话,
+   *   转为聚焦输入框并弹出"当前对话尚未开始"提示
+   * - 否则正常创建新会话
+   * @returns {Promise<boolean>} 是否真正创建了新会话
+   */
+  async function requestNewChat() {
+    if (isActiveSessionEmpty()) {
+      focusMessageInput()
+      showEmptySessionToast()
+      return false
+    }
+    await createNewChat()
+    return true
+  }
+
   async function createNewChat() {
     const sessionId = genSessionId()
     currentSessionId.value = sessionId
@@ -382,6 +426,10 @@ export const useChatStore = defineStore('chat', () => {
     currentMessages,
     currentTitle,
     currentWorkspacePath,
+    inputFocusSignal,
+    emptySessionToast,
+    isActiveSessionEmpty,
+    requestNewChat,
     init,
     sendMessage,
     approve,

@@ -19,7 +19,7 @@ def file_edit(
 
     使用前必须先读取带行号的文件内容，确保 start_line 和 end_line 基于最新文件。
 
-    :param file_path: 要修改的文件路径。
+    :param file_path: 要修改的文件相对路径。
     :param start_line: 开始行号，从 1 开始计数。
     :param end_line: 结束行号，从 1 开始计数，包含该行。
     :param new_content: 替换后的新内容，可以是多行字符串。不要包含行号前缀。如果传空字符串 ""，表示删除这些行。

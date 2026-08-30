@@ -20,9 +20,6 @@
             <button class="ghost-btn" @click="restoreModel">恢复默认</button>
           </div>
         </div>
-        <p class="workspace-hint">
-          工作目录已改为「会话级」配置：请在对话框右上角的目录徽章或输入框下方的"选择工作目录"按钮中，为每个会话单独绑定。
-        </p>
       </div>
     </div>
   </div>

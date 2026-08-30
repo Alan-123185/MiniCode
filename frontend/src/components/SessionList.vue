@@ -2,7 +2,7 @@
   <div class="session-list">
     <div class="session-header">
       <h3>会话</h3>
-      <button @click="store.createNewChat()">+</button>
+      <button title="新建对话" @click="store.requestNewChat()">+</button>
     </div>
     <ul>
       <li

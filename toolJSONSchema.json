@@ -1,0 +1,210 @@
+{
+  "type": "object",
+  "description": "MiniCodex 可用工具说明，供 planner / LLM 选择与调用。每个工具都包含名称、用途和参数定义。",
+  "tools": [
+    {
+      "name": "readfile",
+      "description": "读取单个文本文件内容，适合查看代码、配置、日志、脚本等文件具体内容。返回带行号的文本，便于定位问题和精确修改。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "要读取的文件相对路径，必须是项目中的相对路径。"
+          }
+        },
+        "required": ["file_path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "listfiles",
+      "description": "查看某个目录下的一级文件与子目录结构，适合定位目标文件或确认目录内容。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "folder_path": {
+            "type": "string",
+            "description": "要浏览的目录相对路径，默认是当前工作目录。",
+            "default": "."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "search_code_by_keyword",
+      "description": "在项目代码中按关键词或正则表达式搜索，返回匹配行和所在文件，适合定位函数、变量、日志或错误位置。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "关键词或正则表达式。"
+          },
+          "path": {
+            "type": "string",
+            "description": "搜索的根目录，相对路径，默认是当前项目根目录。",
+            "default": "."
+          }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "search_file_by_keyword",
+      "description": "按文件名搜索目标文件，返回候选文件路径，适合快速找到需要读取或修改的文件。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "文件名中包含的关键字。"
+          },
+          "path": {
+            "type": "string",
+            "description": "搜索的根目录，相对路径，默认是当前项目根目录。",
+            "default": "."
+          }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "baidu_search",
+      "description": "进行联网搜索，适合查找最新信息、时效性问题、外部事实和实时资料。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "要搜索的关键词或问题描述。"
+          }
+        },
+        "required": ["question"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "run_command",
+      "description": "在指定目录执行 shell 命令，适合运行测试、编译、脚本、日志查看和调试。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "要执行的 shell 命令。"
+          },
+          "cwd": {
+            "type": "string",
+            "description": "命令执行的工作目录，相对路径或绝对路径。"
+          },
+          "stdin_input": {
+            "type": ["string", "null"],
+            "description": "可选的标准输入内容，适用于需要交互输入的脚本。"
+          }
+        },
+        "required": ["command", "cwd"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "file_edit",
+      "description": "按行号修改文件内容，适合精确修复代码、替换特定代码段或删除指定行。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "要修改的文件路径。"
+          },
+          "start_line": {
+            "type": "integer",
+            "description": "开始行号，从 1 开始计数。"
+          },
+          "end_line": {
+            "type": "integer",
+            "description": "结束行号，从 1 开始计数，包含该行。"
+          },
+          "new_content": {
+            "type": "string",
+            "description": "替换后的新内容；空字符串表示删除目标行。"
+          }
+        },
+        "required": ["file_path", "start_line", "end_line", "new_content"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "create_file",
+      "description": "创建一个新文件，适合初始化脚本、配置文件、模板或文档。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "要创建的文件相对路径。"
+          },
+          "content": {
+            "type": "string",
+            "description": "文件内容。"
+          }
+        },
+        "required": ["file_path", "content"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "delete_file",
+      "description": "删除指定文件，适合清理无用文件、临时文件或已创建但不需要的文件。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "要删除的文件相对路径。"
+          }
+        },
+        "required": ["file_path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "query_operationgroup",
+      "description": "查询当前会话中的操作组列表，用于决定回滚到哪个版本。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "当前会话 ID。"
+          }
+        },
+        "required": ["session_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "undo_operationgroup",
+      "description": "根据操作组 ID 回滚到指定版本，适合撤销最近一段错误修改。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target_group_id": {
+            "type": "string",
+            "description": "需要回滚到的操作组 ID。"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "当前会话 ID。"
+          }
+        },
+        "required": ["target_group_id", "session_id"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

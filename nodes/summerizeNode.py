@@ -25,7 +25,8 @@ def summerize_node(state:OverAllState) -> OverAllState:
     res = model.bind_tools(tools).invoke(SystemMessage(content=summerize_prompt))
 
     return {
-        "summery":res,
+        "summary":res,
+        "messages":state["messages"],
         "windows_message":llm_message,
         "last_summary_pos":pos
     }

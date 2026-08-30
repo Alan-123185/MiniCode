@@ -1,5 +1,9 @@
 <template>
   <div class="input-wrap">
+    <!-- 空会话轻提示: 点击"新建对话"但当前会话尚无消息时出现, 2s 后自动消失 -->
+    <transition name="toast-fade">
+      <div v-if="store.emptySessionToast" class="empty-toast">当前对话尚未开始</div>
+    </transition>
     <div class="input-box">
       <textarea
         ref="ta"
@@ -45,7 +49,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { useChatStore } from '../stores/chat'
 import WorkspacePicker from './WorkspacePicker.vue'
 
@@ -62,6 +66,15 @@ function showError(message) {
 }
 
 const canSend = computed(() => text.value.trim() && !store.isStreaming)
+
+// 「新建对话」被拦截时, store 发出聚焦信号 → 自动聚焦输入框
+watch(
+  () => store.inputFocusSignal,
+  async () => {
+    await nextTick()
+    ta.value?.focus()
+  }
+)
 
 function resize() {
   const el = ta.value
@@ -82,9 +95,41 @@ async function submit() {
 
 <style scoped>
 .input-wrap {
+  position: relative;
   padding: 12px 16px 12px;
   background: var(--bg-primary);
   border: none;
+}
+
+/* 空会话轻提示 Toast: 悬浮于输入框上方, 深色半透明胶囊 */
+.empty-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(28, 30, 34, 0.82);
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s var(--ease-out);
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(6px);
 }
 
 .input-box {

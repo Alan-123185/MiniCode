@@ -22,7 +22,7 @@ def run_command(command: str, cwd: str, config:RunnableConfig , stdin_input: str
     # 1. 路径转换与防御性校验 (彻底解决 WinError 267 目录无效报错)
     try:
         abs_cwd =relativePathToAbsolute(cwd,config)
-    except Exception:
+    except Exception :
         abs_cwd = cwd  # 如果转换函数报错，保留原值
 
     if not abs_cwd or not os.path.isdir(abs_cwd):
