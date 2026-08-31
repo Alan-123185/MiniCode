@@ -9,19 +9,23 @@ from utils.filePathTools import relativePathToAbsolute
 
 
 @tool
-def readfile(file_path: str,config:RunnableConfig) -> toolResult:
+def readfile(
+    config: RunnableConfig ,
+    file_path: str,
+    start_line: int | None = None,
+    end_line: int | None = None,
+
+) -> toolResult:
     """
     读取单个文本文件的内容。自带行号显示，方便精准定位代码缺陷。
     务必使用此工具查看代码内容！
     1. 如果之前的工具调用已经返回了目标文件路径，
     后续需要读取该文件时，直接使用该路径调用 readfile。
-
     2. 应充分利用之前的工具调用结果作为后续工具调用的参数。
 
-    3. 当用户使用“刚才的文件”“这个文件”“上一个结果”等指代时，
-    优先从历史工具结果中寻找对应的文件路径。
-
     :param file_path: 文件相对路径，请务必使用相对路径
+    :param start_line: 可选，起始行号，从 1 开始计数。只传它时不传 end_line，表示读取从该行到文件末尾的内容
+    :param end_line: 可选，结束行号，从 1 开始计数，包含该行。只传它时不传 start_line，表示读取从第 1 行到该行的内容
     :return: 返回一个工具调用结果类
     """
     try:
@@ -52,18 +56,13 @@ def readfile(file_path: str,config:RunnableConfig) -> toolResult:
 
     # 尝试用多种常见编码读取，避免因编码问题崩溃
     encodings_to_try = settings.ENCODINGS_TO_TRY
-    content = None
+    raw_content = None
     used_encoding = None
     for enc in encodings_to_try:
         try:
             with open(target_path, 'r', encoding=enc) as f:
-                content = f.read()
+                raw_content = f.read()
                 used_encoding = enc
-                lines = content.splitlines()
-                numbered_lines = []
-                for i, line in enumerate(lines):
-                    numbered_lines.append(f"{i + 1:4d}| {line}")
-                content= "\n".join(numbered_lines)
                 break
         except UnicodeDecodeError:
             continue
@@ -71,7 +70,7 @@ def readfile(file_path: str,config:RunnableConfig) -> toolResult:
             # 其他异常（如权限）直接跳出循环，稍后统一处理
             continue
 
-    if content is None:
+    if raw_content is None:
         # 所有编码都失败，可能是二进制文件或权限问题
         # 最后尝试以二进制读取并忽略错误（但会丢失可读性），这里我们选择报错
         return toolResult(
@@ -81,9 +80,53 @@ def readfile(file_path: str,config:RunnableConfig) -> toolResult:
             tool_name="readfile"
         )
 
+    lines = raw_content.splitlines()
+    total_lines = len(lines)
+
+    # ---------- 解析可选的行范围参数 ----------
+    if start_line is None and end_line is None:
+        # 未传行号参数，读取全部内容（保持原有行为）
+        real_start = 0
+        real_end = total_lines
+        range_desc = f"全部内容(共{total_lines}行)"
+    else:
+        # 参数合法性校验
+        if (start_line is not None and start_line < 1) or (end_line is not None and end_line < 1):
+            return toolResult(
+                success=False,
+                content="",
+                error=f"start_line/end_line 必须从 1 开始计数，收到: start_line={start_line}, end_line={end_line}",
+                tool_name="readfile"
+            )
+        if start_line is not None and end_line is not None and start_line > end_line:
+            return toolResult(
+                success=False,
+                content="",
+                error=f"start_line({start_line}) 不能大于 end_line({end_line})，文件共 {total_lines} 行",
+                tool_name="readfile"
+            )
+        if start_line is not None and start_line > total_lines:
+            return toolResult(
+                success=False,
+                content="",
+                error=f"start_line({start_line}) 超出文件总行数({total_lines})，请检查行号后重试",
+                tool_name="readfile"
+            )
+
+        # 归一化为 0-based 左闭右开区间；end_line 超出总行数时宽容截断到文件末尾
+        real_start = (start_line if start_line is not None else 1) - 1
+        real_end = min(end_line, total_lines) if end_line is not None else total_lines
+        range_desc = f"第{real_start + 1}行到第{real_end}行(共{real_end - real_start}行)"
+
+    # ---------- 加行号（使用文件中的真实行号，与 file_edit 的 start_line/end_line 对应） ----------
+    numbered_lines = []
+    for offset, line in enumerate(lines[real_start:real_end]):
+        numbered_lines.append(f"{real_start + offset + 1:4d}| {line}")
+    content = "\n".join(numbered_lines)
+
     return toolResult(
         success=True,
-        message=f"读取文件{file_path}的结果,使用编码: {used_encoding}",
+        message=f"读取文件{file_path}的结果({range_desc}),使用编码: {used_encoding}",
         content=content,
         tool_name="readfile"
     )

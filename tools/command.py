@@ -29,7 +29,7 @@ def run_command(command: str, cwd: str, config:RunnableConfig , stdin_input: str
         return toolResult(
             success=False,
             content="",
-            error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
+            error=f"工作目录 '{abs_cwd}' 不存在或不是一个有效的目录，请检查路径是否正确。",
             tool_name="baidu_search"
         )
 

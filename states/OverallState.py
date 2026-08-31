@@ -1,9 +1,11 @@
 from langchain_core.messages import BaseMessage
 from pydantic import BaseModel
-from typing import Optional, Annotated
+from typing import Optional, Annotated, List
 from langgraph.graph.message import add_messages
 from langgraph.managed import RemainingSteps
 import operator
+
+from states.SummaryState import summaryState
 
 
 # 自定义合并字典的 Reducer
@@ -29,10 +31,5 @@ class OverAllState(BaseModel):  # 注意这里继承 BaseModel
     tool_call_count: Annotated[dict[str, int], merge_dicts] = {}
 
     # 摘要与窗口（只保留一份消息，不再冗余）
-    summary: str = ""
+    summaryState:summaryState
     last_summary_pos: int = 0  # 游标，用默认覆盖即可
-    windows_message: list[BaseMessage] = []
-    # 任务管理
-    tasks: Annotated[list[dict], operator.add] = []  # Task 类型需定义
-    need_replan: bool = False
-    current_task_index: int = 0  # 作为游标，仅由串行汇聚节点修改

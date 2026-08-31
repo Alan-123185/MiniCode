@@ -100,7 +100,8 @@ def trim_old_messages(messages: list[BaseMessage]) -> str:
     cleaned_history = []
     for msg in messages:
         if len(msg.content) > settings.MAX_OLD_MESSAGE_LENGTH:
-            msg.content = msg.content[:settings.MAX_OLD_MESSAGE_LENGTH]+"...该条消息太长，已截断"
-        cleaned_history.append(f"{msg.type}:{msg.content}")
+            content = msg.content[:settings.MAX_OLD_MESSAGE_LENGTH]+"...该条消息太长，已截断"
+        else:content=msg.content
+        cleaned_history.append(f"{msg.type}:{content}")
     return "\n".join(cleaned_history)
 

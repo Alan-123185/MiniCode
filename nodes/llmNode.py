@@ -1,6 +1,5 @@
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
-
 from config.modelConfig import model_config
 from exceptions import BizException
 from nodes.toolNode import tools
@@ -8,7 +7,7 @@ from states.OverallState import OverAllState
 from utils.MessageTool import trim_message
 
 
-def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
+async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
     windows_msg = state.get("windows_message", [])
     if windows_msg:  # 如果列表不为空
         input_message = windows_msg
@@ -19,7 +18,7 @@ def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
     if model is None:
         raise BizException(message="---------ERROR 请先选择模型----------")
     system_prompt=config["configurable"]["system_prompt"].format(history_summary=state.get("summary",""))
-    response = model.bind_tools(tools).invoke([SystemMessage(content=system_prompt)]+input_message)
+    response =await model.bind_tools(tools).ainvoke([SystemMessage(content=system_prompt)]+input_message)
     usage = response.usage_metadata
     return {
         "output": response.content,
