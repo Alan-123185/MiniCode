@@ -26,6 +26,11 @@ class summaryState(BaseModel):
 
     completed_milestones: List[str] = Field(
         default_factory=list,
-        description="已完成的里程碑"
+        description="已完成的里程碑,应该是pending_issues的子集"
+    )
+
+    content_words: List[str] = Field(
+        default_factory=list,
+        description="自然语言简单描述对话内容干了什么，维持上下文和字段的逻辑和强关联性"
     )
 

@@ -4,6 +4,7 @@ from core.InterruptInfo import InterruptInfo
 from config.data import settings
 from core.toolStatusEvent import toolstatusEvent
 from states.OverallState import OverAllState
+from tools.OriginalContentTool import get_original_content_by_compressed_content, get_original_content_by_tool_call_id
 from tools.command import run_command
 from tools.file_edit import file_edit, create_file, delete_file
 from tools.file_read import readfile, listfiles
@@ -20,7 +21,20 @@ from tools.undo_file_edit import undo_operationgroup, query_operationgroup
 
 
 """
-tools=[baidu_search, readfile, listfiles,search_code_by_keyword,search_file_by_keyword,file_edit, delete_file,create_file,run_command,undo_operationgroup,query_operationgroup]
+tools=[baidu_search,
+       readfile,
+       listfiles,
+       search_code_by_keyword,
+       search_file_by_keyword,
+       file_edit,
+       delete_file,
+       create_file,
+       run_command,
+       undo_operationgroup,
+       query_operationgroup,
+       get_original_content_by_tool_call_id,
+       get_original_content_by_compressed_content
+       ]
 tools_need_to_confirm=["file_edit","run_command","delete_file","create_file"]
 max_retry_time=settings.MAX_TOOL_CALLS
 # try:
@@ -131,7 +145,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑
             else:
                 tool_failures[tool_name] = tool_failures.get(tool_name, 0) + 1
-        output.append(ToolMessage(content=str(toolresult), tool_call_id=tool_call_id))
+        output.append(ToolMessage(content=toolresult.model_dump_json(), tool_call_id=tool_call_id))
 
     # ================= 4. 返回 State 更新 =================
     # 这里的 return 会持久化到 Checkpointer (SQLite) 中，供 LLM 下一步读取

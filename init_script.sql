@@ -35,5 +35,30 @@ CREATE TABLE IF NOT EXISTS settings (
 user_id TEXT NOT NULL PRIMARY KEY,
 settings TEXT NOT NULL
 );
+
+
+
+CREATE TABLE IF NOT EXISTS summary (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,             -- 关联会话
+
+    -- 消息基础信息
+    message_type TEXT NOT NULL,           -- 'system', 'human', 'ai', 'tool'
+    content TEXT,                         -- 原始完整内容（用于翻旧账）
+    compressed_content TEXT,              -- 压缩后内容（用于构建 Prompt）
+
+    -- 工具调用相关
+    tool_call_id TEXT,                    -- 工具调用 ID（ToolMessage 必填，AIMessage 可为空）
+    -- 扩展字段
+    additional_kwargs TEXT,               -- 存储 tool_calls、usage_metadata 等 JSON
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (session_id) REFERENCES session(id)
+);
+
+-- 建索引，加速查询
+CREATE INDEX idx_messages_session ON summary(session_id);
+CREATE INDEX idx_messages_tool_call ON summary(tool_call_id);
 CREATE INDEX IF NOT EXISTS idx_file_ops_group ON file_operations(group_id);
 CREATE INDEX IF NOT EXISTS idx_file_ops_created ON file_operations(created_at DESC);

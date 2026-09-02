@@ -195,7 +195,7 @@ def listfiles(config:RunnableConfig,folder_path: str = ".") -> toolResult:
 
         return toolResult(
             success=True,
-            message=f"目录{folder_path}下的文件结构",
+            message=f"浏览目录{folder_path}下的文件结构",
             content=content,
             tool_name="listfiles"
         )

@@ -68,9 +68,9 @@ class Settings(BaseSettings):
     #命令行执行相关参数
     COMMAND_TIMEOUT: int = 30       #命令执行最大时长
 
-
+    LLM_MAX_UNDEGREDED_MESSAGE_TOKEN :int = 20000   #滑动窗口存储的最大未处理消息数
     LLM_MAX_UP_MESSAGE_COUNT :int = 25             #滑动窗口存储的最大上下文消息数
-    LLM_MAX_UP_MESSAGE_TOKEN : int =20000          #滑动窗口存储的最大上下文消耗token数
+    LLM_MAX_UP_MESSAGE_TOKEN : int =60000          #滑动窗口存储的最大上下文消耗token数
     LLM_MAX_TOKEN : int = 90000                    #摘要机制触发的最小token数
 
     MAX_OLD_MESSAGE_LENGTH: int = 300                #需要压缩的旧消息长度阈值，超过该长度的旧消息会被压缩短
@@ -98,5 +98,13 @@ class Settings(BaseSettings):
     #     """LangGraph checkpointer 用的连接串"""
     #     return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
+
+    """
+    大模型消息类型
+    """
+    LLM_MESSAGE_TYPE_SYSTEM: str = "system"
+    LLM_MESSAGE_TYPE_HUMAN: str = "human"
+    LLM_MESSAGE_TYPE_TOOL: str = "tool"
+    LLM_MESSAGE_TYPE_AI: str = "ai"
 
 settings = Settings()

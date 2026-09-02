@@ -25,13 +25,3 @@ class modelService:
             ModelChooseRequest(base_url=config["base_url"],api_key=config["api_key"],
                                model_name=config["model_name"],is_default=config["is_default"])
         )
-
-
-     def add_model(self, model: ModelChooseRequest) -> None:
-        self.modelmapper.add_model(model)
-
-     def  delete_model(self, model_id: int) -> None:
-         self.modelmapper.delete_model(model_id)
-
-     def update_model(self, model: ModelUpdateRequest) -> None:
-         self.modelmapper.update_model(model)
