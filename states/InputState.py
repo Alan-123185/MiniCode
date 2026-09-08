@@ -1,5 +1,5 @@
-from langgraph.graph import MessagesState
+from pydantic import BaseModel
 
 
-class InputState(MessagesState):
+class InputState(BaseModel):
     input: str

@@ -8,8 +8,8 @@ def summerize_condition_node(state:OverAllState) -> str:
     # 条件1：消息总数超过最大条
     # 条件2：总token数超过限制
     # 满足任一条件即触发摘要
-    messages = state.get("messages", [])
-    messages=messages[state.get("last_summary_pos", 0):]
+    messages = state.messages or []
+    messages = messages[state.last_summary_pos or 0:]
     if len(messages) <= 3:
         return END
     token_count=count_tokens(messages)

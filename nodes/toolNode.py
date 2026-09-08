@@ -48,10 +48,10 @@ for tooln in tools:
 
 # 注意：这里增加了 config: RunnableConfig 参数，这是触发事件的关键！
 async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState:
-    tool_failures = dict(state.get("tool_call_count", {}))
+    tool_failures = dict(state.tool_call_count or {})
     output = []
     step = []
-    last_message = state["messages"][-1]
+    last_message = state.messages[-1]
 
     for tool_call in last_message.tool_calls:
         tool_name = tool_call["name"]
@@ -102,7 +102,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         if toolresult.success:
             # 尝试覆盖之前的所有出错消息，保持llm注意力
             for i in range(2, tool_failures.get(tool_name,0) * 2+1, 2):
-                old_message = state["messages"][-i]
+                old_message = state.messages[-i]
                 output.append(ToolMessage(
                     id=old_message.id,
                     content=f"调用{tool_name}失败",
@@ -126,7 +126,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             if tool_failures.get(tool_name, 0) >= max_retry_time:
                 #尝试覆盖之前的所有出错消息，保持llm注意力
                 for i in range(2,max_retry_time*2-1,2):
-                    old_message=state["messages"][-i]
+                    old_message=state.messages[-i]
                     output.append(ToolMessage(
                         id=old_message.id,
                         content=f"调用{tool_name}失败",
@@ -139,7 +139,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 ))
                 dispatch_custom_event(
                     "on_tool_status",
-                        data=toolstatusEvent(status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state["input"], result=None),
+                        data=toolstatusEvent(status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state.input, result=None),
                         config=config
                     )
                 tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑

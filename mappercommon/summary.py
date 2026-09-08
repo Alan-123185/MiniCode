@@ -16,3 +16,5 @@ class Summary(BaseModel):
     tool_call_id: Optional[str] = None
     # 扩展字段
     additional_kwargs: Optional[str] = None  # JSON 字符串
+
+    memory_id: Optional[str] = None

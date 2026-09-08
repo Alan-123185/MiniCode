@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Annotated, List
+from typing import Optional, Annotated, List, TypedDict
 from langgraph.graph.message import add_messages
 from langgraph.managed import RemainingSteps
 import operator

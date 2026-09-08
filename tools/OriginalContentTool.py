@@ -34,13 +34,14 @@ def get_original_content_by_tool_call_id(tool_call_id: str) -> toolResult:
 
 
 @tool
-def get_original_content_by_compressed_content(compressed_content: str) -> toolResult:
+def get_original_content_by_compressed_content(memory_id: str) -> toolResult:
     """
     这个工具可以根据压缩内容获取原始内容，适合在摘要后，大模型需要查看某一条被降级的消息的完整原始内容时使用
     @param compressed_content: 压缩内容
+    @param session_id: 会话ID
     @return: 返回原始内容
     """
-    summary = summary_mapper.get_content_by_compressed_content(compressed_content)
+    summary = summary_mapper.get_content_by_compressed_content(memory_id)
     if not summary:
         return toolResult(
             success=False,

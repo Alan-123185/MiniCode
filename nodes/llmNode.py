@@ -23,7 +23,7 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
     model = model_config["value"]
     if model is None:
         raise BizException(message="---------ERROR 请先选择模型----------")
-    system_prompt=config["configurable"]["system_prompt"].format(history_summary=state.get("summaryState",""))
+    system_prompt=config["configurable"]["system_prompt"].format(history_summary=state.summaryState)
     #提示词得改一下
     response =await model.bind_tools(tools).with_structured_output(llmOutput).ainvoke([SystemMessage(content=system_prompt)]+input_message)
     usage = response.usage_metadata
@@ -39,10 +39,10 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
 
 def pre_call_func(state: OverAllState,config:RunnableConfig) -> List[BaseMessage]:
     # 先把窗口内消息拿出来
-    windows_message=state["messages"][state["last_summary_pos"]:]
+    windows_message = state.messages[state.last_summary_pos:]
     tokens = count_tokens(windows_message)
     if tokens>settings.LLM_MAX_UP_MESSAGE_TOKEN:
-        windows_message = degrade_windows(windows_message,tokens)
+        windows_message = degrade_windows(windows_message,tokens,config)
     return windows_message
 
 
@@ -84,11 +84,11 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
     if isinstance(msg, ToolMessage):
         tool_result = json.loads(msg.content)
         ret=ToolMessage(
-            content=(tool_result["message"] or tool_result["error"] or tool_result["content"][:100]+"[此条工具调用已经降级，如需查看完整结果，请调用get_original_content工具函数传入tool_call_id:"+msg.tool_call_id+"]"),
+            content=(tool_result["message"] or tool_result["error"] or tool_result["content"][:100]+"\n[此条工具调用已经降级，如需查看完整结果，请调用get_original_content工具函数传入tool_call_id:"+msg.tool_call_id+"]"),
             tool_call_id=msg.tool_call_id,
             name=tool_result["tool_name"]
         )
-        summary_mapper.add_summary(Summary(
+        summary_mapper.add_Tool_summary(Summary(
             session_id=session_id,
             tool_call_id=msg.tool_call_id,
             content=msg.content,
@@ -96,13 +96,14 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
             message_type=settings.LLM_MESSAGE_TYPE_TOOL,
         ))
     elif isinstance(msg, AIMessage):
+        memory=json.loads(msg.content)["memory"]
         ret=AIMessage(
-            content=json.loads(msg.content)["memory"].model_dump_json(indent=2),
+            content=f"{memory.model_dump_json(indent=2)}"+"\n[此条ai回复已经降级，如需查看完整结果，请调用get_original_content_by_compressed_content_by_compressed_content工具函数传入memory_id:"+memory.memory_id+"]",
             tool_calls=msg["tool_calls"]
         )
-        summary_mapper.add_summary(Summary(
+        summary_mapper.add_LLM_summary(Summary(
             session_id=session_id,
-            tool_call_id=msg.tool_call_id,
+            memory_id=memory.memory_id,
             content=msg.content,
             compressed_content=ret.content,
             message_type=settings.LLM_MESSAGE_TYPE_AI,

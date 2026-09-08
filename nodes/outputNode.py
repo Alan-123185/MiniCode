@@ -7,9 +7,9 @@ def output_node(state: OverAllState) -> OutputState:
     return {
         "agentResult":
         AgentResult(
-            answer= state["messages"][-1].content,
-            total_tokens= state["total_tokens"],
-            steps= state["steps"],
+            answer= state.messages[-1].content,
+            total_tokens= state.total_tokens,
+            steps= state.steps,
             status= "success"
         )
     }

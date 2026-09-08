@@ -2,6 +2,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from config.chatConfig import chat_config
 from config.dependencies import create_chat_config
 from mappercommon.Session import Session
+from states.OverallState import OverAllState
 
 
 class sessionService:
@@ -20,8 +21,9 @@ class sessionService:
         state = await self.graph.aget_state(config)
         if not state:
             return []
-        # state.values 就是当前的完整状态
-        messages = state.values.get("messages", [])
+        state_values = state.values or {}
+        state_model = OverAllState.model_validate(state_values)
+        messages = state_model.messages or []
         res = []
         for msg in messages:
             if isinstance(msg, HumanMessage) or (isinstance(msg, AIMessage) and not msg.tool_calls):

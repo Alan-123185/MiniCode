@@ -1,5 +1,5 @@
-from langgraph.graph import MessagesState
+from pydantic import BaseModel
 from core.AgentResult import AgentResult
 
-class OutputState(MessagesState):
+class OutputState(BaseModel):
     agentResult: AgentResult

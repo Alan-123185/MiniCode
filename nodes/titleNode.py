@@ -10,7 +10,7 @@ from mapper.sessionMapper import sessionMapper
 
 def title_node(state:OverAllState,config:RunnableConfig) -> OverAllState:
     model = model_config["value"]
-    messages=state["messages"]
+    messages = state.messages
     first_message={}
     for message in messages:
         if isinstance(message, HumanMessage):
