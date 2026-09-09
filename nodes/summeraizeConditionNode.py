@@ -14,8 +14,8 @@ def summerize_condition_node(state:OverAllState) -> str:
         return END
     token_count=count_tokens(messages)
     if token_count>settings.LLM_MAX_TOKEN :
-        return "summarize"
+        return "summerize"
     if len(messages) > settings.LLM_MAX_UP_MESSAGE_COUNT :
-        return "summarize"
+        return "summerize"
     return END
 

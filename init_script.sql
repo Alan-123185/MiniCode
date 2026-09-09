@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS summary (
     additional_kwargs TEXT,               -- 存储 tool_calls、usage_metadata 等 JSON
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
+    memory_id TEXT,                      -- 关联的记忆 ID（可为空，表示该消息未被记忆）
+
     FOREIGN KEY (session_id) REFERENCES session(id)
 );
 

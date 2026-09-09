@@ -1,11 +1,11 @@
 import json
+import uuid
 from typing import List
 from langchain_core.messages import SystemMessage, BaseMessage, ToolMessage, AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from config.data import settings
 from config.dependencies import get_db
 from config.modelConfig import model_config
-from core.llmOutput import llmOutput
 from exceptions import BizException
 from mapper.summaryMapper import summaryMapper
 from mappercommon.summary import Summary
@@ -23,12 +23,18 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
     model = model_config["value"]
     if model is None:
         raise BizException(message="---------ERROR 请先选择模型----------")
-    system_prompt=config["configurable"]["system_prompt"].format(history_summary=state.summaryState)
+    system_prompt=config["configurable"]["system_prompt"].format(history_summary=state.summary_state)
     #提示词得改一下
-    response =await model.bind_tools(tools).with_structured_output(llmOutput).ainvoke([SystemMessage(content=system_prompt)]+input_message)
+    response =await model.bind_tools(tools).ainvoke([SystemMessage(content=system_prompt)]+input_message)
+    # 1. 生成 message_id
+    message_id = str(uuid.uuid4())
+    # 2. 把 message_id 塞进 additional_kwargs
+    if response.additional_kwargs is None:
+        response.additional_kwargs = {}
+    response.additional_kwargs["memory_id"] = message_id
     usage = response.usage_metadata
     return {
-        "output": response.content.content,
+        "output": response.content,
         "messages": [response],
         "total_tokens": usage["total_tokens"] if usage else 0,
         "steps": ["thinking......"]
@@ -67,11 +73,10 @@ def degrade_windows(messages:List[BaseMessage],all_tokens:int,config:RunnableCon
             new_tokens=count_tokens(latest_messages)
             if new_tokens+settings.LLM_MAX_UNDEGREDED_MESSAGE_TOKEN>settings.LLM_MAX_UP_MESSAGE_TOKEN:
                   while i<msg_len:
-                        if isinstance(msg[i], ToolMessage):
-                            message=compress_message(msg[i],config["thread_id"])
-                            latest_messages.append(message)
+                        if isinstance(msg, ToolMessage):
+                            latest_messages.append(compress_message(msg,config["thread_id"]))
                         else:
-                            latest_messages.append(msg[i])
+                            latest_messages.append(msg)
                         i+=1
             return latest_messages
     return latest_messages
@@ -96,14 +101,13 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
             message_type=settings.LLM_MESSAGE_TYPE_TOOL,
         ))
     elif isinstance(msg, AIMessage):
-        memory=json.loads(msg.content)["memory"]
         ret=AIMessage(
-            content=f"{memory.model_dump_json(indent=2)}"+"\n[此条ai回复已经降级，如需查看完整结果，请调用get_original_content_by_compressed_content_by_compressed_content工具函数传入memory_id:"+memory.memory_id+"]",
+            content=f"{msg.content[:100]}...\n[此条ai回复已经降级，如需查看完整结果，请调用get_original_content_by_compressed_content工具函数传入memory_id:"+msg.additional_kwargs["memory_id"]+"]",
             tool_calls=msg["tool_calls"]
         )
         summary_mapper.add_LLM_summary(Summary(
             session_id=session_id,
-            memory_id=memory.memory_id,
+            memory_id=msg.additional_kwargs["memory_id"],
             content=msg.content,
             compressed_content=ret.content,
             message_type=settings.LLM_MESSAGE_TYPE_AI,

@@ -8,18 +8,13 @@ class modelService:
      def __init__(self,modelmapper):
         self.modelmapper=modelmapper
 
-     def choose_model(self, model_id :int ) -> None:
-         model_dict = self.modelmapper.query_model(model_id)
+     def choose_model(self, request: ModelChooseRequest ) -> None:
          model_config["value"] = create_model(
-             ModelChooseRequest(
-                 model_name=model_dict["model_name"],
-                 base_url=model_dict["base_url"],
-                 api_key=model_dict["api_key"],
-                 is_default=model_dict["is_default"]
-             ))
+             request
+         )
 
 
-     def default_choose_model(self) -> None:
+     def old_choose_model(self) -> None:
         config=self.modelmapper.reload_settings()
         model_config["value"]=create_model(
             ModelChooseRequest(base_url=config["base_url"],api_key=config["api_key"],

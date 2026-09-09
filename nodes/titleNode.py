@@ -1,6 +1,5 @@
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
-
 from config.dependencies import get_session
 from config.modelConfig import model_config
 from config.sessionManager import sessionmanager
@@ -21,7 +20,7 @@ def title_node(state:OverAllState,config:RunnableConfig) -> OverAllState:
     title_prompt=TITLE_PROMPT.format(first_message=first_message)
     title = model.invoke(SystemMessage(content=title_prompt))
     old_session = get_session(config)
-    old_session.session_name=titl
+    old_session.session_name=title
     sessionmanager[old_session.session_id] = old_session
     sessionMapper.update_name(session_id=old_session.session_id, name=title)
     return {}

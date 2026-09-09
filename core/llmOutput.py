@@ -1,7 +1,5 @@
 import uuid
-
 from pydantic import Field, PrivateAttr
-
 from pydantic import BaseModel
 
 

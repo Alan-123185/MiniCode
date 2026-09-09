@@ -1,4 +1,3 @@
-from fastapi import Depends
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from config.data import settings
