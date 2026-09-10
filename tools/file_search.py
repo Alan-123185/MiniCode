@@ -10,7 +10,7 @@ from utils.filePathTools import relativePathToAbsolute, absolutePathToRelative
 @tool
 def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".") -> toolResult:
     """
-    在项目中搜索关键词或正则，返回匹配行及其所在文件相对路径（具体代码）
+    在项目中搜索某个关键词或正则，返回匹配行及其所在文件相对路径（具体代码）
     :param query: 搜索关键词或正则表达式
     :param path: 相对路径，默认为"."，表示根目录
     :return: 返回一个工具调用结果类，包含搜索结果

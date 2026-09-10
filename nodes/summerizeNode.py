@@ -32,7 +32,7 @@ async def summerize_node(state:OverAllState) -> OverAllState:
     #这里改一下提示词
     model=create_no_streaming_model(model)
     summarystate = await model.with_structured_output(summaryState).ainvoke(
-        SystemMessage(content=summerize_prompt)
+        [SystemMessage(content=summerize_prompt)]
     )
     return {
         "summary_state":summarystate,

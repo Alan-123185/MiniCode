@@ -12,7 +12,7 @@ async def list_session(user_id: str, session_service:sessionService = Depends(ge
     return Result(response=session_service.list_session(user_id=user_id))
 
 
-@router.post("/MiniCode/history")
+@router.get("/MiniCode/history")
 async def get_history(session_id: str, session_service: sessionService = Depends(get_session_service)) -> Result[list[BaseMessage]]:
     history_messages = await session_service.get_history(session_id)
     return Result(response=history_messages)

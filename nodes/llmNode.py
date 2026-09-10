@@ -46,10 +46,16 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
 def pre_call_func(state: OverAllState,config:RunnableConfig) -> List[BaseMessage]:
     # 先把窗口内消息拿出来
     windows_message = state.messages[state.last_summary_pos:]
+    current_message=[]
+    for i in range(len(windows_message) - 1, -1, -1):
+        if isinstance(windows_message[i], HumanMessage):
+            current_message = windows_message[i:]
+            windows_message = windows_message[:i]
+            break
     tokens = count_tokens(windows_message)
     if tokens>settings.LLM_MAX_UP_MESSAGE_TOKEN:
         windows_message = degrade_windows(windows_message,tokens,config)
-    return windows_message
+    return windows_message+current_message
 
 
 
@@ -61,6 +67,8 @@ def degrade_windows(messages:List[BaseMessage],all_tokens:int,config:RunnableCon
     这里先这样处理，每次都单独处理一次窗口内消息，后面再来优化
     """
     # 1. 保留最新的对话
+    if not messages:
+        return []
     latest_messages = []
     tokens=0
     msg_len=len(messages)

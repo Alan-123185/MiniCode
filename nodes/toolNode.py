@@ -5,12 +5,12 @@ from config.data import settings
 from core.toolStatusEvent import toolstatusEvent
 from states.OverallState import OverAllState
 from tools.OriginalContentTool import get_original_content_by_compressed_content, get_original_content_by_tool_call_id
-from tools.command import run_command
+from tools.command import execute_command
 from tools.file_edit import file_edit, create_file, delete_file
 from tools.file_read import readfile, listfiles
 from tools.baidu_search import baidu_search
 from tools.file_search import search_code_by_keyword, search_file_by_keyword
-from langchain_core.messages import ToolMessage, AIMessage
+from langchain_core.messages import ToolMessage, AIMessage, HumanMessage
 from langchain_core.callbacks.manager import dispatch_custom_event  # 引入自定义事件
 from langchain_core.runnables import RunnableConfig  # 引入 Config 类型
 from tools.undo_file_edit import undo_operationgroup, query_operationgroup
@@ -29,13 +29,13 @@ tools=[baidu_search,
        file_edit,
        delete_file,
        create_file,
-       run_command,
+       execute_command,
        undo_operationgroup,
        query_operationgroup,
        get_original_content_by_tool_call_id,
        get_original_content_by_compressed_content
        ]
-tools_need_to_confirm=["file_edit","run_command","delete_file","create_file"]
+tools_need_to_confirm=["file_edit","execute_command","delete_file","create_file"]
 max_retry_time=settings.MAX_TOOL_CALLS
 # try:
 #     writer = get_stream_writer()
@@ -101,14 +101,21 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         # ================= 3. 处理执行结果 =================
         if toolresult.success:
             # 尝试覆盖之前的所有出错消息，保持llm注意力
-            for i in range(2, tool_failures.get(tool_name,0) * 2+1, 2):
-                old_message = state.messages[-i]
-                output.append(ToolMessage(
-                    id=old_message.id,
-                    content=f"调用{tool_name}失败",
-                    tool_call_id=old_message.tool_call_id
-                )
-                )
+            failures = tool_failures.get(tool_name, 0)
+            count = 0
+            idx = len(state.messages) - 2
+            while idx >= 0 and count < failures:
+                msg = state.messages[idx]
+                if isinstance(msg, HumanMessage):  # 碰到用户输入说明失败记录不在本轮，停止
+                    break
+                if isinstance(msg, ToolMessage):
+                    output.append(ToolMessage(
+                        id=msg.id,
+                        content=f"调用{tool_name}失败",
+                        tool_call_id=msg.tool_call_id,
+                    ))
+                    count += 1
+                idx -= 1
             step.append(f"use tool:{tool_name} succeeded")
             tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑
             # 【自定义事件】实时通知前端：调用成功，并带上结果内容
@@ -125,8 +132,10 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             logger.info(str(toolresult))
             if tool_failures.get(tool_name, 0) >= max_retry_time:
                 #尝试覆盖之前的所有出错消息，保持llm注意力
-                for i in range(2,max_retry_time*2-1,2):
+                for i in range(2,max_retry_time*2-1,1):
                     old_message=state.messages[-i]
+                    if isinstance(old_message, HumanMessage) :
+                        break
                     output.append(ToolMessage(
                         id=old_message.id,
                         content=f"调用{tool_name}失败",

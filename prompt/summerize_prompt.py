@@ -39,4 +39,6 @@ SUMMERIZE_PROMPT: str="""
 
 【需要压缩的对话历史】:
 {conversation_history}
+
+注意：请以 JSON 格式输出
 """

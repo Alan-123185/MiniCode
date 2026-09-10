@@ -5,8 +5,6 @@ from langgraph.graph import StateGraph
 from loguru import logger
 from nodes.summeraizeConditionNode import summerize_condition_node
 from nodes.summerizeNode import summerize_node
-from nodes.titleConditionNode import title_condition_node
-from nodes.titleNode import title_node
 from nodes.toolConditionNode import tool_condition_node
 from nodes.inputNode import input_node
 from nodes.llmNode import llm_node
@@ -65,9 +63,11 @@ async def initialize_graph():
 
     logger.info("🔄 正在初始化 LangGraph 和 AsyncSqliteSaver...")
 
-    _db_conn = await aiosqlite.connect("minicodexdatabase.db")
+    _db_conn = await aiosqlite.connect("minicodex_checkpointer.db")  # ★ 独立文件，不再和业务库混用
 
     checkpointer = AsyncSqliteSaver(_db_conn)
+
+    await checkpointer.setup()  # ★ 确保其内部表初始化（原代码从没调过，之前靠共用文件里的旧表侥幸工作）
 
     graph = builder.compile(checkpointer=checkpointer)
 

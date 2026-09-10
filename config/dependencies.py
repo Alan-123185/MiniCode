@@ -33,8 +33,8 @@ def create_model(input_config:ModelChooseRequest):
 
 def create_no_streaming_model(model:ChatOpenAI):
     return ChatOpenAI(
-        base_url=model.base_url,
-        api_key=model.api_key,
+        base_url=model.openai_api_base,
+        api_key=model.openai_api_key,
         model=model.model_name,
         streaming=False,
         extra_body={

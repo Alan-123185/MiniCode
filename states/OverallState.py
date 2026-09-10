@@ -18,7 +18,6 @@ class OverAllState(BaseModel):  # 注意这里继承 BaseModel
     messages: Annotated[list, add_messages] = []  # 手动实现 MessagesState 功能
 
     input: str = ""  # 给默认空串，防止 KeyError
-    remaining_steps: RemainingSteps  # 这个由 LangGraph 自动注入，不需要默认值
 
     # 累加器
     steps: Annotated[list[str], operator.add] = []

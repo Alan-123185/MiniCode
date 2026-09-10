@@ -8,7 +8,7 @@ import os
 import subprocess
 
 @tool
-def run_command(command: str, cwd: str, config:RunnableConfig , stdin_input: str = None) -> toolResult:
+def execute_command(command: str, cwd: str, config:RunnableConfig , stdin_input: str = None) -> toolResult:
     """
     在终端中执行 shell 命令。
     当你修改了代码后，强烈建议使用此工具来运行测试或者编译命令。

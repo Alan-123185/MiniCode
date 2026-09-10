@@ -1,5 +1,4 @@
 import sqlite3  # 导入 sqlite3 模块，用于与 SQLite 数据库通信
-
 from config.data import settings
 
 
