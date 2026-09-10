@@ -35,21 +35,19 @@ builder.add_node("tool_condition_node", tool_condition_node)
 builder.add_node("tool_node", tool_node)
 builder.add_node("summerize_node",summerize_node)
 builder.add_node("summerize_condition_node",summerize_condition_node)
-builder.add_node("title_condition_node",title_condition_node)
-builder.add_node("title_node",title_node)
 
 builder.add_edge(START, "input_node")
 builder.add_edge("output_node", END)
 builder.add_edge("summerize_node", "llm_node")
 builder.add_edge("tool_node", "llm_node")
-builder.add_edge("title_node", END)
+
 
 builder.add_conditional_edges(
     "llm_node",
     tool_condition_node,
     {
         "tools": "tool_node",  # 需要工具跳到工具调用节点
-        END: "title_condition_node"  # 如果不需要调用工具，直接跳到标题判断节点
+        END: "output_node"  # 如果不需要调用工具，直接跳到输出节点
     }
 )
 builder.add_conditional_edges(
@@ -72,6 +70,7 @@ async def initialize_graph():
     checkpointer = AsyncSqliteSaver(_db_conn)
 
     graph = builder.compile(checkpointer=checkpointer)
+
     logger.info("✅ LangGraph 和 AsyncSqliteSaver 初始化成功！")
 
 

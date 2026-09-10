@@ -1,4 +1,6 @@
 from langchain_core.messages import SystemMessage
+
+from config.dependencies import create_no_streaming_model
 from config.modelConfig import model_config
 from exceptions import BizException
 from prompt.summerize_prompt import SUMMERIZE_PROMPT
@@ -28,8 +30,10 @@ async def summerize_node(state:OverAllState) -> OverAllState:
 
     summerize_prompt=SUMMERIZE_PROMPT.format(old_summary=history_summary,conversation_history=trim_old_messages(message))
     #这里改一下提示词
-    summarystate = await model.with_structured_output(summaryState).ainvoke(SystemMessage(content=summerize_prompt))
-
+    model=create_no_streaming_model(model)
+    summarystate = await model.with_structured_output(summaryState).ainvoke(
+        SystemMessage(content=summerize_prompt)
+    )
     return {
         "summary_state":summarystate,
         "last_summary_pos":pos

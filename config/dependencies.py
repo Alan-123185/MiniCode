@@ -2,6 +2,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from config.data import settings
 from config.sessionManager import sessionmanager
+from exceptions import BizException
 from mapper.database import  DataBase
 from mapper.sessionMapper import sessionMapper
 from mappercommon.Session import Session
@@ -22,7 +23,23 @@ def create_model(input_config:ModelChooseRequest):
         base_url=input_config.base_url,
         api_key=input_config.api_key,
         model=input_config.model_name,
-        streaming=settings.DEFAULT_STREAMING_MODEL
+        streaming=settings.DEFAULT_STREAMING_MODEL,
+        stream_usage=True,  # 关键：请求流式响应中附带用量信息
+        extra_body={
+            "enable_thinking": True
+        }
+    )
+
+
+def create_no_streaming_model(model:ChatOpenAI):
+    return ChatOpenAI(
+        base_url=model.base_url,
+        api_key=model.api_key,
+        model=model.model_name,
+        streaming=False,
+        extra_body={
+            "enable_thinking": False
+        }
     )
 
 
@@ -34,6 +51,8 @@ def get_session(config:RunnableConfig)-> Session:
     res=sessionmanager.get(session_id, None)
     if not res:
         res=sessionmapper.query_session_by_session_id(session_id)
+        if not res:
+            raise BizException(message="此会话不存在")
         result=Session(
             session_id=res["id"],
             session_name=res["name"],
@@ -43,6 +62,7 @@ def get_session(config:RunnableConfig)-> Session:
         )
         sessionmanager[session_id]=result
         return result
+
     return res
 
 

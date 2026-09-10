@@ -1,13 +1,11 @@
 from fastapi.params import Depends
 from config.chatConfig import chat_config
 from config.dependencies import get_db
-
 from mapper.database import DataBase
 from mapper.modelMapper import modelMapper
 from mapper.sessionMapper import sessionMapper
 from mapper.fileMapper import FileOperationMapper
 from mapper.OperationGroupMapper import operatinoGroupMapper
-from mapper.summaryMapper import summaryMapper
 from service.modelService import modelService
 from service.workplaceService import WorkplaceService
 from service.chatService import ChatService
@@ -35,7 +33,3 @@ def get_workplace_service(db:DataBase=Depends(get_db)) -> WorkplaceService:
 def get_model_service(db:DataBase=Depends(get_db)) -> modelService:
     modelmapper=modelMapper(db)
     return modelService(modelmapper)
-
-def get_summary_service(db:DataBase=Depends(get_db)) -> summaryService:
-    summarymappper= summaryMapper(db)
-    return summaryService(summarymappper)

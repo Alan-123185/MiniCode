@@ -1,10 +1,6 @@
 import uuid
-
-from langchain_core.messages import BaseMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
-
-from config.chatConfig import chat_config
 from config.data import Settings, settings
 from config.dependencies import create_chat_config
 from config.sessionManager import sessionmanager
@@ -138,5 +134,6 @@ class ChatService:
             new_session
         )
         sessionmanager[new_session.session_id] = new_session
+
 
 

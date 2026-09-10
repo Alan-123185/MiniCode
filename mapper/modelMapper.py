@@ -1,3 +1,5 @@
+import json
+
 from exceptions import BizException
 from requestcommon.ModelRequest import ModelChooseRequest, ModelUpdateRequest
 
@@ -38,14 +40,16 @@ class modelMapper:
             raise BizException(message=f"Failed to update model to default: {e}")
 
     def reload_settings(self) -> dict:
-        model_dict = self.db.execute("select * from model where is_default = 1")
+        model_dict = self.db.fetch_all("select * from model where is_default = 1")
         if not model_dict:
-            model_dict = self.db.execute("select * from model order by id desc limit 1")
-        return {s['key']: s['value'] for s in model_dict}
+            model_dict = self.db.fetch_one("select * from model order by id desc limit 1")
+        if not model_dict:
+            raise BizException(message="No default model found")
+        return model_dict
 
 
     def query_model(self,id:int) -> dict:
-        return self.db.execute("select * from model where id = ?", (id,))
+        return self.db.fetch_one("select * from model where id = ?", (id,))
 
 
 

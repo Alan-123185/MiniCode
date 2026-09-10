@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     DEFAULT_MODEL: str = ""  # 默认模型名
     # 默认流式模型
-    DEFAULT_STREAMING_MODEL: bool = False
+    DEFAULT_STREAMING_MODEL: bool = True
     # 内存记忆对象
     default_memory: ClassVar[InMemorySaver] = MemorySaver()
     # 百度搜索默认返回条数

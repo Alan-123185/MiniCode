@@ -31,14 +31,17 @@ class sessionService:
         return res
 
 
-    def delete_chat(self, session_id: str) -> None:
-        self.graph.checkpointer.adelete_thread(session_id)
+    async def delete_chat(self, session_id: str) -> None:
+        await self.graph.checkpointer.adelete_thread(session_id)
         self.sessionMapper.delete_session(session_id)
         self.fileMapper.delete_operation_by_session(session_id)
 
 
     def list_session(self,user_id) -> list[Session]:
         return self.sessionMapper.query_session_by_user_id(user_id=user_id)
+
+    def update_name(self, session_id: str, name: str) -> None:
+        self.sessionMapper.update_name(session_id=session_id, name=name)
 
 
 

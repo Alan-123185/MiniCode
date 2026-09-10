@@ -9,14 +9,14 @@ class summaryMapper:
         """
         根据 tool_call_id 获取对应的 summary
         """
-        self.db.execute("SELECT content FROM summary WHERE tool_call_id = ?", (tool_call_id,))
+        return self.db.fetch_one("SELECT content FROM summary WHERE tool_call_id = ?", (tool_call_id,))
 
 
     def get_content_by_compressed_content(self,memory_id: str):
         """
         根据压缩后的内容获取对应的 summary
         """
-        self.db.execute(
+        return self.db.fetch_one(
         "SELECT content FROM summary WHERE memory_id = ?", (memory_id,)
         )
 

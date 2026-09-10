@@ -11,7 +11,7 @@ router = APIRouter()
 async def choose_model(request: ModelChooseRequest,model_service:modelService=Depends(get_model_service)):
     model_service.choose_model(request)
     return Result(
-        message=f"模型已经切换至{request.model}"
+        message=f"模型已经切换至{request.model_name}"
     )
 
 

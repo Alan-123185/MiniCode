@@ -1,19 +1,23 @@
+from mapper.database import DataBase
 from mapper.summaryMapper import summaryMapper
+from mappercommon.summary import Summary
 
 
 class summaryService:
-    def __init__(self, summaryMapper: summaryMapper):
-        self.summaryMapper = summaryMapper
 
-    def get_tool_content(self, tool_call_id: str):
-        """
-        根据 tool_call_id 获取对应的 summary
-        """
-        return self.summaryMapper.get_content_by_tool_call_id(tool_call_id)
+    def add_Tool_summary(self, summary: Summary) -> None:
+        db = DataBase()
+        try:
+            summaryMapper(db).add_Tool_summary(summary)
+        finally:
+            db.conn.close()
 
-
-    def get_summary_by_compressed_content(self, compressed_content: str):
+    def add_LLM_summary(self,summary:Summary) -> None:
         """
-        根据压缩后的内容获取对应的 summary
+        添加 LLM 的 summary
         """
-        return self.summaryMapper.get_content_by_compressed_content(compressed_content)
+        db=DataBase()
+        try:
+            summaryMapper(db).add_LLM_summary(summary)
+        finally:
+            db.conn.close()

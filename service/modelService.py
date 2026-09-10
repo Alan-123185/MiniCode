@@ -1,4 +1,3 @@
-
 from config.dependencies import create_model, get_db
 from config.modelConfig import model_config
 from requestcommon.ModelRequest import ModelChooseRequest, ModelUpdateRequest
@@ -8,10 +7,13 @@ class modelService:
      def __init__(self,modelmapper):
         self.modelmapper=modelmapper
 
-     def choose_model(self, request: ModelChooseRequest ) -> None:
+
+     def choose_model(self,request: ModelChooseRequest ) -> None:
          model_config["value"] = create_model(
              request
          )
+         self.modelmapper.add_model(request)
+
 
 
      def old_choose_model(self) -> None:

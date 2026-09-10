@@ -3,6 +3,8 @@ from typing import Optional, Annotated, List, TypedDict
 from langgraph.graph.message import add_messages
 from langgraph.managed import RemainingSteps
 import operator
+
+from core.AgentResult import AgentResult
 from states.SummaryState import summaryState
 
 
@@ -23,7 +25,7 @@ class OverAllState(BaseModel):  # 注意这里继承 BaseModel
     total_tokens: Annotated[int, operator.add] = 0
 
     # 结果字段
-    agentResult: Optional[dict] = None  # 如果有 AgentResult 类型，正常导入即可
+    agentResult: Optional[AgentResult] = None  # 如果有 AgentResult 类型，正常导入即可
 
     # 统计字段 - 使用自定义 Reducer 合并
     tool_call_count: Annotated[dict[str, int], merge_dicts] = {}

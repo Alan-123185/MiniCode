@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS summary (
 );
 
 -- 建索引，加速查询
-CREATE INDEX idx_messages_session ON summary(session_id);
-CREATE INDEX idx_messages_tool_call ON summary(tool_call_id);
+CREATE INDEX IF NOT EXISTS idx_messages_session ON summary(session_id);
+CREATE INDEX IF NOT EXISTS idx_messages_tool_call ON summary(tool_call_id);
 CREATE INDEX IF NOT EXISTS idx_file_ops_group ON file_operations(group_id);
 CREATE INDEX IF NOT EXISTS idx_file_ops_created ON file_operations(created_at DESC);
