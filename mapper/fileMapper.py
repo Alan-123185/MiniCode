@@ -8,14 +8,14 @@ class FileOperationMapper:
     def __init__(self, db):
         self.db = db
 
-    def add_operation(self, group_id: str, operation: FileOperation) -> int:
+    def add_operation(self, operation: FileOperation) -> int:
         """Insert a new file_operations row. Returns the inserted row id."""
         sql = (
             "INSERT INTO file_operations (group_id, file_path, operation_type, start_line, end_line, old_snippet, new_snippet, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
         params = (
-            group_id,
+            operation.group_id,
             operation.file_path,
             operation.operation_type,
             operation.start_line,

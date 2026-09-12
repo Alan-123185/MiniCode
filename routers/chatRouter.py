@@ -51,7 +51,7 @@ async def chat_to_agent(chat_request: ChatRequest,background_tasks:BackgroundTas
     )
 
 @router.post("/MiniCode/approve")
-async def approve(decision_request:decisionRequst, background_tasks:BackgroundTasks,chat_service: ChatService=Depends(get_chat_service)):
+async def approve(decision_request:decisionRequst,chat_service: ChatService=Depends(get_chat_service)):
     async def event_generator():
        async for interrupt_result in chat_service.approve(
                 decision_request

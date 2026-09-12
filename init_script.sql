@@ -17,8 +17,6 @@ id INTEGER NOT NULL PRIMARY KEY,        -- 自增主键，用于倒序回滚
 group_id TEXT NOT NULL,
 file_path TEXT NOT NULL,
 operation_type TEXT NOT NULL,  -- 'insert' | 'delete' | 'replace'
-start_line INTEGER NOT NULL,
-end_line INTEGER NOT NULL,
 old_snippet TEXT,
 new_snippet TEXT,
 created_at INTEGER ,         -- 同样存 Unix 时间戳

@@ -12,3 +12,4 @@ class toolstatusEvent(BaseModel):
     args: Optional[dict]=None
     result: Optional[toolResult]=None
     user_prompt: Optional[str]=None
+    session_id: Optional[str]=None

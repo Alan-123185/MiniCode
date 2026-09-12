@@ -1,3 +1,4 @@
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from loguru import logger
 from config.dependencies import get_db
@@ -8,7 +9,7 @@ from utils.editFileTools import file_edit_tool, create_file_tool, delete_file_to
 
 
 @tool
-def undo_operationgroup(target_group_id: str, session_id: str) -> toolResult:
+def undo_operationgroup(target_group_id: str, session_id: str,config:RunnableConfig) -> toolResult:
     """
     回滚到传入的操作组id的版本。
     会撤销从当前版本到目标版本之间的所有操作组。
@@ -21,6 +22,12 @@ def undo_operationgroup(target_group_id: str, session_id: str) -> toolResult:
     file_operation_mapper = FileOperationMapper(db)
     operation_group_mapper = operatinoGroupMapper(db)
     current_group_id = operation_group_mapper.query_current_operation(session_id=session_id)["id"]
+    if not current_group_id:
+        return toolResult(
+            success=False,
+            message=f"当前会话：{session_id}暂无操作",
+            tool_name="undo_operationgroup"
+        )
     try:
         # 1. 查出需要撤销的操作组列表（从新到旧）
         list_to_undo = operation_group_mapper.list_group_to_undo(
@@ -48,34 +55,39 @@ def undo_operationgroup(target_group_id: str, session_id: str) -> toolResult:
                     op_type = operation['operation_type']
 
                     if op_type == 'file_edit':
-                        new_content = operation.get("new_content", "")
-                        new_line_count = len(new_content.splitlines())
-
-                        if new_line_count == 0:
-                            # new_content 为空（删除行操作），回滚就是插入
-                            end_line = operation["start_line"] - 1
-                        else:
-                            end_line = operation["start_line"] + new_line_count - 1
-
-                        file_edit_tool(
+                        result=file_edit_tool(
                             file_path=operation['file_path'],
-                            start_line=operation['start_line'],
-                            end_line=end_line,
-                            new_content=operation['old_snippet']
+                            new_content=operation['old_snippet'],
+                            old_content = operation.get("new_snippet", ""),
+                            config=config
                         )
+                        if not result.success:
+                            errors.append(
+                                f"操作组 {group_id}，文件 {operation['file_path']}：{result.error}"
+                            )
 
                     elif op_type == 'delete_file':
                         # 撤销删除：重新创建文件
-                        create_file_tool(
+                        result=create_file_tool(
                             file_path=operation['file_path'],
-                            content=operation['old_snippet']
+                            content=operation['old_snippet'],
+                            config=config
                         )
+                        if not result.success:
+                            errors.append(
+                                f"操作组 {group_id}，文件 {operation['file_path']}：{result.error}"
+                            )
 
                     elif op_type == 'create_file':
                         # 撤销创建：删除文件
-                        delete_file_tool(
-                            file_path=operation['file_path']
+                        result=delete_file_tool(
+                            file_path=operation['file_path'],
+                            config=config
                         )
+                        if not result.success:
+                            errors.append(
+                                f"操作组 {group_id}，文件 {operation['file_path']}：{result.error}"
+                            )
 
                 except Exception as e:
                     errors.append(
@@ -98,6 +110,13 @@ def undo_operationgroup(target_group_id: str, session_id: str) -> toolResult:
             content=f"已回滚到操作组 {target_group_id} 的版本",
             tool_name="undo_operationgroup"
         )
+    except Exception as e:
+        logger.error(f"回滚操作组失败: {type(e).__name__}: {str(e)}")
+        return toolResult(
+            success=False,
+            error=f"回滚操作组失败: {type(e).__name__}: {str(e)}",
+            tool_name="undo_operationgroup"
+        )
     finally:
         db.close()
 
@@ -110,6 +129,16 @@ def query_operationgroup(session_id:str) -> toolResult:
     :return: 返回一个工具调用结果类
     """
     db=get_db()
-    operation_group_mapper = operatinoGroupMapper(db)
-    group_list = operation_group_mapper.query_operation_by_session(session_id)
-    return toolResult(success=True, message=f"当前会话{session_id}下的操作组：",content=str(group_list),tool_name="query_operationgroup")
+    try:
+        operation_group_mapper = operatinoGroupMapper(db)
+        group_list = operation_group_mapper.query_operation_by_session(session_id)
+        return toolResult(success=True, message=f"当前会话{session_id}下的操作组：",content=str(group_list),tool_name="query_operationgroup")
+    except Exception as e:
+        logger.error(f"查询操作组失败: {type(e).__name__}: {str(e)}")
+        return toolResult(
+            success=False,
+            error=f"查询操作组失败: {type(e).__name__}: {str(e)}",
+            tool_name="query_operationgroup"
+        )
+    finally:
+        db.close()

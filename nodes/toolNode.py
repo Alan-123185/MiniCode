@@ -74,7 +74,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 # 【自定义事件】实时通知前端：用户拒绝了
                 dispatch_custom_event(
                     "on_tool_status",
-                    data=toolstatusEvent(status=settings.tool_refused, tool_name=tool_name, args=tool_args, result=None),
+                    data=toolstatusEvent(status=settings.tool_refused, tool_name=tool_name, args=tool_args, result=None,session_id=config.get("configurable", {}).get("thread_id")),
                     config=config  # 必须传入 config，LangGraph 才知道这个事件属于哪个 thread
                 )
 
@@ -91,13 +91,13 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         # 【自定义事件】实时通知前端：开始尝试调用
         dispatch_custom_event(
              "on_tool_status",
-            data=toolstatusEvent(status=settings.tool_try, tool_name=tool_name, args=tool_args, result=None),
+            data=toolstatusEvent(status=settings.tool_try, tool_name=tool_name, args=tool_args, result=None,session_id=config.get("configurable", {}).get("thread_id"),user_prompt=state.input),
             config=config
         )
 
         toolresult = await tool.ainvoke(tool_args,config=config)
         logger.info(str(toolresult))
-
+        toolresult_for_llm = toolresult
         # ================= 3. 处理执行结果 =================
         if toolresult.success:
             # 尝试覆盖之前的所有出错消息，保持llm注意力
@@ -121,12 +121,12 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             # 【自定义事件】实时通知前端：调用成功，并带上结果内容
             dispatch_custom_event(
                 "on_tool_status",
-                data=toolstatusEvent(status=settings.tool_success, tool_name=tool_name, args=tool_args, result=toolresult),
+                data=toolstatusEvent(status=settings.tool_success, tool_name=tool_name, args=tool_args, result=toolresult,session_id=config.get("configurable", {}).get("thread_id"),user_prompt=state.input),
                 config=config
             )
             #这里为了节约token，还是把旧内容置空
             if tool_name=="file_edit" or tool_name=="delete_file":
-                toolresult.data=None
+                toolresult_for_llm = toolresult.model_copy(update={"data": None})
         else:
             step.append(f"use tool:{tool_name} failed")
             logger.info(str(toolresult))
@@ -148,13 +148,13 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 ))
                 dispatch_custom_event(
                     "on_tool_status",
-                        data=toolstatusEvent(status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state.input, result=None),
+                        data=toolstatusEvent(status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state.input, result=None,session_id=config.get("configurable", {}).get("thread_id")),
                         config=config
                     )
                 tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑
             else:
                 tool_failures[tool_name] = tool_failures.get(tool_name, 0) + 1
-        output.append(ToolMessage(content=toolresult.model_dump_json(), tool_call_id=tool_call_id))
+        output.append(ToolMessage(content=toolresult_for_llm.model_dump_json(), tool_call_id=tool_call_id))
 
     # ================= 4. 返回 State 更新 =================
     # 这里的 return 会持久化到 Checkpointer (SQLite) 中，供 LLM 下一步读取

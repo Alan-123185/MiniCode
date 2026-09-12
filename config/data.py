@@ -107,4 +107,8 @@ class Settings(BaseSettings):
     LLM_MESSAGE_TYPE_TOOL: str = "tool"
     LLM_MESSAGE_TYPE_AI: str = "ai"
 
+
+
+    THREAD_HOLD :float=0.85   #相似度
+
 settings = Settings()

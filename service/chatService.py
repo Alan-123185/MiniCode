@@ -60,14 +60,12 @@ class ChatService:
         """用户审批结果，从暂停处恢复图继续执行"""
         config = create_chat_config(thread_id=decision_request.session_id)
         final_result = None
-
+        operation_group_id = None
         async for mode, chunk in self.graph.astream(
                 Command(resume=decision_request.decision),
                 config=config,
                 stream_mode=["updates", "custom"]
         ):
-            operation_group_id=None
-
             if mode == "custom":
                 if chunk.status == settings.tool_success and chunk.tool_name in settings.file_change_tool_list:
                     if operation_group_id is None:
@@ -84,10 +82,8 @@ class ChatService:
                         fo = FileOperation(
                             group_id=operation_group_id,
                             file_path=chunk.args["file_path"],
-                            operation_type="create_file",
-                            start_line=chunk.args["start_line"],
-                            end_line=chunk.args["end_line"],
-                            old_snippet=chunk.result["data"],
+                            operation_type="file_edit",
+                            old_snippet=chunk.args["old_content"],
                             new_snippet=chunk.args["new_content"]
                         )
                     elif chunk.tool_name == "create_file":
@@ -102,9 +98,9 @@ class ChatService:
                             group_id=operation_group_id,
                             file_path=chunk.args["file_path"],
                             operation_type="delete_file",
-                            old_snippet=chunk.result["data"]
+                            old_snippet=chunk.result.data
                         )
-                    self.fileMapper.add_operation(fo)
+                    self.fileMapper.add_operation(operation=fo)
                 yield InterruptResult(message=chunk, type=settings.interrupt_type_info)
 
             elif mode == "updates":
