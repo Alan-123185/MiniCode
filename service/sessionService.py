@@ -39,7 +39,8 @@ class sessionService:
     def list_session(self,user_id) -> list[Session]:
         return self.sessionMapper.query_session_by_user_id(user_id=user_id)
 
-
+    def update_name(self,session_id:str,name:str) -> None:
+        self.sessionMapper.update_name(session_id=session_id,name=name)
 
 
 
