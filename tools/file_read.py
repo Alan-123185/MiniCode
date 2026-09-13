@@ -135,13 +135,14 @@ def readfile(
 @tool
 def listfiles(config:RunnableConfig,folder_path: str = ".") -> toolResult:
     """
-    浏览某一个文件夹下的文件结构，只返回第一层（不递归）。
+    浏览某个文件夹的第一层内容。
 
-    1. 不要在已经获得明确文件路径的情况下重复调用 listfiles，
-    除非路径失效或存在歧义。
+    返回结果中的每个子文件夹都是一个可以继续浏览的目录。
+    如果需要全面了解项目结构，必须依次对每个业务子文件夹
+    （跳过 node_modules、.venv、__pycache__、dist 等依赖/构建目录）
+    继续调用本工具，直到没有未浏览的业务子目录，再下结论。
 
-    :param folder_path: 文件夹相对路径，请务必使用相对路径，默认为'.'，表示当前工作目录
-    :return: 返回一个工具调用结果类
+    :param folder_path: 文件夹相对路径，默认"."表示工作区根目录
     """
     try:
         target_path =relativePathToAbsolute(folder_path,config)

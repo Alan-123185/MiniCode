@@ -21,13 +21,14 @@ def undo_operationgroup(target_group_id: str, session_id: str,config:RunnableCon
     db = get_db()
     file_operation_mapper = FileOperationMapper(db)
     operation_group_mapper = operatinoGroupMapper(db)
-    current_group_id = operation_group_mapper.query_current_operation(session_id=session_id)["id"]
-    if not current_group_id:
+    current_group = operation_group_mapper.query_current_operation(session_id=session_id)
+    if not current_group:
         return toolResult(
             success=False,
             message=f"当前会话：{session_id}暂无操作",
             tool_name="undo_operationgroup"
         )
+    current_group_id = current_group["id"]
     try:
         # 1. 查出需要撤销的操作组列表（从新到旧）
         list_to_undo = operation_group_mapper.list_group_to_undo(
@@ -50,6 +51,7 @@ def undo_operationgroup(target_group_id: str, session_id: str,config:RunnableCon
         for group in list_to_undo:
             group_id = group["id"]
             operation_list = file_operation_mapper.list_operations_by_group(group_id)
+            len_before=len(errors)
             for operation in operation_list:
                 try:
                     op_type = operation['operation_type']
@@ -94,7 +96,8 @@ def undo_operationgroup(target_group_id: str, session_id: str,config:RunnableCon
                         f"操作组 {group_id}，文件 {operation.get('file_path', '未知')}："
                         f"{type(e).__name__}",
                     )
-            operation_group_mapper.update_group_undo(group_id)
+            if len(errors) == len_before:
+                operation_group_mapper.update_group_undo(group_id)
 
         if errors:
             logger.error(errors)

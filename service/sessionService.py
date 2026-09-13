@@ -7,9 +7,8 @@ from states.OverallState import OverAllState
 
 class sessionService:
 
-    def __init__(self, graph,fileMapper,operationgroupMapper,sessionMapper) -> None:
+    def __init__(self, graph,fileMapper,sessionMapper) -> None:
         self.fileMapper = fileMapper
-        self.operationgroupMapper = operationgroupMapper
         self.sessionMapper = sessionMapper
         self.graph = graph
 
@@ -39,11 +38,6 @@ class sessionService:
 
     def list_session(self,user_id) -> list[Session]:
         return self.sessionMapper.query_session_by_user_id(user_id=user_id)
-
-    def update_name(self, session_id: str, name: str) -> None:
-        self.sessionMapper.update_name(session_id=session_id, name=name)
-
-
 
 
 

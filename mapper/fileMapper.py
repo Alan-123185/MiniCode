@@ -11,15 +11,13 @@ class FileOperationMapper:
     def add_operation(self, operation: FileOperation) -> int:
         """Insert a new file_operations row. Returns the inserted row id."""
         sql = (
-            "INSERT INTO file_operations (group_id, file_path, operation_type, start_line, end_line, old_snippet, new_snippet, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO file_operations (group_id, file_path, operation_type, old_snippet, new_snippet, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)"
         )
         params = (
             operation.group_id,
             operation.file_path,
             operation.operation_type,
-            operation.start_line,
-            operation.end_line,
             operation.old_snippet,
             operation.new_snippet,
             operation.created_at,

@@ -3,7 +3,9 @@ from langchain_core.runnables import RunnableConfig
 from config.dependencies import get_session
 from config.modelConfig import model_config
 from config.sessionManager import sessionmanager
+from mapper.database import DataBase
 from prompt.title_prompt import TITLE_PROMPT
+from service.sessionService import sessionService
 from states.OverallState import OverAllState
 from mapper.sessionMapper import sessionMapper
 
@@ -22,5 +24,9 @@ def title_node(state:OverAllState,config:RunnableConfig) -> OverAllState:
     old_session = get_session(config)
     old_session.session_name=title
     sessionmanager[old_session.session_id] = old_session
-    sessionMapper.update_name(session_id=old_session.session_id, name=title)
+    db=DataBase()
+    try:
+        sessionMapper(db).update_name(session_id=old_session.session_id, name=title)
+    finally:
+        db.conn.close()
     return {}

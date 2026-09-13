@@ -21,3 +21,23 @@ class summaryService:
             summaryMapper(db).add_LLM_summary(summary)
         finally:
             db.conn.close()
+
+    def query_tool_summary(self,tool_call_id:str):
+        """
+        查询 tool_call_id 对应的 summary
+        """
+        db=DataBase()
+        try:
+            return summaryMapper(db).query_tool_summary(tool_call_id)
+        finally:
+            db.conn.close()
+
+    def query_LLM_summary(self,memory_id:str):
+        """
+        查询 memory_id 对应的 summary
+        """
+        db=DataBase()
+        try:
+            return summaryMapper(db).query_LLM_summary(memory_id)
+        finally:
+            db.conn.close()

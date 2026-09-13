@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     #命令行执行相关参数
     COMMAND_TIMEOUT: int = 30       #命令执行最大时长
 
-    LLM_MAX_UNDEGREDED_MESSAGE_TOKEN :int = 20000   #滑动窗口存储的最大未处理消息数
+    LLM_MAX_UNDEGREDED_MESSAGE_TOKEN :int = 20000   #滑动窗口存储的最大未处理消息token数
     LLM_MAX_UP_MESSAGE_COUNT :int = 25             #滑动窗口存储的最大上下文消息数
     LLM_MAX_UP_MESSAGE_TOKEN : int =60000          #滑动窗口存储的最大上下文消耗token数
     LLM_MAX_TOKEN : int = 90000                    #摘要机制触发的最小token数

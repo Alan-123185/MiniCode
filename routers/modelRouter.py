@@ -14,8 +14,3 @@ async def choose_model(request: ModelChooseRequest,model_service:modelService=De
         message=f"模型已经切换至{request.model_name}"
     )
 
-
-@router.get("/MiniCode/old_model")
-async def get_model(model_service:modelService=Depends(get_model_service)):
-    model_service.old_choose_model()
-    return Result()

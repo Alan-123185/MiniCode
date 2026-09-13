@@ -1,11 +1,9 @@
 import json
-from fastapi import APIRouter, Depends, FastAPI, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks
 from fastapi.encoders import jsonable_encoder
-from langchain_core.messages import BaseMessage
 from starlette.responses import StreamingResponse
 from config.data import  settings
 from config.dependencies import get_session, create_chat_config
-from config.sessionManager import sessionmanager
 from core.Result import Result
 from requestcommon.chatRequest import ChatRequest
 from requestcommon.decisionRequst import decisionRequst

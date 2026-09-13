@@ -3,6 +3,8 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from loguru import logger
+from mapper.database import DataBase
+from mapper.modelMapper import modelMapper
 from nodes.summeraizeConditionNode import summerize_condition_node
 from nodes.summerizeNode import summerize_node
 from nodes.toolConditionNode import tool_condition_node
@@ -10,6 +12,7 @@ from nodes.inputNode import input_node
 from nodes.llmNode import llm_node
 from nodes.outputNode import output_node
 from nodes.toolNode import tool_node
+from service.modelService import modelService
 from states.InputState import InputState
 from states.OverallState import OverAllState
 from states.outputState import OutputState
@@ -18,7 +21,8 @@ from states.outputState import OutputState
 # 1. 声明全局变量，初始为 None
 graph = None
 _db_conn = None
-
+global model_service
+db = DataBase()
 # 2. 定义图结构 (这部分保持你原来的逻辑不变)
 builder = StateGraph(
     state_schema=OverAllState,
@@ -70,7 +74,12 @@ async def initialize_graph():
     await checkpointer.setup()  # ★ 确保其内部表初始化（原代码从没调过，之前靠共用文件里的旧表侥幸工作）
 
     graph = builder.compile(checkpointer=checkpointer)
-
+    db = DataBase()
+    model_service = modelService(modelMapper(db))
+    try:
+        model_service.old_choose_model()
+    finally:
+        db.conn.close()  # 确保数据库连接关闭，避免资源泄漏
     logger.info("✅ LangGraph 和 AsyncSqliteSaver 初始化成功！")
 
 

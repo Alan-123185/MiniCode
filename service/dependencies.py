@@ -13,10 +13,9 @@ from service.sessionService import sessionService
 
 def get_session_service(db:DataBase=Depends(get_db)) -> sessionService:
     from graphs.chat_graph import graph
-    operationggroupmapper= operatinoGroupMapper(db)
     fileMapper=FileOperationMapper(db)
     sessionmapper= sessionMapper(db)
-    return sessionService(graph, fileMapper,operationggroupmapper,sessionmapper)
+    return sessionService(graph, fileMapper,sessionmapper)
 
 def get_chat_service(db:DataBase=Depends(get_db)) -> ChatService:
     from graphs.chat_graph import graph

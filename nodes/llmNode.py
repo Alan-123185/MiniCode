@@ -13,8 +13,6 @@ from states.OverallState import OverAllState
 from utils.MessageTool import count_tokens
 
 
-
-summary_service=summaryService()
 async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
     input_message = pre_call_func(state,config)
     # 型是运行时选择的,必须调用时取最新,不能在模块级绑定
@@ -49,8 +47,8 @@ def pre_call_func(state: OverAllState,config:RunnableConfig) -> List[BaseMessage
     current_message=[]
     for i in range(len(windows_message) - 1, -1, -1):
         if isinstance(windows_message[i], HumanMessage):
-            current_message = windows_message[i:]
-            windows_message = windows_message[:i]
+            current_message = windows_message[i:]   #这一部分消息是最新的用户消息，必须保留
+            windows_message = windows_message[:i]   #这一部分消息是窗口内的历史消息，可能需要降级
             break
     tokens = count_tokens(windows_message)
     if tokens>settings.LLM_MAX_UP_MESSAGE_TOKEN:
@@ -88,7 +86,9 @@ def degrade_windows(messages:List[BaseMessage],all_tokens:int,config:RunnableCon
                         else:
                             latest_messages.append(messages[i])
                         i+=1
-            return latest_messages
+                  return latest_messages
+            else:
+                return latest_messages+messages[i:]
     return latest_messages
 
 
@@ -96,10 +96,14 @@ def degrade_windows(messages:List[BaseMessage],all_tokens:int,config:RunnableCon
 
 def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
     ret=msg
+    summary_service = summaryService()
     if isinstance(msg, ToolMessage):
         tool_result = json.loads(msg.content)
+        snippet = (tool_result.get("content") or "")[:100]
+        base = ((tool_result.get("message") or "") + "\n" + snippet).strip() or (tool_result.get("error") or "")
+        content = f"{base}\n[----system message----工具结果已截断，tool_call_id:{msg.tool_call_id}]"
         ret=ToolMessage(
-            content=(tool_result["message"] or tool_result["error"] or tool_result["content"][:100]+"\n[此条工具调用已经降级，如需查看完整结果，请调用get_original_content工具函数传入tool_call_id:"+msg.tool_call_id+"]"),
+            content=content,
             tool_call_id=msg.tool_call_id,
             name=tool_result["tool_name"]
         )
@@ -112,7 +116,7 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
         ))
     elif isinstance(msg, AIMessage):
         ret=AIMessage(
-            content=f"{msg.content[:100]}...\n[此条ai回复已经降级，如需查看完整结果，请调用get_original_content_by_compressed_content工具函数传入memory_id:"+msg.additional_kwargs["memory_id"]+"]",
+            content=f"{msg.content[:100]}...\n[----system message----此条ai回复已经降级，memory_id:"+msg.additional_kwargs["memory_id"]+"]",
             tool_calls=msg.tool_calls
         )
         summary_service.add_LLM_summary(Summary(
