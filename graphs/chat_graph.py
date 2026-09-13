@@ -3,6 +3,8 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from loguru import logger
+
+from exceptions import BizException
 from mapper.database import DataBase
 from mapper.modelMapper import modelMapper
 from nodes.summeraizeConditionNode import summerize_condition_node
@@ -78,6 +80,8 @@ async def initialize_graph():
     model_service = modelService(modelMapper(db))
     try:
         model_service.old_choose_model()
+    except Exception as e:
+        raise BizException(message="---------ERROR 请先选择模型----------")
     finally:
         db.conn.close()  # 确保数据库连接关闭，避免资源泄漏
     logger.info("✅ LangGraph 和 AsyncSqliteSaver 初始化成功！")

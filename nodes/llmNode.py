@@ -12,7 +12,7 @@ from service.summaryService import summaryService
 from states.OverallState import OverAllState
 from utils.MessageTool import count_tokens
 
-
+summary_service=summaryService()
 async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
     input_message = pre_call_func(state,config)
     # 型是运行时选择的,必须调用时取最新,不能在模块级绑定
@@ -96,35 +96,49 @@ def degrade_windows(messages:List[BaseMessage],all_tokens:int,config:RunnableCon
 
 def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
     ret=msg
-    summary_service = summaryService()
     if isinstance(msg, ToolMessage):
+        summary = summary_service.query_tool_summary(tool_call_id=msg.tool_call_id)
         tool_result = json.loads(msg.content)
-        snippet = (tool_result.get("content") or "")[:100]
-        base = ((tool_result.get("message") or "") + "\n" + snippet).strip() or (tool_result.get("error") or "")
-        content = f"{base}\n[----system message----工具结果已截断，tool_call_id:{msg.tool_call_id}]"
-        ret=ToolMessage(
-            content=content,
-            tool_call_id=msg.tool_call_id,
-            name=tool_result["tool_name"]
-        )
-        summary_service.add_Tool_summary(Summary(
-            session_id=session_id,
-            tool_call_id=msg.tool_call_id,
-            content=msg.content,
-            compressed_content=ret.content,
-            message_type=settings.LLM_MESSAGE_TYPE_TOOL,
-        ))
+        if summary:
+            ret=ToolMessage(
+                content=summary["compressed_content"],
+                tool_call_id=msg.tool_call_id,
+                name=tool_result["tool_name"]
+            )
+        else:
+            snippet = (tool_result.get("content") or "")[:100]
+            base = ((tool_result.get("message") or "") + "\n" + snippet).strip() or (tool_result.get("error") or "")
+            content = f"{base}\n[----system message----工具结果已截断，tool_call_id:{msg.tool_call_id}]"
+            ret=ToolMessage(
+                content=content,
+                tool_call_id=msg.tool_call_id,
+                name=tool_result["tool_name"]
+            )
+            summary_service.add_Tool_summary(Summary(
+                session_id=session_id,
+                tool_call_id=msg.tool_call_id,
+                content=msg.content,
+                compressed_content=ret.content,
+                message_type=settings.LLM_MESSAGE_TYPE_TOOL,
+            ))
     elif isinstance(msg, AIMessage):
-        ret=AIMessage(
-            content=f"{msg.content[:100]}...\n[----system message----此条ai回复已经降级，memory_id:"+msg.additional_kwargs["memory_id"]+"]",
-            tool_calls=msg.tool_calls
-        )
-        summary_service.add_LLM_summary(Summary(
-            session_id=session_id,
-            memory_id=msg.additional_kwargs["memory_id"],
-            content=msg.content,
-            compressed_content=ret.content,
-            message_type=settings.LLM_MESSAGE_TYPE_AI,
-        ))
+        summary = summary_service.query_LLM_summary(memory_id=msg.additional_kwargs["memory_id"])
+        if summary:
+            ret=AIMessage(
+                content=summary["compressed_content"],
+                tool_calls=msg.tool_calls
+            )
+        else:
+            ret=AIMessage(
+                content=f"{msg.content[:100]}...\n[----system message----此条ai回复已经降级，memory_id:"+msg.additional_kwargs["memory_id"]+"]",
+                tool_calls=msg.tool_calls
+            )
+            summary_service.add_LLM_summary(Summary(
+                session_id=session_id,
+                memory_id=msg.additional_kwargs["memory_id"],
+                content=msg.content,
+                compressed_content=ret.content,
+                message_type=settings.LLM_MESSAGE_TYPE_AI,
+            ))
         #先暂时不对用户消息降级
     return ret

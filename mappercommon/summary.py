@@ -1,7 +1,5 @@
 from typing import Optional, Literal
-
-from pydantic import BaseModel, ConfigDict, Field
-
+from pydantic import BaseModel
 from config.data import settings
 
 

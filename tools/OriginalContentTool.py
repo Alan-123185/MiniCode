@@ -1,12 +1,8 @@
 from langchain_core.tools import tool
-from config.dependencies import get_db
 from core.toolResult import toolResult
-from mapper.summaryMapper import summaryMapper
+from service.summaryService import summaryService
 
-
-db=get_db()
-summary_mapper=summaryMapper(db)
-
+summary_service=summaryService()
 @tool
 def get_original_content_by_tool_call_id(tool_call_id: str) -> toolResult:
     """
@@ -14,7 +10,7 @@ def get_original_content_by_tool_call_id(tool_call_id: str) -> toolResult:
     @param tool_call_id: 工具调用的id
     @return: 返回原始内容字符串
     """
-    summary = summary_mapper.get_content_by_tool_call_id(tool_call_id)
+    summary = summary_service.get_content_by_tool_call_id(tool_call_id)
     if not summary:
         return toolResult(
             success=False,
@@ -26,7 +22,7 @@ def get_original_content_by_tool_call_id(tool_call_id: str) -> toolResult:
         return toolResult(
             success=True,
             message=f"获取tool_call_id为{tool_call_id}的工具消息的原始内容",
-            content=summary,
+            content=summary["content"],
             error="",
             tool_name="get_original_content_by_tool_call_id"
         )
@@ -41,7 +37,7 @@ def get_original_content_by_compressed_content(memory_id: str) -> toolResult:
     @param session_id: 会话ID
     @return: 返回原始内容
     """
-    summary = summary_mapper.get_content_by_compressed_content(memory_id)
+    summary = summary_service.get_content_by_compressed_content(memory_id)
     if not summary:
         return toolResult(
             success=False,
@@ -52,7 +48,7 @@ def get_original_content_by_compressed_content(memory_id: str) -> toolResult:
     return toolResult(
         success=True,
         message="获取原始内容",
-        content=summary,
+        content=summary["content"],
         error="",
         tool_name="get_original_content_by_compressed_content"
     )
