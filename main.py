@@ -4,17 +4,18 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
+
+from handler import register_exception_handlers
+from mapper.database import init_tables
 from routers.sessionRouter import router as session_router
 from graphs.chat_graph import initialize_graph, close_graph
 from routers.workplaceRouter import router as workplace_router
 from routers.modelRouter import router as model_router
 from routers.chatRouter import router as chat_router
 
-# docs_url=None: 默认 /docs 从 cdn.jsdelivr.net 加载资源,国内打不开,换成下面本地版本
-app = FastAPI(docs_url=None)
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_tables()
     #  启动时：初始化 LangGraph 和异步数据库
     await initialize_graph()
 
@@ -23,10 +24,11 @@ async def lifespan(app: FastAPI):
     # 🛑 关闭时：清理资源
     await close_graph()
 
-
+   # ← 就缺这一行
 # 将 lifespan 绑定到 FastAPI
 app = FastAPI(lifespan=lifespan)
 
+register_exception_handlers(app)
 app.include_router(chat_router)
 app.include_router(workplace_router)
 app.include_router(model_router)

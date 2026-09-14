@@ -23,8 +23,6 @@ from states.outputState import OutputState
 # 1. 声明全局变量，初始为 None
 graph = None
 _db_conn = None
-global model_service
-db = DataBase()
 # 2. 定义图结构 (这部分保持你原来的逻辑不变)
 builder = StateGraph(
     state_schema=OverAllState,
@@ -67,7 +65,7 @@ async def initialize_graph():
     if graph is not None:
         return  # 防止重复初始化
 
-    logger.info("🔄 正在初始化 LangGraph 和 AsyncSqliteSaver...")
+    logger.info("🔄 正在初始化")
 
     _db_conn = await aiosqlite.connect("minicodex_checkpointer.db")  # ★ 独立文件，不再和业务库混用
 

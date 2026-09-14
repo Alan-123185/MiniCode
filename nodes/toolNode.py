@@ -132,16 +132,21 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             logger.info(str(toolresult))
             if tool_failures.get(tool_name, 0) >= max_retry_time:
                 #尝试覆盖之前的所有出错消息，保持llm注意力
-                for i in range(2,max_retry_time*2-1,1):
-                    old_message=state.messages[-i]
-                    if isinstance(old_message, HumanMessage) :
+                count = 0
+                idx = len(state.messages) - 2
+                while idx >= 0 and count < tool_failures.get(tool_name, 0):
+                    old_message = state.messages[idx]
+                    if isinstance(old_message, HumanMessage):
+                        # 碰到用户输入说明失败记录不在本轮，停止
                         break
-                    output.append(ToolMessage(
-                        id=old_message.id,
-                        content=f"调用{tool_name}失败",
-                        tool_call_id=old_message.tool_call_id
-                    )
-                    )
+                    if isinstance(old_message, ToolMessage):  # ← 关键修复：只覆盖 Tool 消息
+                        output.append(ToolMessage(
+                            id=old_message.id,
+                            content=f"调用{tool_name}失败",
+                            tool_call_id=old_message.tool_call_id,
+                        ))
+                        count += 1
+                    idx -= 1
                 output.append(ToolMessage(
                     content=f"{tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况",
                     tool_call_id=tool_call_id

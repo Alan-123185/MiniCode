@@ -3,11 +3,12 @@ from config.data import settings
 
 
 class DataBase:  # 定义 DataBase 类，封装数据库操作
+    """数据库操作类"""
+
     def __init__(self, db_path="minicodexdatabase.db"):  # 构造函数，允许传入数据库文件路径，默认为 minicodexdatabase.db
         self.conn = sqlite3.connect(db_path, check_same_thread=False)  # 创建数据库连接，关闭同线程检查以支持多线程访问
         self.conn.row_factory = sqlite3.Row  # 将行工厂设置为 sqlite3.Row，以便可以像字典一样通过列名访问结果
         self.conn.execute("PRAGMA journal_mode=WAL;")  # 设置 WAL 模式以提高并发性能
-        self._init_tables()  # 调用内部方法初始化必要的表
 
     def _init_tables(self):  # 私有方法：创建所需的表（如果不存在）
         # 使用 executescript 执行多条 SQL 语句（此处使用多行字符串包含 SQL）
@@ -38,10 +39,13 @@ class DataBase:  # 定义 DataBase 类，封装数据库操作
 
 
 
-
-
-
-
+def init_tables() -> None:
+    """进程启动时由 lifespan 调用，整个进程只跑一次"""
+    db = DataBase()
+    try:
+        db._init_tables()
+    finally:
+        db.conn.close()
 
 
 

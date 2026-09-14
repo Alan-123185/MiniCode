@@ -11,9 +11,17 @@ from utils.filePathTools import relativePathToAbsolute, absolutePathToRelative
 @tool
 def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".") -> toolResult:
     """
-    在项目中搜索某个关键词或正则，返回匹配行及其所在文件相对路径（具体代码）
-    :param query: 搜索关键词或正则表达式
-    :param path: 相对路径，默认为"."，表示根目录
+    在代码内容中搜索关键词/正则，返回“匹配代码行 + 所在文件相对路径”。
+
+    这是“正文搜索”，不是“文件名搜索”。
+    适用场景：
+    - 你知道一个关键词、函数名、报错文本、字段名或正则表达式，但不知道具体文件；
+    - 需要定位代码实现或引用位置；
+    - 需要在某个目录下快速查找相关逻辑。
+
+    :param query: 要搜索的关键词或正则表达式，例如 "UserService"、"DELETE FROM"、"TODO"、"auth.*token"
+    :param path: 相对路径，默认 "." 表示工作区根目录；建议缩小到具体目录，避免搜索范围过大
+
     :return: 返回一个工具调用结果类，包含搜索结果
     """
     # path=relativePathToAbsolute(path)
@@ -21,7 +29,6 @@ def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".") ->
     result = subprocess.run(
         [
             str(settings.rg_path),
-            "--line-number",
             "--max-count",
             "50",
             query,
@@ -42,18 +49,14 @@ def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".") ->
 @tool
 def search_file_by_keyword(query: str,config:RunnableConfig , path: str = ".") -> toolResult:
     """
-    按文件名搜索:查找文件名包含关键字的文件的相对路径(不检查文件内容)
+    按“文件名”搜索，不关心大小写 返回文件的相对路径；不检查文件内容。
 
-    返回的 path 可以直接作为 readfile 的 path 参数，
-    用于读取对应文件内容。
+    这是“定位文件”工具，不是代码搜索工具。
 
-    如果已经通过本工具获得了明确的文件路径，
-    后续读取该文件时应直接调用 readfile，
-    无需再次调用 listfiles 搜索文件。
+    :param query: 文件名中的关键字，例如 "user"、"session"、"router"、"auth"
+    :param path: 相对路径，默认 "." 表示工作区根目录，可缩小到 service/ 或 routers/ 等目录
 
-    :param query: 文件名中包含的关键字,如"student"、"徐姝"
-    :param path: 相对路径,默认为"."，表示根目录
-    :return: 返回文件名包含关键字的文件路径列表
+    :return: 返回一个工具调用结果类，包含搜索结果
     """
     target =relativePathToAbsolute(path,config)
     if not target.exists():

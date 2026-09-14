@@ -8,7 +8,7 @@ import os
 import subprocess
 
 @tool
-def execute_command(command: str, cwd: str, config:RunnableConfig , stdin_input: str = None) -> toolResult:
+def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: int =settings.COMMAND_TIMEOUT,  stdin_input: str = None) -> toolResult:
     """
     在终端中执行 shell 命令。
     当你修改了代码后，强烈建议使用此工具来运行测试或者编译命令。
@@ -17,6 +17,7 @@ def execute_command(command: str, cwd: str, config:RunnableConfig , stdin_input:
     :param command: 要执行的命令。
     :param cwd: 命令执行的工作目录的相对路径或绝对路径。
     :param stdin_input: 可选。如果命令需要标准输入（stdin），请传入需要输入的文本。
+    :param time_out: 可选。llm可以自己指定命令执行的超时时间，单位为秒。默认值为 30 秒。
     :return: 返回一个工具调用结果类
     """
     # 1. 路径转换与防御性校验 (彻底解决 WinError 267 目录无效报错)
@@ -30,7 +31,7 @@ def execute_command(command: str, cwd: str, config:RunnableConfig , stdin_input:
             success=False,
             content="",
             error=f"工作目录 '{abs_cwd}' 不存在或不是一个有效的目录，请检查路径是否正确。",
-            tool_name="baidu_search"
+            tool_name="execute_command"
         )
 
     try:
@@ -69,8 +70,8 @@ def execute_command(command: str, cwd: str, config:RunnableConfig , stdin_input:
             return toolResult(
                 success=False,
                 content="",
-                message=f"命令执行超时({settings.COMMAND_TIMEOUT}秒),已强制终止",
-                tool_name = "baidu_search"
+                message=f"命令执行超时({time_out}秒),已强制终止",
+                tool_name = "execute_command"
             )
 
         # 4. 核心修复：使用 `or ""` 兜底，防止 stdout/stderr 为 None 导致 Pydantic 报错
@@ -78,7 +79,7 @@ def execute_command(command: str, cwd: str, config:RunnableConfig , stdin_input:
             success=(proc.returncode == 0),
             content=stdout or "",
             message=stderr or "",
-            tool_name="baidu_search"
+            tool_name="execute_command"
         )
 
     except Exception as e:
@@ -87,5 +88,5 @@ def execute_command(command: str, cwd: str, config:RunnableConfig , stdin_input:
             success=False,
             content="",
             error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
-            tool_name="baidu_search"
+            tool_name="execute_command"
         )

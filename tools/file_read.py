@@ -17,7 +17,7 @@ def readfile(
 
 ) -> toolResult:
     """
-    读取单个文本文件的内容。自带行号显示，方便精准定位代码缺陷。
+    读取单个文本文件的内容，返回原始文件内容（不含行号前缀）。
     务必使用此工具查看代码内容！
     1. 如果之前的工具调用已经返回了目标文件路径，
     后续需要读取该文件时，直接使用该路径调用 readfile。
@@ -118,11 +118,8 @@ def readfile(
         real_end = min(end_line, total_lines) if end_line is not None else total_lines
         range_desc = f"第{real_start + 1}行到第{real_end}行(共{real_end - real_start}行)"
 
-    # ---------- 加行号（使用文件中的真实行号，与 file_edit 的 start_line/end_line 对应） ----------
-    numbered_lines = []
-    for offset, line in enumerate(lines[real_start:real_end]):
-        numbered_lines.append(f"{real_start + offset + 1:4d}| {line}")
-    content = "\n".join(numbered_lines)
+    # ---------- 直接返回原文（不加行号；读取范围已在 message 中说明） ----------
+    content = "\n".join(lines[real_start:real_end])
 
     return toolResult(
         success=True,
