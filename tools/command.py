@@ -57,7 +57,7 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
             # 如果 stdin_input 是 None，communicate 会忽略 input，行为和原来一致
             stdout, stderr = proc.communicate(
                 input=stdin_input,
-                timeout=settings.COMMAND_TIMEOUT
+                timeout=time_out
             )
         except subprocess.TimeoutExpired:
             # 超过超时时间仍在运行: 终止整棵进程树 (Windows 专属)
