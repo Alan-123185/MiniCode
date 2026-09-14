@@ -11,7 +11,7 @@ from tools.file_edit import file_edit, create_file, delete_file
 from tools.file_read import readfile, listfiles
 from tools.baidu_search import baidu_search
 from tools.file_search import search_code_by_keyword, search_file_by_keyword
-from langchain_core.messages import ToolMessage, AIMessage, HumanMessage
+from langchain_core.messages import ToolMessage, HumanMessage
 from langchain_core.callbacks.manager import dispatch_custom_event  # 引入自定义事件
 from langchain_core.runnables import RunnableConfig  # 引入 Config 类型
 from tools.undo_file_edit import undo_operationgroup, query_operationgroup

@@ -22,8 +22,11 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
     system_prompt=config["configurable"]["system_prompt"].format(history_summary=state.summary_state)
     #提示词得改一下
     response = None
-    async for chunk in model.bind_tools(tools).astream([SystemMessage(content=system_prompt)]+input_message):
-        response = chunk if response is None else response + chunk
+    try:
+        async for chunk in model.bind_tools(tools).astream([SystemMessage(content=system_prompt)]+input_message):
+            response = chunk if response is None else response + chunk
+    except Exception as e:
+        raise BizException(message=f"---------ERROR 生成失败----------")
     # 1. 生成 message_id
     message_id = str(uuid.uuid4())
     # 2. 把 message_id 塞进 additional_kwargs
