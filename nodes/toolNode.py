@@ -2,6 +2,7 @@ from langgraph.types import interrupt
 from loguru import logger
 from core.InterruptInfo import InterruptInfo
 from config.data import settings
+from core.toolResult import toolResult
 from core.toolStatusEvent import toolstatusEvent
 from states.OverallState import OverAllState
 from tools.OriginalContentTool import get_original_content_by_compressed_content, get_original_content_by_tool_call_id
@@ -57,7 +58,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
         tool_call_id = tool_call["id"]
-        tool = tools_by_name[tool_name]
+        tool = tools_by_name.get(tool_name,"不存在该工具，请检查工具命名后重试")
 
         # ================= 1. 处理需要确认的工具 =================
         if tool_name in tools_need_to_confirm:
@@ -79,7 +80,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 )
 
                 output.append(ToolMessage(
-                    content=f"用户拒绝了 {tool_name} 的调用,请如实告知用户,如果任务无法进行,可以自行决定是否继续",
+                    content=toolResult(success=False, message=f"用户拒绝了 {tool_name} 的调用,请如实告知用户,如果任务无法进行,可以自行决定是否继续").model_dump_json(),
                     tool_call_id=tool_call_id
                 ))
                 step.append(f"user refused tool:{tool_name}")
@@ -94,8 +95,11 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             data=toolstatusEvent(status=settings.tool_try, tool_name=tool_name, args=tool_args, result=None,session_id=config.get("configurable", {}).get("thread_id"),user_prompt=state.input),
             config=config
         )
-
-        toolresult = await tool.ainvoke(tool_args,config=config)
+        try:
+            toolresult = await tool.ainvoke(tool_args,config=config)
+        except Exception as e:
+            logger.error(f"调用工具 {tool_name} 时发生错误: {e}")
+            toolresult = toolResult(success=False, message=f"调用工具 {tool_name} 时发生错误: {e}")
         logger.info(str(toolresult))
         toolresult_for_llm = toolresult
         # ================= 3. 处理执行结果 =================
@@ -111,7 +115,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 if isinstance(msg, ToolMessage):
                     output.append(ToolMessage(
                         id=msg.id,
-                        content=f"调用{tool_name}失败",
+                        content=toolResult(success=False, message=f"调用{tool_name}失败").model_dump_json(),
                         tool_call_id=msg.tool_call_id,
                     ))
                     count += 1
@@ -142,13 +146,13 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                     if isinstance(old_message, ToolMessage):  # ← 关键修复：只覆盖 Tool 消息
                         output.append(ToolMessage(
                             id=old_message.id,
-                            content=f"调用{tool_name}失败",
+                            content=toolResult(success=False, message=f"调用{tool_name}失败").model_dump_json(),
                             tool_call_id=old_message.tool_call_id,
                         ))
                         count += 1
                     idx -= 1
                 output.append(ToolMessage(
-                    content=f"{tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况",
+                    content=toolResult(success=False, message=f"{tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况").model_dump_json(),
                     tool_call_id=tool_call_id
                 ))
                 dispatch_custom_event(

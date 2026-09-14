@@ -128,18 +128,17 @@ def readfile(
         tool_name="readfile"
     )
 
-
+#listfiles工具增强 目录树
 @tool
-def listfiles(config:RunnableConfig,folder_path: str = ".") -> toolResult:
+def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> toolResult:
     """
-    浏览某个文件夹的第一层内容。
+    以目录树形式浏览某个文件夹（支持按 depth 递归展开）。
 
-    返回结果中的每个子文件夹都是一个可以继续浏览的目录。
-    如果需要全面了解项目结构，必须依次对每个业务子文件夹
-    （跳过 node_modules、.venv、__pycache__、dist 等依赖/构建目录）
-    继续调用本工具，直到没有未浏览的业务子目录，再下结论。
+    输出采用 tree 风格（如 ├── / └── / │），目录优先、名称不区分大小写排序，
+    并默认跳过以 "." 开头的隐藏文件和目录。
 
     :param folder_path: 文件夹相对路径，默认"."表示工作区根目录
+    :param depth: 递归深度，最小为 1；1 表示仅显示当前目录下一层
     """
     try:
         target_path =relativePathToAbsolute(folder_path,config)
@@ -168,32 +167,37 @@ def listfiles(config:RunnableConfig,folder_path: str = ".") -> toolResult:
         )
 
     try:
-        # 分别收集子目录和文件，并排序（不区分大小写，更友好）
-        dirs = []
-        files = []
-        for entry in target_path.iterdir():
-            # 跳过隐藏文件（可选），如果你想保留，可以删除这个判断
-            if entry.name.startswith('.'):
-                continue
-            if entry.is_dir():
-                dirs.append(entry.name)
-            else:
-                files.append(entry.name)
+        if depth < 1:
+            return toolResult(
+                success=False,
+                content="",
+                error=f"depth 必须大于等于 1，收到: {depth}",
+                tool_name="listfiles"
+            )
 
-        dirs.sort(key=lambda x: x.lower())
-        files.sort(key=lambda x: x.lower())
+        def build_tree(current_path, current_depth: int, prefix: str = "") -> list[str]:
+            lines: list[str] = []
+            entries = [e for e in current_path.iterdir() if not e.name.startswith('.')]
+            entries.sort(key=lambda e: (not e.is_dir(), e.name.lower()))
 
-        # 构建清晰的内容字符串，保留你原有的格式
-        content_parts = [
-            f"当前目录 {folder_path} 下：",
-            f"子文件夹: {', '.join(dirs) if dirs else '无'}",
-            f"文件: {', '.join(files) if files else '无'}"
-        ]
-        content = "\n".join(content_parts)
+            for index, entry in enumerate(entries):
+                is_last = index == len(entries) - 1
+                branch = "└── " if is_last else "├── "
+                lines.append(f"{prefix}{branch}{entry.name}")
+
+                if entry.is_dir() and current_depth < depth:
+                    child_prefix = f"{prefix}{'    ' if is_last else '│   '}"
+                    lines.extend(build_tree(entry, current_depth + 1, child_prefix))
+
+            return lines
+
+        tree_lines = [f"{folder_path}"]
+        tree_lines.extend(build_tree(target_path, 1))
+        content = "\n".join(tree_lines)
 
         return toolResult(
             success=True,
-            message=f"浏览目录{folder_path}下的文件结构",
+            message=f"浏览目录{folder_path}下的目录树结构（depth={depth}）",
             content=content,
             tool_name="listfiles"
         )
@@ -213,6 +217,4 @@ def listfiles(config:RunnableConfig,folder_path: str = ".") -> toolResult:
             error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="listfiles"
         )
-
-
 

@@ -9,7 +9,7 @@ from core.toolResult import toolResult
 @tool
 def baidu_search(question : str) -> toolResult:
     """
-    这个工具可以返回实时联网搜索结果，当涉及时效性问题时务必调用获取最新信息
+    这个工具可以返回实时联网搜索结果，当涉及时效性问题或者自己无法确定的结论时务必调用获取最新信息
 
     :param question: 要搜索的关键词或者问题描述，字符串类型
     :return:  返回一个工具调用结果类
