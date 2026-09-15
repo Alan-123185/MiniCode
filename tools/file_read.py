@@ -145,7 +145,6 @@ def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> too
     except Exception as e:
         return toolResult(
             success=False,
-            content="",
             error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="listfiles"
         )
@@ -153,7 +152,6 @@ def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> too
     if not target_path.exists():
         return toolResult(
             success=False,
-            content="",
             error=f"目录不存在: {target_path}",
             tool_name="listfiles"
         )
@@ -161,7 +159,6 @@ def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> too
     if not target_path.is_dir():
         return toolResult(
             success=False,
-            content="",
             error=f"路径不是目录: {target_path}",
             tool_name="listfiles"
         )
@@ -170,7 +167,6 @@ def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> too
         if depth < 1:
             return toolResult(
                 success=False,
-                content="",
                 error=f"depth 必须大于等于 1，收到: {depth}",
                 tool_name="listfiles"
             )
@@ -205,7 +201,6 @@ def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> too
     except PermissionError:
         return toolResult(
             success=False,
-            content="",
             error=f"没有权限读取目录: {target_path}",
             tool_name="listfiles"
         )
@@ -213,7 +208,6 @@ def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> too
     except Exception as e:
         return toolResult(
             success=False,
-            content="",
             error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="listfiles"
         )

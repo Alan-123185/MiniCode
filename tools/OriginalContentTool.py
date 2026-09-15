@@ -41,14 +41,12 @@ def get_original_content_by_compressed_content(memory_id: str) -> toolResult:
     if not summary:
         return toolResult(
             success=False,
-            content="",
-            error=f"未找到对应的 summary ,请检查compressed_content是否正确。",
+            error=f"未找到{memory_id}对应的 summary ,请检查compressed_content是否正确。",
             tool_name="get_original_content_by_compressed_content"
         )
     return toolResult(
         success=True,
         message="获取原始内容",
         content=summary["content"],
-        error="",
         tool_name="get_original_content_by_compressed_content"
     )

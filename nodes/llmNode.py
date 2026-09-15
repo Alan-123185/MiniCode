@@ -1,4 +1,4 @@
-import json
+
 import uuid
 from typing import List
 from langchain_core.messages import SystemMessage, BaseMessage, ToolMessage, AIMessage, HumanMessage
@@ -101,21 +101,19 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
     ret=msg
     if isinstance(msg, ToolMessage):
         summary = summary_service.query_tool_summary(tool_call_id=msg.tool_call_id)
-        tool_result = json.loads(msg.content)
         if summary:
             ret=ToolMessage(
                 content=summary["compressed_content"],
                 tool_call_id=msg.tool_call_id,
-                name=tool_result["tool_name"]
+                name=msg.name
             )
         else:
-            snippet = (tool_result.get("content") or "")[:100]
-            base = ((tool_result.get("message") or "") + "\n" + snippet).strip() or (tool_result.get("error") or "")
-            content = f"{base}\n[----system message----工具结果已截断，tool_call_id:{msg.tool_call_id}]"
+            snippet = (msg.content or "")[:100]  #要么是content，要么是error，至少有一个不为空
+            content = f"{snippet}\n[----system Info----工具结果已截断，tool_call_id:{msg.tool_call_id}]"
             ret=ToolMessage(
                 content=content,
                 tool_call_id=msg.tool_call_id,
-                name=tool_result["tool_name"]
+                name=msg.name
             )
             summary_service.add_Tool_summary(Summary(
                 session_id=session_id,

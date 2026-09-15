@@ -6,7 +6,7 @@ from config.data import settings
 from core.toolResult import toolResult
 from utils.MessageTool import compress_error
 from utils.filePathTools import relativePathToAbsolute
-from utils.normalCodeTool import normalize_code, normalize_line
+from utils.normalCodeTool import normalize_line
 
 encodings_to_try=settings.ENCODINGS_TO_TRY
 thread_hold=settings.THREAD_HOLD
@@ -18,8 +18,7 @@ def file_edit_tool(
 ) -> toolResult:
     target_path =relativePathToAbsolute(file_path,config)
     if not os.path.exists(target_path):
-        return toolResult(success=False, message=f"文件 '{target_path}' 不存在。如想增加文件请调用create_file工具",
-                          content="")
+        return toolResult(success=False, error=f"文件 '{target_path}' 不存在。如想增加文件请调用create_file工具")
     file_content=None
     new_lines=new_content.splitlines(keepends=True)
     for enc in encodings_to_try:
@@ -32,7 +31,7 @@ def file_edit_tool(
             continue
     if file_content is None:
         return toolResult(
-            success=False, message="", content="",
+            success=False,
             error=f"无法用常见编码读取文件（{', '.join(encodings_to_try)}），文件可能是二进制",
             tool_name="file_edit"
         )
@@ -47,13 +46,7 @@ def file_edit_tool(
         count = file_content.count(old_content)
         if count==1:
             return exchange(count,target_path, old_content, new_content, file_content, used_encoding, file_path)
-        # 第二级，归一化匹配
-        old_normalize_content=normalize_code(old_content)
-        file_normalize_content=normalize_code(file_content)
-        count = file_normalize_content.count(old_normalize_content)
-        if count==1:
-            return exchange(count,target_path, old_content, new_content, file_content, used_encoding, file_path)
-        # 第三级，进一步模糊匹配
+        # 第二级，进一步模糊匹配
         old_lines=old_content.splitlines(keepends=True)
         file_lines=file_content.splitlines(keepends=True)
         old_lines=normalize_line(old_lines)
@@ -93,25 +86,19 @@ def file_edit_tool(
         elif len(match) > 1:
             return toolResult(
                 success=False,
-                message=f"文件 '{target_path}' 中旧内容出现了多次，无法确定替换位置，请提供更多上下文信息以帮助定位旧内容。",
-                content="",
-                error="文件中旧内容出现多次，无法确定替换位置。",
+                error=f"文件 '{target_path}' 中旧内容出现了多次，无法确定替换位置，请提供更多上下文信息以帮助定位旧内容。",
                 tool_name="file_edit"
             )
         else:
             return toolResult(
                 success=False,
-                message=f"文件 '{target_path}' 中未找到旧内容，请检查提供的旧内容是否正确。",
-                content="",
-                error="文件中未找到旧内容，请检查提供的旧内容是否正确。",
+                error=f"文件 '{target_path}' 中未找到旧内容，请检查提供的旧内容是否正确。",
                 tool_name="file_edit"
             )
     # 第四级，最终模糊匹配，到时候再写
     except Exception as e:
         return toolResult(
             success=False,
-            message=f"错误：处理文件 '{file_path}' 时发生错误：{e}",
-            content="",
             error=f"执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="file_edit"
         )
@@ -237,12 +224,6 @@ def exchange(count:int,target_path:Path, old_content:str, new_content:str, file_
             content=diff_text,
             tool_name="file_edit"
         )
-
-
-
-
-
-
 
 
 

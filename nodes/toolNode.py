@@ -80,8 +80,9 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 )
 
                 output.append(ToolMessage(
-                    content=toolResult(success=False, message=f"用户拒绝了 {tool_name} 的调用,请如实告知用户,如果任务无法进行,可以自行决定是否继续").model_dump_json(),
-                    tool_call_id=tool_call_id
+                    content=f"用户拒绝了 {tool_name} 的调用,请如实告知用户,如果任务无法进行,可以自行决定是否继续",
+                    tool_call_id=tool_call_id,
+                    name=tool_name
                 ))
                 step.append(f"user refused tool:{tool_name}")
                 continue
@@ -115,8 +116,9 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 if isinstance(msg, ToolMessage):
                     output.append(ToolMessage(
                         id=msg.id,
-                        content=toolResult(success=False, message=f"调用{tool_name}失败").model_dump_json(),
+                        content=f"调用{tool_name}失败",
                         tool_call_id=msg.tool_call_id,
+                        name=tool_name
                     ))
                     count += 1
                 idx -= 1
@@ -128,9 +130,6 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 data=toolstatusEvent(status=settings.tool_success, tool_name=tool_name, args=tool_args, result=toolresult,session_id=config.get("configurable", {}).get("thread_id"),user_prompt=state.input),
                 config=config
             )
-            #这里为了节约token，还是把旧内容置空
-            if tool_name=="file_edit" or tool_name=="delete_file":
-                toolresult_for_llm = toolresult.model_copy(update={"data": None})
         else:
             step.append(f"use tool:{tool_name} failed")
             logger.info(str(toolresult))
@@ -146,14 +145,16 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                     if isinstance(old_message, ToolMessage):  # ← 关键修复：只覆盖 Tool 消息
                         output.append(ToolMessage(
                             id=old_message.id,
-                            content=toolResult(success=False, message=f"调用{tool_name}失败").model_dump_json(),
+                            content=f"调用{tool_name}失败",
                             tool_call_id=old_message.tool_call_id,
+                            name=old_message.name
                         ))
                         count += 1
                     idx -= 1
                 output.append(ToolMessage(
-                    content=toolResult(success=False, message=f"{tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况").model_dump_json(),
-                    tool_call_id=tool_call_id
+                    content=f"{tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况",
+                    tool_call_id=tool_call_id,
+                    name=tool_name
                 ))
                 dispatch_custom_event(
                     "on_tool_status",
@@ -163,7 +164,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑
             else:
                 tool_failures[tool_name] = tool_failures.get(tool_name, 0) + 1
-        output.append(ToolMessage(content=toolresult_for_llm.model_dump_json(), tool_call_id=tool_call_id))
+        output.append(ToolMessage(content=toolresult_for_llm.content if toolresult_for_llm.content else toolresult_for_llm.error, tool_call_id=tool_call_id, name=tool_name))
 
     # ================= 4. 返回 State 更新 =================
     # 这里的 return 会持久化到 Checkpointer (SQLite) 中，供 LLM 下一步读取

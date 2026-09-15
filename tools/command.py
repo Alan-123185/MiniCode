@@ -78,7 +78,6 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
         return toolResult(
             success=(proc.returncode == 0),
             content=stdout or "",
-            message=stderr or "",
             tool_name="execute_command"
         )
 
@@ -86,7 +85,6 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
         # 5. 优化异常捕获：兜底所有未知错误，防止 Agent 节点直接崩溃
         return toolResult(
             success=False,
-            content="",
             error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="execute_command"
         )
