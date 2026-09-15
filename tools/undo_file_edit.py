@@ -41,7 +41,6 @@ def undo_operationgroup(target_group_id: str, session_id: str,config:RunnableCon
             return toolResult(
                 success=False,
                 message="没有需要回滚的操作",
-                content="",
                 tool_name="undo_operationgroup"
             )
 
