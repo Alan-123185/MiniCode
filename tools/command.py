@@ -45,16 +45,28 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
         # 如果 stdin_input 有值，则 stdin 为 PIPE（准备接收输入）
         stdin_arg = subprocess.PIPE if stdin_input is not None else None
 
+        # Windows 下 cmd.exe 默认使用系统代码页，容易出现中文乱码；强制切到 UTF-8
+        # 另外向子进程传递 UTF-8 环境变量，兼容 Python/Node/npm 等工具输出
+        shell_command = command
+        env = os.environ.copy()
+        if os.name == "nt":
+            shell_command = f'chcp 65001 >nul & {command}'
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["PYTHONUTF8"] = "1"
+            env["LANG"] = "C.UTF-8"
+            env["LC_ALL"] = "C.UTF-8"
+
         proc = subprocess.Popen(
-            command,
+            shell_command,
             shell=True,
             cwd=abs_cwd,
             stdin=stdin_arg,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            encoding="utf-8",  # ✅ 新增：强制指定用 UTF-8 解码
-            errors="replace"  # ✅ 新增：遇到解不开的字节，用 '?' 替代，防止崩溃
+            encoding="utf-8",
+            errors="replace",
+            env=env
         )
 
         try:
