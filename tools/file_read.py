@@ -1,5 +1,6 @@
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 
 from config.data import settings
 from core.toolResult import toolResult
@@ -128,17 +129,20 @@ def readfile(
         tool_name="readfile"
     )
 
+
+
+class ListFilesInput(BaseModel):
+    folder_path:str=Field(default=".",description="文件夹相对路径，默认'.'表示工作区根目录")
+    depth:int=Field(default=1, ge=1, description="递归深度，默认为 1；1 表示仅显示当前目录下一层")
+
+
 #listfiles工具增强 目录树
-@tool
+@tool(args_schema=ListFilesInput)
 def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> toolResult:
     """
     以目录树形式浏览某个文件夹（支持按 depth 递归展开）。
-
     输出采用 tree 风格（如 ├── / └── / │），目录优先、名称不区分大小写排序，
     并默认跳过以 "." 开头的隐藏文件和目录。
-
-    :param folder_path: 文件夹相对路径，默认"."表示工作区根目录
-    :param depth: 递归深度，最小为 1；1 表示仅显示当前目录下一层
     """
     try:
         target_path =relativePathToAbsolute(folder_path,config)

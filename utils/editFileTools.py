@@ -10,6 +10,7 @@ from utils.normalCodeTool import normalize_line
 
 encodings_to_try=settings.ENCODINGS_TO_TRY
 thread_hold=settings.THREAD_HOLD
+min_hold=settings.MIN_HOLD
 def file_edit_tool(
     file_path: str,
     old_content:str,
@@ -46,37 +47,16 @@ def file_edit_tool(
         count = file_content.count(old_content)
         if count==1:
             return exchange(count,target_path, old_content, new_content, file_content, used_encoding, file_path)
-        # 第二级，进一步模糊匹配
         old_lines=old_content.splitlines(keepends=True)
         file_lines=file_content.splitlines(keepends=True)
+        n=len(old_lines)
         old_lines=normalize_line(old_lines)
         file_lines=normalize_line(file_lines)
-        n = len(old_lines)
-        match=[]
-        for i in range(len(file_lines) - n + 1):
-            if SequenceMatcher(None, old_lines, file_lines[i:i + n]).ratio() >= thread_hold:
-                match.append(i)
+        match,like=search(old_lines,file_lines)
         if len(match)==1:
             start_idx = match[0]
             end_idx = start_idx + n
-            old_lines_for_diff = [line.rstrip("\r\n") for line in file_lines]
-            file_lines[start_idx:end_idx] = new_lines
-            with open(target_path, 'w', encoding=used_encoding, newline='') as f:
-                f.write("".join(file_lines))
-            diff_text = "\n".join(
-                unified_diff(
-                    old_lines_for_diff,
-                    [line.rstrip("\r\n") for line in file_lines],
-                    fromfile=f"a/{file_path}",
-                    tofile=f"b/{file_path}",
-                    lineterm="",
-                    n=3,
-                )
-            )
-            if not diff_text:
-                diff_text = "（替换成功，但没有产生实际文本变化）"
-            elif len(diff_text) > 20000:
-                diff_text = diff_text[:20000] + "\n... diff 过长，已截断"
+            diff_text=replace(new_lines,file_lines,start_idx,end_idx,target_path,used_encoding,file_path)
             return toolResult(
                 success=True,
                 message=f"文件 '{target_path}' 中旧内容已成功替换为新内容。",
@@ -90,6 +70,12 @@ def file_edit_tool(
                 tool_name="file_edit"
             )
         else:
+            if len(like)>0:
+                return toolResult(
+                    success=False,
+                    error=f"文件 '{target_path}' 中未找到旧内容，存在以下相似内容供参考：{["\n".join(file_lines[lk:lk + n]) for lk in like]}",
+                    tool_name="file_edit"
+                )
             return toolResult(
                 success=False,
                 error=f"文件 '{target_path}' 中未找到旧内容，请检查提供的旧内容是否正确。",
@@ -102,9 +88,6 @@ def file_edit_tool(
             error=f"执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="file_edit"
         )
-
-
-
 
 
 
@@ -198,7 +181,7 @@ def delete_file_tool(file_path:str, config:RunnableConfig) -> toolResult:
 
 
 
-
+#普通交换函数
 def exchange(count:int,target_path:Path, old_content:str, new_content:str, file_content:str, used_encoding:str, file_path:str) -> toolResult:
         old_file_lines = file_content.splitlines()
         file_content = file_content.replace(old_content, new_content, 1)
@@ -226,106 +209,62 @@ def exchange(count:int,target_path:Path, old_content:str, new_content:str, file_
         )
 
 
+#搜索函数+贪心聚类
+def search(old_lines: list[str], file_lines: list[str]) -> tuple[list[int], list[int]]:
+    matchs = []
+    likes = []
+    length = len(old_lines)
+
+    # 1. 单次遍历，收集所有达标的候选项 (索引, 相似度)
+    for i in range(len(file_lines) - length + 1):
+        ratio = SequenceMatcher(None, old_lines, file_lines[i:i + length]).ratio()
+        if ratio >= thread_hold:
+            matchs.append((i, ratio))
+        elif ratio >= min_hold:
+            likes.append((i, ratio))
+
+    # 2. 极简贪心聚类核心函数
+    def greedy_cluster(candidates, window_size):
+        if not candidates:
+            return []
+        # 核心动作 A：按相似度从高到低排序（优先选最像的）
+        candidates.sort(key=lambda x: x[1], reverse=True)
+
+        result_indices = []
+        # 核心动作 B：遍历排好序的列表，如果和已选中的不重叠，才保留
+        for i, ratio in candidates:
+            # 检查当前的 i，是否和 result_indices 里已经选中的任何一个索引距离小于 window_size
+            is_overlap = any(abs(i - selected_i) < window_size for selected_i in result_indices)
+            if not is_overlap:
+                result_indices.append(i)  # 只保留纯索引 (int)
+        return result_indices
+
+    # 3. 分别对 match 和 like 进行聚类去重，返回纯索引列表
+    ret_matchs = greedy_cluster(matchs, length)
+    ret_likes = greedy_cluster(likes, length)
+
+    return ret_matchs, ret_likes
 
 
-# def file_edit_tool(
-#     file_path: str,
-#     start_line: int,
-#     end_line: int,
-#     new_content: str,
-#     config:RunnableConfig
-# ) -> toolResult:
-#
-#     target_path =relativePathToAbsolute(file_path,config)
-#     if not os.path.exists(target_path):
-#         return toolResult(success=False, message=f"文件 '{target_path}' 不存在。如想增加文件请调用create_file工具",
-#                           content="")
-#
-#     try:
-#         # 1. 自动检测编码(与 file_read 一致),写回时沿用检测到的编码
-#         content = None
-#         used_encoding = None
-#         for enc in encodings_to_try:
-#             try:
-#                 with open(target_path, 'r', encoding=enc) as f:
-#                     content = f.read()
-#                     used_encoding = enc
-#                     break
-#             except Exception:
-#                 continue
-#         if content is None:
-#             return toolResult(
-#                 success=False, message="", content="",
-#                 error=f"无法用常见编码读取文件（{', '.join(encodings_to_try)}），文件可能是二进制",
-#                 tool_name="file_edit"
-#             )
-#
-#         # 2. keepends=True 保真读取:保留每行原有的行尾换行符,
-#         #    否则重写后末尾换行丢失,行结构与原文件不一致,LLM 下次数行号会错位
-#         lines = content.splitlines(keepends=True)
-#
-#         # 3. 行号校验:越界切片会静默追加到文件末尾,start_line=0 还会触发负索引切片,
-#         #    必须显式拒绝,并告诉 LLM 文件实际行数
-#         if start_line < 1 or end_line < start_line or end_line > len(lines):
-#             return toolResult(
-#                 success=False, message="", content="",
-#                 error=f"行号不合法: 文件共 {len(lines)} 行, 但收到 start_line={start_line}, end_line={end_line}, 请核对行号后重试",
-#                 tool_name="file_edit"
-#             )
-#
-#         start_idx = start_line - 1
-#         end_idx = end_line
-#         old_content = "".join(lines[start_idx:end_idx])
-#         # 4. 新内容按行拆分并补换行符(空字符串 = 删除该区间)
-#         new_lines = new_content.splitlines()
-#         if new_lines:
-#             new_lines = [line + "\n" for line in new_lines]
-#
-#         # 生成 unified diff 前，先准备修改前后的完整行列表
-#         old_lines_for_diff = [line.rstrip("\r\n") for line in lines]
-#
-#         new_lines_all = lines.copy()
-#         new_lines_all[start_idx:end_idx] = new_lines
-#
-#         new_lines_for_diff = [line.rstrip("\r\n") for line in new_lines_all]
-#
-#         # 生成 unified diff
-#         diff_text = "\n".join(
-#             difflib.unified_diff(
-#                 old_lines_for_diff,
-#                 new_lines_for_diff,
-#                 fromfile=f"a/{file_path}",
-#                 tofile=f"b/{file_path}",
-#                 lineterm="",
-#                 n=3,
-#             )
-#         )
-#
-#         if not diff_text:
-#             diff_text = "（替换成功，但没有产生实际文本变化）"
-#         elif len(diff_text) > 20000:
-#             diff_text = diff_text[:20000] + "\n... diff 过长，已截断"
-#
-#         # 真正应用修改
-#         lines = new_lines_all
-#
-#         # 5. newline='' 禁止换行翻译,原行保持原字节(CRLF/LF 都不动)
-#         with open(target_path, 'w', encoding=used_encoding, newline='') as f:
-#             f.write("".join(lines))
-#
-#         return toolResult(
-#             success=True,
-#             message=f"文件 '{target_path}' 的第 {start_line} 行到第 {end_line} 行已成功替换为新内容。",
-#             content=diff_text,
-#             data=old_content,
-#             tool_name="file_edit"
-#         )
-#
-#     except Exception as e:
-#         return toolResult(
-#             success=False,
-#             message=f"错误：处理文件 '{file_path}' 时发生错误：{e}",
-#             content="",
-#             error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
-#             tool_name="file_edit"
-#         )
+
+#替换函数
+def replace(new_lines:list[str],file_lines:list[str],start:int,end:int,target_path:Path,used_encoding:str,file_path:str) -> str:
+    old_lines_for_diff = [line.rstrip("\r\n") for line in file_lines]
+    file_lines[start:end] = new_lines
+    with open(target_path, 'w', encoding=used_encoding, newline='') as f:
+        f.write("".join(file_lines))
+    diff_text = "\n".join(
+        unified_diff(
+            old_lines_for_diff,
+            [line.rstrip("\r\n") for line in file_lines],
+            fromfile=f"a/{file_path}",
+            tofile=f"b/{file_path}",
+            lineterm="",
+            n=3,
+        )
+    )
+    if not diff_text:
+        diff_text = "（替换成功，但没有产生实际文本变化）"
+    elif len(diff_text) > 20000:
+        diff_text = diff_text[:20000] + "\n... diff 过长，已截断"
+    return diff_text

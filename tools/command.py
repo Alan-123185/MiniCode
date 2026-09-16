@@ -13,7 +13,7 @@ class ExecuteCommandInput(BaseModel):
     command: str = Field(description="要执行的命令")
     cwd: str = Field(description="命令执行的工作目录，相对路径或绝对路径")
     stdin_input: str | None = Field(default=None, description="仅当命令需要交互式输入(如 input())时传入")
-    timeout: int = Field(
+    time_out: int = Field(
         default=settings.COMMAND_TIMEOUT, ge=1, le=600,
         description=f"命令超时秒数，默认{settings.COMMAND_TIMEOUT}。凡 pip/npm install、编译、运行测试、下载等可能超过30秒的命令，必须传 timeout=300~600"
     )
@@ -80,9 +80,19 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
             )
 
         # 4. 核心修复：使用 `or ""` 兜底，防止 stdout/stderr 为 None 导致 Pydantic 报错
+        final_content = ""
+        if stdout:
+            final_content += f"--- 标准输出 (STDOUT) ---\n{stdout}\n"
+        if stderr:
+            final_content += f"--- 错误输出 (STDERR) ---\n{stderr}\n"
+
+        # 如果两者都为空，给个明确的提示
+        if not final_content:
+            final_content = "命令执行完毕，无标准输出和错误输出。"
+
         return toolResult(
             success=(proc.returncode == 0),
-            content=stdout or "",
+            content=final_content.strip(),
             tool_name="execute_command"
         )
 

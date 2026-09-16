@@ -8,10 +8,12 @@ from core.toolResult import toolResult
 encodings_to_try = settings.ENCODINGS_TO_TRY
 
 
+
+
 class FileEditArgs(BaseModel):
     file_path: str = Field(description="要修改的文件相对路径。")
     old_content: str = Field(
-        description="需要被替换的旧内容，必须至少包含5行：以目标片段为中心，连同前后相邻代码一起作为上下文传入，确保在文件中唯一命中（短片段极易多处命中而被拒绝）。例外：若要替换整个文件内容，可传入全文。不要包含行号前缀。"
+        description="需要被替换的旧内容，必须至少包含5行（除非整个文件小于5行）：以目标片段为中心，连同前后相邻代码一起作为上下文传入，确保在文件中唯一命中（短片段极易多处命中而被拒绝）。例外：若要替换整个文件内容，可传入全文。不要包含行号前缀。"
     )
     new_content: str = Field(
         description='替换后的新内容，可为多行字符串；传空字符串 "" 表示删除匹配内容。'

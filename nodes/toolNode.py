@@ -133,7 +133,6 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             )
         else:
             step.append(f"use tool:{tool_name} failed")
-            logger.info(str(toolresult))
             if tool_failures.get(tool_name, 0) >= max_retry_time:
                 #尝试覆盖之前的所有出错消息，保持llm注意力
                 count = 0

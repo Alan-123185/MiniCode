@@ -110,5 +110,6 @@ class Settings(BaseSettings):
 
 
     THREAD_HOLD :float=0.85   #相似度
+    MIN_HOLD: float =0.5
 
 settings = Settings()
