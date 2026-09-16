@@ -1,7 +1,9 @@
 import json
 
+from config.data import settings
 from exceptions import BizException
 from requestcommon.ModelRequest import ModelChooseRequest, ModelUpdateRequest
+from requestcommon.settingsRequest import settingsRequest, Settings
 
 
 class modelMapper:
@@ -39,7 +41,7 @@ class modelMapper:
             self.db.conn.rollback()
             raise BizException(message=f"Failed to update model to default: {e}")
 
-    def reload_settings(self) -> dict:
+    def reload_model_config(self) -> dict:
         model_dict = self.db.fetch_all("select * from model where is_default = 1")
         if not model_dict:
             model_dict = self.db.fetch_one("select * from model order by id desc limit 1")
@@ -51,6 +53,23 @@ class modelMapper:
     def query_model(self,id:int) -> dict:
         return self.db.fetch_one("select * from model where id = ?", (id,))
 
+
+    def add_settings(self,settingsrequest:settingsRequest) -> None:
+        settings_json = json.dumps(settingsrequest.settings)
+        existing_json = self.db.fetch_one("SELECT * FROM settings WHERE user_id = ?", (settingsrequest.user_id,))
+
+        self.db.execute(
+            "INSERT INTO settings (settings) VALUES (?)",
+            (settings_json,),
+        )
+
+
+    def reolad_settings(self,user_id:str) -> dict:
+        settings_json = self.db.fetch_one("select * from settings where user_id = ?", (user_id,))
+        sts = Settings.model_validate_json(settings_json)
+        settings.DEFAULT_THINK_LEVEL=sts.think_level
+        settings.DEFAULT_TEMPERATURE=sts.temperature
+        settings.DEFAULT_THEME=sts.theme
 
 
 

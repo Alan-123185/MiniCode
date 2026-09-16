@@ -25,6 +25,7 @@ def create_model(input_config:ModelChooseRequest):
         model=input_config.model_name,
         streaming=settings.DEFAULT_STREAMING_MODEL,
         stream_usage=True,  # 关键：请求流式响应中附带用量信息
+        temperature=settings.DEFAULT_TEMPERATURE,
         extra_body={
             "enable_thinking": True
         }

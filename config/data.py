@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     DEFAULT_STREAMING_MODEL: bool = True
     # 内存记忆对象
     default_memory: ClassVar[InMemorySaver] = MemorySaver()
+
+    DEFAULT_TEMPERATURE: float = 0.3  # 默认温度参数
+
+    DEFAULT_THEME: bool = True  # 默认主题 白
+
+    DEFAULT_THINK_LEVEL: int = 2  # 默认思考等级
+
     # 百度搜索默认返回条数
     baidu_search_default_return_number: int = 2
     # 默认百度搜索接口
@@ -74,6 +81,44 @@ class Settings(BaseSettings):
     LLM_MAX_TOKEN : int = 90000                    #摘要机制触发的最小token数
 
     MAX_OLD_MESSAGE_LENGTH: int = 300                #需要压缩的旧消息长度阈值，超过该长度的旧消息会被压缩短
+
+    """
+    大模型消息类型
+    """
+    LLM_MESSAGE_TYPE_SYSTEM: str = "system"
+    LLM_MESSAGE_TYPE_HUMAN: str = "human"
+    LLM_MESSAGE_TYPE_TOOL: str = "tool"
+    LLM_MESSAGE_TYPE_AI: str = "ai"
+
+    READ_FILE_MAX_COUNT:int=15000  #读取文件的最大字符数
+    RETURN_FILE_MAX_COUNT:int=1500  #返回文件的边界最大字符数
+
+    THREAD_HOLD :float=0.85   #文本匹配相似度
+    MIN_HOLD: float =0.5      #最小近似相似度
+
+
+    THINK_LEVEL_LOW: int= 1
+    THINK_LEVEL_HIGH: int= 3
+    THINK_LEVEL_MEDIUM: int= 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     """
     数据库 pgsql
     """
@@ -98,19 +143,5 @@ class Settings(BaseSettings):
     #     """LangGraph checkpointer 用的连接串"""
     #     return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
-
-    """
-    大模型消息类型
-    """
-    LLM_MESSAGE_TYPE_SYSTEM: str = "system"
-    LLM_MESSAGE_TYPE_HUMAN: str = "human"
-    LLM_MESSAGE_TYPE_TOOL: str = "tool"
-    LLM_MESSAGE_TYPE_AI: str = "ai"
-
-    READ_FILE_MAX_COUNT:int=10000  #读取文件的最大字符数
-    RETURN_FILE_MAX_COUNT:int=1000  #返回文件的边界最大字符数
-
-    THREAD_HOLD :float=0.85   #相似度
-    MIN_HOLD: float =0.5
 
 settings = Settings()

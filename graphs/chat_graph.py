@@ -78,6 +78,7 @@ async def initialize_graph():
     model_service = modelService(modelMapper(db))
     try:
         model_service.old_choose_model()
+        model_service.old_settings()
     except Exception as e:
         raise BizException(message="---------ERROR 请先选择模型----------")
     finally:
