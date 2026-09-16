@@ -1,3 +1,5 @@
+import os.path
+
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -23,7 +25,7 @@ def readfile(
     1. 如果之前的工具调用已经返回了目标文件路径，
     后续需要读取该文件时，直接使用该路径调用 readfile。
     2. 应充分利用之前的工具调用结果作为后续工具调用的参数。
-
+    3. 如果文件过大，系统会自动截断输出，并提示使用 `start_line` 和 `end_line` 参数来读取指定行范围。
     :param file_path: 文件相对路径，请务必使用相对路径
     :param start_line: 可选，起始行号，从 1 开始计数。只传它时不传 end_line，表示读取从该行到文件末尾的内容
     :param end_line: 可选，结束行号，从 1 开始计数，包含该行。只传它时不传 start_line，表示读取从第 1 行到该行的内容
@@ -83,6 +85,22 @@ def readfile(
 
     lines = raw_content.splitlines()
     total_lines = len(lines)
+    if len(raw_content) > settings.READ_FILE_MAX_COUNT and start_line is None and end_line is None:
+        head = raw_content[:settings.RETURN_FILE_MAX_COUNT]
+        tail = raw_content[-settings.RETURN_FILE_MAX_COUNT:]
+        return toolResult(
+            success=False,
+            content=f"[system Info] 文件过大({len(raw_content)/1024:.2f}KB)， 共 {total_lines} 行)。\n"
+            "为防止上下文爆炸，系统仅展示【前1000个字符】和【后1000个字符】的内容。\n"
+            "如果需要查找特定内容，请停止使用 readfile，改用 `search_file_by_keyword` 或者命令行工具 \n"
+            "如果需要读取中间部分或者需要完整的格式信息，请重新调用readfile并传入 `start_line` 和 `end_line` \n"
+            "--- 以下是文件头部 ---\n"
+            f"{head}\n"
+            "--- 以下是文件尾部 ---\n"
+            f"{tail}",
+            tool_name="readfile"
+        )
+
 
     # ---------- 解析可选的行范围参数 ----------
     if start_line is None and end_line is None:
