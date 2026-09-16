@@ -11,6 +11,7 @@ from utils.normalCodeTool import normalize_line
 encodings_to_try=settings.ENCODINGS_TO_TRY
 thread_hold=settings.THREAD_HOLD
 min_hold=settings.MIN_HOLD
+
 def file_edit_tool(
     file_path: str,
     old_content:str,
@@ -50,13 +51,13 @@ def file_edit_tool(
         old_lines=old_content.splitlines(keepends=True)
         file_lines=file_content.splitlines(keepends=True)
         n=len(old_lines)
-        old_lines=normalize_line(old_lines)
-        file_lines=normalize_line(file_lines)
-        match,like=search(old_lines,file_lines)
+        normalize_old_lines=normalize_line(old_lines)
+        normalize_file_lines=normalize_line(file_lines)
+        match,like=search(normalize_old_lines,normalize_file_lines)
         if len(match)==1:
             start_idx = match[0]
             end_idx = start_idx + n
-            diff_text=replace(new_lines,file_lines,start_idx,end_idx,target_path,used_encoding,file_path)
+            diff_text=replace(new_lines,normalize_file_lines,start_idx,end_idx,target_path,used_encoding,file_path)
             return toolResult(
                 success=True,
                 message=f"文件 '{target_path}' 中旧内容已成功替换为新内容。",
@@ -203,7 +204,7 @@ def exchange(count:int,target_path:Path, old_content:str, new_content:str, file_
             f.write(file_content)
         return toolResult(
             success=True,
-            message=f"文件 '{target_path}' 中旧内容{old_content}已成功替换为新内容。",
+            message=f"文件 '{target_path}' 已成功替换为新内容",
             content=diff_text,
             tool_name="file_edit"
         )
@@ -260,7 +261,7 @@ def replace(new_lines:list[str],file_lines:list[str],start:int,end:int,target_pa
             fromfile=f"a/{file_path}",
             tofile=f"b/{file_path}",
             lineterm="",
-            n=3,
+            n=3
         )
     )
     if not diff_text:

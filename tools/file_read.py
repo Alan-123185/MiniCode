@@ -1,9 +1,6 @@
-import os.path
-
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
-
 from config.data import settings
 from core.toolResult import toolResult
 from utils.MessageTool import compress_error
