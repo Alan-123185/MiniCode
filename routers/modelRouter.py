@@ -12,7 +12,8 @@ router = APIRouter()
 async def choose_model(request: ModelChooseRequest,model_service:modelService=Depends(get_model_service)):
     model_service.choose_model(request)
     return Result(
-        message=f"模型已经切换至{request.model_name}"
+        message=f"模型已经切换至{request.model_name}",
+        response=request
     )
 
 
@@ -23,3 +24,10 @@ async def settings( settingsrequest:settingsRequest, model_service:modelService=
         message=f"设置成功",
         response=settingsrequest
     )
+@router.get("/MiniCode/get_settings")
+async def get_settings(model_service:modelService=Depends(get_model_service)):
+    return Result(
+        message=f"获取设置成功",
+        response=model_service.get_settings()
+    )
+

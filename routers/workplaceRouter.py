@@ -10,7 +10,8 @@ router = APIRouter()
 async def choose_workplace(request: WorksplaceRequest,workplace_service:workplaceService=Depends(get_workplace_service)):
     await workplace_service.choose_workplace(request)
     return Result(
-        message=f"工作目录已经移至{request.workplace}"
+        message=f"工作目录已经移至{request.workplace}",
+        response=request
     )
 
 

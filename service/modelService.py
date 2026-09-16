@@ -3,7 +3,7 @@ from config.data import settings
 from config.dependencies import create_model
 from config.modelConfig import model_config
 from requestcommon.ModelRequest import ModelChooseRequest
-from requestcommon.settingsRequest import settingsRequest
+from requestcommon.settingsRequest import settingsRequest, Settings
 
 
 class modelService:
@@ -37,4 +37,12 @@ class modelService:
 
 
     def old_settings(self) -> None:
-        self.modelmapper.reolad_settings()
+        sts= self.modelmapper.reolad_settings()
+        settings.DEFAULT_THINK_LEVEL = sts.think_level
+        settings.DEFAULT_TEMPERATURE = sts.temperature
+        settings.DEFAULT_THEME = sts.theme
+
+
+    def get_settings(self) -> Settings:
+        sts= self.modelmapper.reolad_settings()
+        return sts

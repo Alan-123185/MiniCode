@@ -56,20 +56,17 @@ class modelMapper:
 
     def add_settings(self,settingsrequest:settingsRequest) -> None:
         settings_json = json.dumps(settingsrequest.settings)
-        existing_json = self.db.fetch_one("SELECT * FROM settings WHERE user_id = ?", (settingsrequest.user_id,))
-
         self.db.execute(
-            "INSERT INTO settings (settings) VALUES (?)",
-            (settings_json,),
+            "INSERT INTO settings (settings) VALUES (?) where user_id = ( ? , )",
+            (settings_json,settingsrequest.user_id),
         )
 
 
-    def reolad_settings(self,user_id:str) -> dict:
+    def reolad_settings(self,user_id:str) -> Settings:
         settings_json = self.db.fetch_one("select * from settings where user_id = ?", (user_id,))
         sts = Settings.model_validate_json(settings_json)
-        settings.DEFAULT_THINK_LEVEL=sts.think_level
-        settings.DEFAULT_TEMPERATURE=sts.temperature
-        settings.DEFAULT_THEME=sts.theme
+        return sts
+
 
 
 
