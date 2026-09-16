@@ -12,7 +12,7 @@ from graphs.chat_graph import initialize_graph, close_graph
 from routers.workplaceRouter import router as workplace_router
 from routers.modelRouter import router as model_router
 from routers.chatRouter import router as chat_router
-
+import log
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_tables()
