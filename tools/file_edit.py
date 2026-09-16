@@ -1,12 +1,24 @@
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 from utils.editFileTools import file_edit_tool, create_file_tool, delete_file_tool
 from config.data import settings
 from core.toolResult import toolResult
 # 与 file_read 一致的多编码尝试列表,避免让 LLM 猜编码(猜错即失败,会引发重试)
 encodings_to_try = settings.ENCODINGS_TO_TRY
 
-@tool
+
+class FileEditArgs(BaseModel):
+    file_path: str = Field(description="要修改的文件相对路径。")
+    old_content: str = Field(
+        description="需要被替换的旧内容，必须至少包含5行：以目标片段为中心，连同前后相邻代码一起作为上下文传入，确保在文件中唯一命中（短片段极易多处命中而被拒绝）。例外：若要替换整个文件内容，可传入全文。不要包含行号前缀。"
+    )
+    new_content: str = Field(
+        description='替换后的新内容，可为多行字符串；传空字符串 "" 表示删除匹配内容。'
+    )
+
+
+@tool(args_schema=FileEditArgs)
 def file_edit(
     file_path: str,
     old_content:str,
@@ -15,13 +27,8 @@ def file_edit(
 ) -> toolResult:
     """
     按内容锚定替换文件中的指定代码片段。
-
-    使用前建议先读取最新文件内容，确保 `old_content` 与目标片段完全匹配。
+    使用前必须先读取最新文件内容，确保 `old_content` 与目标片段完全匹配。
     如果要删除内容，请将 `new_content` 传为空字符串 ""。
-    :param file_path: 要修改的文件相对路径。
-    :param old_content: 需要被替换的旧内容，必须至少包含5行：以目标片段为中心，连同前后相邻代码一起作为上下文传入，确保在文件中唯一命中（短片段极易多处命中而被拒绝）。例外：若要替换整个文件内容，可传入全文。不要包含行号前缀。
-    :param new_content: 替换后的新内容，可以是多行字符串，不要包含行号前缀；传空字符串 "" 表示删除匹配内容。
-    :return: 返回一个工具调用结果类
     """
     return file_edit_tool(file_path,old_content,new_content,config)
 
