@@ -15,6 +15,7 @@ from langchain_core.messages import ToolMessage, HumanMessage
 from langchain_core.callbacks.manager import dispatch_custom_event  # 引入自定义事件
 from langchain_core.runnables import RunnableConfig  # 引入 Config 类型
 from tools.undo_file_edit import undo_operationgroup, query_operationgroup
+from utils.MessageTool import compress_error
 
 """
 
@@ -100,7 +101,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             toolresult = await tool.ainvoke(tool_args,config=config)
         except Exception as e:
             logger.error(f"调用工具 {tool_name} 时发生错误: {e}")
-            toolresult = toolResult(success=False, message=f"调用工具 {tool_name} 时发生错误: {e}")
+            toolresult = toolResult(success=False, message=f"调用工具 {tool_name} 时发生错误: {compress_error(str(e))}")
         logger.info(str(toolresult))
         toolresult_for_llm = toolresult
         # ================= 3. 处理执行结果 =================

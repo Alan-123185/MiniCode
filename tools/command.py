@@ -1,5 +1,6 @@
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 from config.data import settings
 from core.toolResult import toolResult
 from utils.MessageTool import compress_error
@@ -7,17 +8,21 @@ from utils.filePathTools import relativePathToAbsolute
 import os
 import subprocess
 
-@tool
+
+class ExecuteCommandInput(BaseModel):
+    command: str = Field(description="要执行的命令")
+    cwd: str = Field(description="命令执行的工作目录，相对路径或绝对路径")
+    stdin_input: str | None = Field(default=None, description="仅当命令需要交互式输入(如 input())时传入")
+    timeout: int = Field(
+        default=settings.COMMAND_TIMEOUT, ge=1, le=600,
+        description=f"命令超时秒数，默认{settings.COMMAND_TIMEOUT}。凡 pip/npm install、编译、运行测试、下载等可能超过30秒的命令，必须传 timeout=300~600"
+    )
+
+@tool(args_schema=ExecuteCommandInput)
 def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: int =settings.COMMAND_TIMEOUT,  stdin_input: str = None) -> toolResult:
     """
     在终端中执行 shell 命令。
     当你修改了代码后，强烈建议使用此工具来运行测试或者编译命令。
-    如果目标脚本需要交互式输入（如 Python 的 input()），请将需要输入的文本传给 stdin_input 参数。
-
-    :param command: 要执行的命令。
-    :param cwd: 命令执行的工作目录的相对路径或绝对路径。
-    :param stdin_input: 可选。如果命令需要标准输入（stdin），请传入需要输入的文本。
-    :param time_out: 可选。llm可以自己指定命令执行的超时时间，单位为秒。默认值为 30 秒。
     :return: 返回一个工具调用结果类
     """
     # 1. 路径转换与防御性校验 (彻底解决 WinError 267 目录无效报错)
