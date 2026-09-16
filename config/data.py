@@ -107,7 +107,8 @@ class Settings(BaseSettings):
     LLM_MESSAGE_TYPE_TOOL: str = "tool"
     LLM_MESSAGE_TYPE_AI: str = "ai"
 
-
+    READ_FILE_MAX_COUNT:int=10000  #读取文件的最大字符数
+    RETURN_FILE_MAX_COUNT:int=1000  #返回文件的边界最大字符数
 
     THREAD_HOLD :float=0.85   #相似度
     MIN_HOLD: float =0.5
