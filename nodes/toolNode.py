@@ -12,7 +12,7 @@ from tools.file_read import readfile, listfiles
 from tools.baidu_search import baidu_search
 from tools.file_search import search_code_by_keyword, search_file_by_keyword
 from langchain_core.messages import ToolMessage, HumanMessage
-from langchain_core.callbacks.manager import dispatch_custom_event  # 引入自定义事件
+from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig  # 引入 Config 类型
 from tools.undo_file_edit import undo_operationgroup, query_operationgroup
 from utils.MessageTool import compress_error
@@ -74,10 +74,8 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
 
             if decision != "yes":
                 # 【自定义事件】实时通知前端：用户拒绝了
-                dispatch_custom_event(
-                    "on_tool_status",
-                    data=toolstatusEvent(status=settings.tool_refused, tool_name=tool_name, args=tool_args, result=None,session_id=config.get("configurable", {}).get("thread_id")),
-                    config=config  # 必须传入 config，LangGraph 才知道这个事件属于哪个 thread
+                _emit_tool_status(
+                    toolstatusEvent(status=settings.tool_refused, tool_name=tool_name, args=tool_args, result=None,session_id=config.get("configurable", {}).get("thread_id"))
                 )
 
                 output.append(ToolMessage(
@@ -92,10 +90,8 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         step.append(f"try to use tool:{tool_name}")
 
         # 【自定义事件】实时通知前端：开始尝试调用
-        dispatch_custom_event(
-             "on_tool_status",
-            data=toolstatusEvent(status=settings.tool_try, tool_name=tool_name, args=tool_args, result=None,session_id=config.get("configurable", {}).get("thread_id"),user_prompt=state.input),
-            config=config
+        _emit_tool_status(
+            toolstatusEvent(status=settings.tool_try, tool_name=tool_name, args=tool_args, result=None,session_id=config.get("configurable", {}).get("thread_id"),user_prompt=state.input)
         )
         try:
             toolresult = await tool.ainvoke(tool_args,config=config)
@@ -126,10 +122,8 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             step.append(f"use tool:{tool_name} succeeded")
             tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑
             # 【自定义事件】实时通知前端：调用成功，并带上结果内容
-            dispatch_custom_event(
-                "on_tool_status",
-                data=toolstatusEvent(status=settings.tool_success, tool_name=tool_name, args=tool_args, result=toolresult,session_id=config.get("configurable", {}).get("thread_id"),user_prompt=state.input),
-                config=config
+            _emit_tool_status(
+                toolstatusEvent(status=settings.tool_success, tool_name=tool_name, args=tool_args, result=toolresult,session_id=config.get("configurable", {}).get("thread_id"),user_prompt=state.input)
             )
         else:
             step.append(f"use tool:{tool_name} failed")
@@ -156,11 +150,9 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                     tool_call_id=tool_call_id,
                     name=tool_name
                 ))
-                dispatch_custom_event(
-                    "on_tool_status",
-                        data=toolstatusEvent(status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state.input, result=None,session_id=config.get("configurable", {}).get("thread_id")),
-                        config=config
-                    )
+                _emit_tool_status(
+                    toolstatusEvent(status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state.input, result=None,session_id=config.get("configurable", {}).get("thread_id"))
+                )
                 tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑
             else:
                 tool_failures[tool_name] = tool_failures.get(tool_name, 0) + 1
@@ -173,3 +165,17 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         "steps": step,
         "tool_call_count": tool_failures
     }
+
+
+
+def _emit_tool_status(event: toolstatusEvent):
+    """
+    安全地发送工具状态事件。
+    使用 try/except 兜底，防止在非图上下文（如单元测试）中调用 get_stream_writer 导致崩溃。
+    """
+    try:
+        writer = get_stream_writer()
+        # 直接传递对象，下游 chunk 就是 toolstatusEvent 实例
+        writer(event)
+    except Exception as e:
+        logger.warning(f"无法发送工具状态事件: {e}")
