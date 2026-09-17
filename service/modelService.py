@@ -46,3 +46,7 @@ class modelService:
     def get_settings(self) -> Settings:
         sts= self.modelmapper.reolad_settings()
         return sts
+
+    def get_model(self) -> list[ModelChooseRequest]:
+        models=self.modelmapper.reload_all_models()
+        return models
