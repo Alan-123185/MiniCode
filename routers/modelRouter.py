@@ -31,3 +31,9 @@ async def get_settings(model_service:modelService=Depends(get_model_service)):
         response=model_service.get_settings()
     )
 
+
+@router.get("/MiniCode/get_model")
+async def get_model(model_service:modelService=Depends(get_model_service)):
+    return Result(
+        response=model_service.get_model()
+    )
