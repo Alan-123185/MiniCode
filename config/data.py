@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     THINK_LEVEL_HIGH: int= 3
     THINK_LEVEL_MEDIUM: int= 2
 
-
+    MAX_MODEL_COUNT: int = 5
 
 
 

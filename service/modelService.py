@@ -37,14 +37,15 @@ class modelService:
 
 
     def old_settings(self) -> None:
-        sts= self.modelmapper.reolad_settings()
+        user_id=self.modelmapper.reload_user_model()
+        sts= self.modelmapper.reolad_settings(user_id)
         settings.DEFAULT_THINK_LEVEL = sts.think_level
         settings.DEFAULT_TEMPERATURE = sts.temperature
         settings.DEFAULT_THEME = sts.theme
 
 
     def get_settings(self) -> Settings:
-        sts= self.modelmapper.reolad_settings()
+        sts= self.modelmapper.reolad_settings(user_id)
         return sts
 
     def get_model(self) -> list[ModelChooseRequest]:

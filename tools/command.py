@@ -9,6 +9,18 @@ import os
 import subprocess
 
 
+def smart_decode(b: bytes) -> str:
+    """按字节智能解码：优先UTF-8（程序输出），失败回退GBK（cmd自身错误消息），双双失败才replace"""
+    if not b:
+        return ""
+    for enc in ("utf-8", "gbk"):
+        try:
+            return b.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return b.decode("utf-8", errors="replace")
+
+
 class ExecuteCommandInput(BaseModel):
     command: str = Field(description="要执行的命令")
     cwd: str = Field(description="命令执行的工作目录，相对路径或绝对路径")
@@ -21,7 +33,7 @@ class ExecuteCommandInput(BaseModel):
 @tool(args_schema=ExecuteCommandInput)
 def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: int =settings.COMMAND_TIMEOUT,  stdin_input: str = None) -> toolResult:
     """
-    在终端中执行 shell 命令。
+    在终端中执行 shell 命令（默认环境为 Windows cmd）。
     当你修改了代码后，强烈建议使用此工具来运行测试或者编译命令。
     :return: 返回一个工具调用结果类
     """
@@ -45,12 +57,12 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
         # 如果 stdin_input 有值，则 stdin 为 PIPE（准备接收输入）
         stdin_arg = subprocess.PIPE if stdin_input is not None else None
 
-        # Windows 下 cmd.exe 默认使用系统代码页，容易出现中文乱码；强制切到 UTF-8
-        # 另外向子进程传递 UTF-8 环境变量，兼容 Python/Node/npm 等工具输出
+        # 向子进程传递 UTF-8 环境变量，兼容 Python/Node/npm 等程序输出（UTF-8）
+        # 注意：cmd 自身的错误消息（如"不是内部或外部命令"）固定按系统 OEM 代码页(GBK)写管道，
+        # chcp 65001 对管道路径无效，解码交由 smart_decode 双编码尝试处理
         shell_command = command
         env = os.environ.copy()
         if os.name == "nt":
-            shell_command = f'chcp 65001 >nul & {command}'
             env["PYTHONIOENCODING"] = "utf-8"
             env["PYTHONUTF8"] = "1"
             env["LANG"] = "C.UTF-8"
@@ -63,17 +75,14 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
             stdin=stdin_arg,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             env=env
         )
 
         try:
             # 3. 将 stdin_input 传给 communicate
             # 如果 stdin_input 是 None，communicate 会忽略 input，行为和原来一致
-            stdout, stderr = proc.communicate(
-                input=stdin_input,
+            stdout_b, stderr_b = proc.communicate(
+                input=stdin_input.encode("utf-8") if stdin_input is not None else None,
                 timeout=time_out
             )
         except subprocess.TimeoutExpired:
@@ -91,7 +100,10 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
                 tool_name = "execute_command"
             )
 
-        # 4. 核心修复：使用 `or ""` 兜底，防止 stdout/stderr 为 None 导致 Pydantic 报错
+        # 4. 字节流智能解码（程序输出=UTF-8，cmd自身错误=GBK）
+        stdout = smart_decode(stdout_b)
+        stderr = smart_decode(stderr_b)
+
         final_content = ""
         if stdout:
             final_content += f"--- 标准输出 (STDOUT) ---\n{stdout}\n"
@@ -104,6 +116,7 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
 
         return toolResult(
             success=(proc.returncode == 0),
+            message=f"命令退出码:{proc.returncode}",
             content=final_content.strip(),
             tool_name="execute_command"
         )

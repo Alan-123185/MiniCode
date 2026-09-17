@@ -12,10 +12,23 @@ class modelMapper:
         self.db=db
 
     def add_model(self, model:ModelChooseRequest) -> None:
-        self.db.execute(
-            "INSERT INTO model (model_name,api_key,base_url,is_default) VALUES (?, ?, ?, ?)",
-            (model.model_name, model.api_key, model.base_url, model.is_default),
-        )
+        try:
+            self.db.con.execute("BEGIN TRANSACTION")
+            if self.db.fetch_one("SELECT COUNT(*) FROM model")>=settings.MAX_MODEL_COUNT:
+                raise BizException(message=f"最多只能添加{settings.MAX_MODEL_COUNT}个模型")
+
+            model_dict=self.db.fetch_one("SELECT * FROM model WHERE model_name = ? AND api_key = ? AND base_url = ?", (model.model_name, model.api_key, model.base_url))
+            if model_dict:
+                raise BizException(message="模型已存在，请勿重复添加")
+            self.db.execute(
+                "INSERT INTO model (model_name,api_key,base_url,is_default) VALUES (?, ?, ?, ?)",
+                (model.model_name, model.api_key, model.base_url, model.is_default),
+            )
+            self.db.conn.commit()
+        except Exception as e:
+            self.db.conn.rollback()
+            raise BizException(message=f"Failed to add model: {e}")
+
 
     def delete_model(self,id:int) -> None:
         self.db.execute("DELETE FROM model WHERE id = ?", (id,))
@@ -67,6 +80,10 @@ class modelMapper:
         sts = Settings.model_validate_json(settings_json)
         return sts
 
+    def reload_all_models(self) -> list[ModelChooseRequest]:
+        model_dicts = self.db.fetch_all("select * from model")
+        models = [ModelChooseRequest.model_validate(model_dict) for model_dict in model_dicts]
+        return models
 
 
 

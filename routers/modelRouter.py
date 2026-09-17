@@ -24,11 +24,12 @@ async def settings( settingsrequest:settingsRequest, model_service:modelService=
         message=f"设置成功",
         response=settingsrequest
     )
-@router.get("/MiniCode/get_settings")
-async def get_settings(model_service:modelService=Depends(get_model_service)):
+
+
+@router.get("/MiniCode/get_settings/{user_id}")
+async def get_settings(user_id: str, model_service:modelService=Depends(get_model_service)):
     return Result(
-        message=f"获取设置成功",
-        response=model_service.get_settings()
+        response=model_service.get_settings(user_id)
     )
 
 

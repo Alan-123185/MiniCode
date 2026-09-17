@@ -4,6 +4,7 @@ from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from loguru import logger
 
+from config.sessionManager import sessionmanager
 from exceptions import BizException
 from mapper.database import DataBase
 from mapper.modelMapper import modelMapper
@@ -78,7 +79,6 @@ async def initialize_graph():
     model_service = modelService(modelMapper(db))
     try:
         model_service.old_choose_model()
-        model_service.old_settings()
     except Exception as e:
         raise BizException(message="---------ERROR 请先选择模型----------")
     finally:
