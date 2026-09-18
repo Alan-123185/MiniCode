@@ -141,9 +141,7 @@ def create_file_tool(file_path: str, content: str, config:RunnableConfig) -> too
     except Exception as e:
         return toolResult(
             success=False,
-            message=f"错误：创建文件 '{file_path}' 时发生错误",
-            content="",
-            error=f"执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
+            error=f"执行失败：创建文件 '{file_path}' 时发生错误,{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="create_file"
         )
 
@@ -153,8 +151,7 @@ def delete_file_tool(file_path:str, config:RunnableConfig) -> toolResult:
     if not os.path.exists(target_path):
         return toolResult(
             success=False,
-            message=f"文件 '{target_path}' 不存在，无法删除。",
-            content="",
+            error=f"文件 '{target_path}' 不存在，无法删除。",
             tool_name="delete_file"
         )
     old_content = ""

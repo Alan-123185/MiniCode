@@ -7,10 +7,11 @@ from states.OverallState import OverAllState
 
 class sessionService:
 
-    def __init__(self, graph,fileMapper,sessionMapper) -> None:
+    def __init__(self, graph,fileMapper,sessionMapper,operationgroupMapper) -> None:
         self.fileMapper = fileMapper
         self.sessionMapper = sessionMapper
         self.graph = graph
+        self.operationgroupMapper = operationgroupMapper
 
 
     async def get_history(self, session_id: str) -> list[BaseMessage]:
@@ -34,6 +35,7 @@ class sessionService:
         await self.graph.checkpointer.adelete_thread(session_id)
         self.sessionMapper.delete_session(session_id)
         self.fileMapper.delete_operation_by_session(session_id)
+        self.operationgroupMapper.delete_operation_group(session_id)
 
 
     def list_session(self,user_id) -> list[Session]:

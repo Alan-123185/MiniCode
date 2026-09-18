@@ -15,7 +15,7 @@ class WorkplaceService:
         session_dict=self.sessionMapper.query_session_by_session_id(request.session_id)
         new_session = Session(
             session_id=request.session_id,
-            session_name=session_dict["name"],
+            session_name=session_dict["name"] if session_dict else "新会话",
             user_id=request.user_id,
             workplace=request.workplace
         )

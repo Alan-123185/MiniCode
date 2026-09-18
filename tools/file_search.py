@@ -1,6 +1,7 @@
-from langchain.tools import tool
+
 import subprocess
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool
 from config.data import settings
 from config.dependencies import get_session
 from core.toolResult import toolResult

@@ -13,8 +13,8 @@ class modelMapper:
 
     def add_model(self, model:ModelChooseRequest) -> None:
         try:
-            self.db.con.execute("BEGIN TRANSACTION")
-            if self.db.fetch_one("SELECT COUNT(*) FROM model")>=settings.MAX_MODEL_COUNT:
+            self.db.conn.execute("BEGIN TRANSACTION")
+            if self.db.fetch_one("SELECT COUNT(*) FROM model")["COUNT(*)"]>=settings.MAX_MODEL_COUNT:
                 raise BizException(message=f"最多只能添加{settings.MAX_MODEL_COUNT}个模型")
 
             model_dict=self.db.fetch_one("SELECT * FROM model WHERE model_name = ? AND api_key = ? AND base_url = ?", (model.model_name, model.api_key, model.base_url))
@@ -37,7 +37,7 @@ class modelMapper:
 
     def update_model(self,model: ModelUpdateRequest) -> None:
         try:
-            self.db.con.execute("BEGIN TRANSACTION")
+            self.db.conn.execute("BEGIN TRANSACTION")
             if model.is_default:
                 self.db.conn.execute("UPDATE model SET is_default = 0 WHERE is_default = 1")
                 self.db.conn.execute(
@@ -68,15 +68,17 @@ class modelMapper:
 
 
     def add_settings(self,settingsrequest:settingsRequest) -> None:
-        settings_json = json.dumps(settingsrequest.settings)
+        settings_json = settingsrequest.settings.model_dump_json()
         self.db.execute(
-            "INSERT INTO settings (settings) VALUES (?) where user_id = ( ? , )",
+            "INSERT INTO settings (settings, user_id) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET settings = excluded.settings;",
             (settings_json,settingsrequest.user_id),
         )
 
 
     def reolad_settings(self,user_id:str) -> Settings:
-        settings_json = self.db.fetch_one("select * from settings where user_id = ?", (user_id,))
+        settings_json = self.db.fetch_one("select * from settings where user_id = ?", (user_id,))["settings"]
+        if not settings_json:
+            return Settings()
         sts = Settings.model_validate_json(settings_json)
         return sts
 

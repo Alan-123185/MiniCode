@@ -16,7 +16,7 @@ def trim_message(message:list[BaseMessage]) -> int:
             res=i
             while isinstance(message[res], ToolMessage):
                 res-=1
-            return res
+            return res if res>=0 else 0
 
     return 0
 

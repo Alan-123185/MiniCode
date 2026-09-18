@@ -44,7 +44,8 @@ class modelService:
         settings.DEFAULT_THEME = sts.theme
 
 
-    def get_settings(self) -> Settings:
+
+    def get_settings(self,user_id:str) -> Settings:
         sts= self.modelmapper.reolad_settings(user_id)
         return sts
 

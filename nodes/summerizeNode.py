@@ -34,8 +34,9 @@ async def summerize_node(state:OverAllState) -> OverAllState:
     summarystate = await model.with_structured_output(summaryState).ainvoke(
         [SystemMessage(content=summerize_prompt)]
     )
+    summary_state=summarystate if summarystate else summary_state  #防止模型返回空值
     return {
-        "summary_state":summarystate,
+        "summary_state":summary_state,
         "last_summary_pos":pos
     }
 

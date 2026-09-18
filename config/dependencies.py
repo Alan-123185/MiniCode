@@ -46,12 +46,15 @@ def create_no_streaming_model(model:ChatOpenAI):
 
 
 def get_session(config:RunnableConfig)-> Session:
-    db=DataBase()
-    sessionmapper=sessionMapper(db)
     session_id=config.get("configurable", {}).get("thread_id")
     res=sessionmanager.get(session_id, None)
     if not res:
-        res=sessionmapper.query_session_by_session_id(session_id)
+        db = DataBase()
+        sessionmapper = sessionMapper(db)
+        try:
+            res=sessionmapper.query_session_by_session_id(session_id)
+        finally:
+            db.conn.close()
         if not res:
             raise BizException(message="此会话不存在")
         result=Session(

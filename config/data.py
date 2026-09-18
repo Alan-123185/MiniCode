@@ -75,6 +75,15 @@ class Settings(BaseSettings):
     #命令行执行相关参数
     COMMAND_TIMEOUT: int = 30       #命令执行最大时长
 
+    # ---------- Docker 沙箱（新增） ----------
+    SANDBOX_ENABLED: bool = False                    # 总开关：True 时 execute_command 在 Docker 容器内执行；False 或 Docker 不可用时回退宿主机直接执行（原行为）
+    SANDBOX_IMAGE: str = "minicode-sandbox:latest"  # 沙箱镜像名（由 Dockerfile.sandbox 构建）
+    SANDBOX_WORKDIR: str = "/workspace"              # 容器内工作区挂载点（宿主机 workplace 目录 bind mount 到这里）
+    SANDBOX_MEM_LIMIT: str = "2g"                    # 容器内存上限（docker 格式，如 512m / 1g）
+    SANDBOX_CPU_COUNT: float = 2.0                   # 容器可用 CPU 核数
+    SANDBOX_NETWORK_ENABLED: bool = True             # 容器是否允许联网（pip/npm install 需要；严格安全场景可设 False）
+    SANDBOX_IDLE_TTL_MINUTES: int = 120              # 容器空闲自动回收阈值（分钟），0 表示不自动回收
+    SANDBOX_USER: str = "agent"                     # 容器内执行命令的用户名（避免 root 执行权限过大）
     LLM_MAX_UNDEGREDED_MESSAGE_TOKEN :int = 20000   #滑动窗口存储的最大未处理消息token数
     LLM_MAX_UP_MESSAGE_COUNT :int = 25             #滑动窗口存储的最大上下文消息数
     LLM_MAX_UP_MESSAGE_TOKEN : int =60000          #滑动窗口存储的最大上下文消耗token数

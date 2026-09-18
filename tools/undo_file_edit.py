@@ -4,6 +4,7 @@ from loguru import logger
 from config.dependencies import get_db
 from core.toolResult import toolResult
 from mapper.OperationGroupMapper import operatinoGroupMapper
+from mapper.database import DataBase
 from mapper.fileMapper import FileOperationMapper
 from utils.editFileTools import file_edit_tool, create_file_tool, delete_file_tool
 
@@ -18,18 +19,18 @@ def undo_operationgroup(target_group_id: str, session_id: str,config:RunnableCon
     :param session_id: 当前会话id
     :return: 返回一个工具调用结果类
     """
-    db = get_db()
+    db = DataBase()
     file_operation_mapper = FileOperationMapper(db)
     operation_group_mapper = operatinoGroupMapper(db)
-    current_group = operation_group_mapper.query_current_operation(session_id=session_id)
-    if not current_group:
-        return toolResult(
-            success=False,
-            message=f"当前会话：{session_id}暂无操作",
-            tool_name="undo_operationgroup"
-        )
-    current_group_id = current_group["id"]
     try:
+        current_group = operation_group_mapper.query_current_operation(session_id=session_id)
+        if not current_group:
+            return toolResult(
+                success=False,
+                message=f"当前会话：{session_id}暂无操作",
+                tool_name="undo_operationgroup"
+            )
+        current_group_id = current_group["id"]
         # 1. 查出需要撤销的操作组列表（从新到旧）
         list_to_undo = operation_group_mapper.list_group_to_undo(
             session_id=session_id,
@@ -120,7 +121,7 @@ def undo_operationgroup(target_group_id: str, session_id: str,config:RunnableCon
             tool_name="undo_operationgroup"
         )
     finally:
-        db.close()
+        db.conn.close()
 
 @tool
 def query_operationgroup(session_id:str) -> toolResult:
@@ -130,9 +131,9 @@ def query_operationgroup(session_id:str) -> toolResult:
     :param session_id: 会话id
     :return: 返回一个工具调用结果类
     """
-    db=get_db()
+    db=DataBase()
+    operation_group_mapper = operatinoGroupMapper(db)
     try:
-        operation_group_mapper = operatinoGroupMapper(db)
         group_list = operation_group_mapper.query_operation_by_session(session_id)
         return toolResult(success=True, message=f"当前会话{session_id}下的操作组：",content=str(group_list),tool_name="query_operationgroup")
     except Exception as e:
@@ -143,4 +144,4 @@ def query_operationgroup(session_id:str) -> toolResult:
             tool_name="query_operationgroup"
         )
     finally:
-        db.close()
+        db.conn.close()
