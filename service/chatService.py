@@ -217,9 +217,10 @@ class ChatService:
     async def edit_message(self, session_id: str, message_id: str, new_content: str) -> AsyncGenerator[InterruptResult, None]:
         """编辑指定消息的内容"""
         config = create_chat_config(thread_id=session_id)
-        history_list = list(await self.graph.aget_state_history(config))  # 新的在前
+        history_list = [h async for h in self.graph.aget_state_history(config)]  # 新的在前
         if not history_list:
             yield InterruptResult(message=f"会话 {session_id} 不存在或未初始化。", type=settings.interrupt_type_info)
+            return
         new_snapshot = history_list[0]
         state = new_snapshot.values
         # 查找要重新运行的消息
@@ -235,7 +236,7 @@ class ChatService:
                             new_config=await self.graph.aupdate_state(history.config, {"messages": HumanMessage(content=new_content,id=message_id)})
                             async for result in self.continue_chat(config=new_config):
                                 yield result
-                            break
+                            return
         yield InterruptResult(message=f"消息 ID {message_id} 未找到或已被影响，无法编辑。", type=settings.interrupt_type_info)
 
 
