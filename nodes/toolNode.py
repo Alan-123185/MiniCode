@@ -37,7 +37,7 @@ tools=[baidu_search,
        get_original_content_by_tool_call_id,
        get_original_content_by_compressed_content
        ]
-tools_need_to_confirm=["file_edit","execute_command","delete_file","create_file"]
+tools_need_to_confirm=["file_edit","execute_command","delete_file","create_file","undo_operationgroup"]
 max_retry_time=settings.MAX_TOOL_CALLS
 # try:
 #     writer = get_stream_writer()
