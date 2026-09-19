@@ -1,5 +1,4 @@
 from langchain_core.messages import SystemMessage
-
 from config.dependencies import create_no_streaming_model
 from config.modelConfig import model_config
 from exceptions import BizException
