@@ -14,12 +14,13 @@ class modelMapper:
     def add_model(self, model:ModelChooseRequest) -> None:
         try:
             self.db.conn.execute("BEGIN TRANSACTION")
+            model_dict = self.db.fetch_one("SELECT * FROM model WHERE model_name = ? AND api_key = ? AND base_url = ?",
+                                           (model.model_name, model.api_key, model.base_url))
+            if model_dict:
+                return
             if self.db.fetch_one("SELECT COUNT(*) FROM model")["COUNT(*)"]>=settings.MAX_MODEL_COUNT:
                 raise BizException(message=f"最多只能添加{settings.MAX_MODEL_COUNT}个模型")
 
-            model_dict=self.db.fetch_one("SELECT * FROM model WHERE model_name = ? AND api_key = ? AND base_url = ?", (model.model_name, model.api_key, model.base_url))
-            if model_dict:
-                raise BizException(message="模型已存在，请勿重复添加")
             self.db.execute(
                 "INSERT INTO model (model_name,api_key,base_url,is_default) VALUES (?, ?, ?, ?)",
                 (model.model_name, model.api_key, model.base_url, model.is_default),
