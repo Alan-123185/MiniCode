@@ -1,16 +1,20 @@
-
 import subprocess
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 from config.data import settings
 from config.dependencies import get_session
 from core.toolResult import toolResult
 from utils.filePathTools import relativePathToAbsolute, absolutePathToRelative
 
 
+class SearchCodeInput(BaseModel):
+   query:str=Field(...,description="要搜索的关键词或正则表达式，例如 'UserService'、'DELETE FROM'、'TODO'、'auth.*token'")
+   path:str=Field(default=".", description="相对路径，默认 '.' 表示工作区根目录；建议缩小到具体目录，避免搜索范围过大")
+   max_count:int=Field(default=settings.RG_SEARCH_MAX_COUNT, gt=10, lt=100, description="最大返回结果数，llm可以根据需要调整，默认值为 50")
 
-@tool
-def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".") -> toolResult:
+@tool(args_schema=SearchCodeInput)
+def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".", max_count: int =settings.RG_SEARCH_MAX_COUNT) -> toolResult:
     """
     在代码内容中搜索关键词/正则，返回“匹配代码行 + 所在文件相对路径”。
 
@@ -19,19 +23,14 @@ def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".") ->
     - 你知道一个关键词、函数名、报错文本、字段名或正则表达式，但不知道具体文件；
     - 需要定位代码实现或引用位置；
     - 需要在某个目录下快速查找相关逻辑。
-
-    :param query: 要搜索的关键词或正则表达式，例如 "UserService"、"DELETE FROM"、"TODO"、"auth.*token"
-    :param path: 相对路径，默认 "." 表示工作区根目录；建议缩小到具体目录，避免搜索范围过大
-
     :return: 返回一个工具调用结果类，包含搜索结果
     """
-    # path=relativePathToAbsolute(path)
 
     result = subprocess.run(
         [
             str(settings.rg_path),
             "--max-count",
-            "50",
+            str(max_count),
             query,
             path
         ],

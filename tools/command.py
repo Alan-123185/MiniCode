@@ -103,7 +103,8 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
         # 4. 字节流智能解码（程序输出=UTF-8，cmd自身错误=GBK）
         stdout = smart_decode(stdout_b)
         stderr = smart_decode(stderr_b)
-
+        stdout = _truncate_output(stdout)
+        stderr = _truncate_output(stderr)
         final_content = ""
         if stdout:
             final_content += f"--- 标准输出 (STDOUT) ---\n{stdout}\n"
@@ -128,3 +129,24 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
             error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="execute_command"
         )
+
+
+def _truncate_output(text:str) -> str:
+    # ① 空内容直接返回
+    if not text:
+        return ""
+
+    # ② 没超过预算，原样返回，不做任何改动
+    if len(text) <= settings.COMMAND_MAX_CHAR_COUNT:
+        return text
+
+    # ③ 计算被省略的字符数
+    omitted = len(text) - settings.COMMAND_HEAD - settings.COMMAND_TAIL
+
+    # ④ 头 + 省略标记 + 尾
+    truncated = (
+        text[:settings.COMMAND_HEAD]                          # 前 3000 字符
+        + f"\n\n... [中间省略 {omitted} 字符] ...\n\n"   # 省略标记
+        + text[-settings.COMMAND_TAIL:]                       # 后 2500 字符
+    )
+    return truncated

@@ -23,6 +23,7 @@ def file_edit_tool(
         return toolResult(success=False, error=f"文件 '{target_path}' 不存在。如想增加文件请调用create_file工具")
     file_content=None
     new_lines=new_content.splitlines(keepends=True)
+    len_new_lines=len(new_lines)
     for enc in encodings_to_try:
         try:
             with open(target_path, 'r', encoding=enc, newline='') as f:
@@ -60,8 +61,8 @@ def file_edit_tool(
             diff_text=replace(new_lines,normalize_file_lines,start_idx,end_idx,target_path,used_encoding,file_path)
             return toolResult(
                 success=True,
-                message=f"文件 '{target_path}' 中旧内容已成功替换为新内容。",
-                content=diff_text,
+                content=f"已修改 {file_path} (Line({start_idx}-{end_idx}), +{len_new_lines} -{n})",
+                message=diff_text,
                 tool_name="file_edit"
             )
         elif len(match) > 1:
@@ -83,6 +84,7 @@ def file_edit_tool(
                 tool_name="file_edit"
             )
     # 第四级，最终模糊匹配，到时候再写
+
     except Exception as e:
         return toolResult(
             success=False,
@@ -133,8 +135,8 @@ def create_file_tool(file_path: str, content: str, config:RunnableConfig) -> too
 
         return toolResult(
             success=True,
-            message=f"已创建文件 '{target_path}' ",
-            content=diff_text,
+            content=f"已创建 {target_path} +{len(new_lines)} ",
+            message=diff_text,
             tool_name="create_file"
         )
 
@@ -169,7 +171,7 @@ def delete_file_tool(file_path:str, config:RunnableConfig) -> toolResult:
     os.remove(target_path)
     return toolResult(
         success=True,
-        message=f"文件 '{target_path}' 已成功删除。",
+        message=f"已删除 {target_path} ",
         content="",
         data=old_content,
         tool_name="delete_file"

@@ -4,11 +4,9 @@ from pydantic import BaseModel, Field
 from utils.editFileTools import file_edit_tool, create_file_tool, delete_file_tool
 from config.data import settings
 from core.toolResult import toolResult
+
 # 与 file_read 一致的多编码尝试列表,避免让 LLM 猜编码(猜错即失败,会引发重试)
 encodings_to_try = settings.ENCODINGS_TO_TRY
-
-
-
 
 class FileEditArgs(BaseModel):
     file_path: str = Field(description="要修改的文件相对路径。")

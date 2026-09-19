@@ -64,11 +64,12 @@ def readfile(
                 raw_content = f.read()
                 used_encoding = enc
                 break
-        except UnicodeDecodeError:
-            continue
-        except Exception:
-            # 其他异常（如权限）直接跳出循环，稍后统一处理
-            continue
+        except PermissionError:
+            return toolResult(success=False, error=f"没有权限读取文件: {target_path}", tool_name="readfile")
+        except (UnicodeDecodeError, LookupError):
+            continue  # 只有编码问题才换下一个
+        except Exception as e:
+            return toolResult(success=False, error=f"读取文件出错: {e}", tool_name="readfile")
 
     if raw_content is None:
         # 所有编码都失败，可能是二进制文件或权限问题
@@ -86,7 +87,7 @@ def readfile(
         head = raw_content[:settings.RETURN_FILE_MAX_COUNT]
         tail = raw_content[-settings.RETURN_FILE_MAX_COUNT:]
         return toolResult(
-            success=False,
+            success=True,
             content=f"[system Info] 文件过大({len(raw_content)/1024:.2f}KB)， 共 {total_lines} 行)。\n"
             "为防止上下文爆炸，系统仅展示【前1500个字符】和【后1500个字符】的内容。\n"
             "如果需要查找特定内容，请停止使用 readfile，改用 `search_file_by_keyword` 或者命令行工具 \n"
