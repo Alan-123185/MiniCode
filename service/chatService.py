@@ -1,6 +1,6 @@
 import uuid
 
-from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
+from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
 from config.data import Settings, settings
@@ -178,7 +178,7 @@ class ChatService:
                     final_result = chunk["output_node"].get("agentResult")
 
         # 图跑完，检查是否又遇到了新的中断
-        snapshot = await self.graph.aget_state(config)
+        snapshot = await self.graph.aget_state(create_chat_config(thread_id=config["configurable"]["thread_id"]))
         if snapshot.next:
             interrupt_message = None
             if snapshot.tasks and snapshot.tasks[0].interrupts:
@@ -233,23 +233,32 @@ class ChatService:
                 else:
                     for history in history_list:
                         if history and history.values["messages"][-1].id == message_id:
-                            new_config=await self.graph.aupdate_state(history.config, {"messages": HumanMessage(content=new_content,id=message_id)})
-                            async for result in self.continue_chat(config=new_config):
+                            new_config = await self.graph.aupdate_state(history.config, {"messages": HumanMessage(content=new_content, id=message_id)})
+                            run_config = create_chat_config(thread_id=session_id)
+                            run_config["configurable"].update({
+                                k: v for k, v in new_config["configurable"].items()
+                                if k not in run_config["configurable"]  # 保留 checkpoint_ns/checkpoint_id
+                            })
+                            async for result in self.continue_chat(config=run_config):
                                 yield result
                             return
         yield InterruptResult(message=f"消息 ID {message_id} 未找到或已被影响，无法编辑。", type=settings.interrupt_type_info)
 
 
-
-def find_safe_message_index(messages:list[BaseMessage]) -> int:
+def find_safe_message_index(messages: list[BaseMessage]) -> int:
     """
-    查找最远一次未造成任何影响的消息索引
+    查找最远一次未造成任何影响的消息索引。
+    只有「实际执行过」（存在对应 ToolMessage 回复）的危险工具调用才算影响；
+    被 interrupt 拦下、未执行的工具请求不算。
     """
-    influence_function_list=["file_edit","execute_command","delete_file","create_file","undo_operationgroup"]
+    influence_function_list = ["file_edit", "execute_command", "delete_file",
+                               "create_file", "undo_operationgroup"]
+    # 先收集所有有 ToolMessage 回复的 tool_call_id = 真正执行过的调用
+    executed_ids = {m.tool_call_id for m in messages if isinstance(m, ToolMessage)}
     for i in range(len(messages) - 1, -1, -1):
         msg = messages[i]
         if isinstance(msg, AIMessage) and any(
-                tc["name"] in influence_function_list for tc in (msg.tool_calls or [])
-        ):
+                tc["name"] in influence_function_list and tc["id"] in executed_ids
+                for tc in (msg.tool_calls or [])):
             return i + 1
-    return 0  # 没有任何影响性调用，整个列表都是干净后缀
+    return 0

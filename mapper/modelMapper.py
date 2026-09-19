@@ -56,7 +56,7 @@ class modelMapper:
             raise BizException(message=f"Failed to update model to default: {e}")
 
     def reload_model_config(self) -> dict:
-        model_dict = self.db.fetch_all("select * from model where is_default = 1")
+        model_dict = self.db.fetch_one("select * from model where is_default = 1")
         if not model_dict:
             model_dict = self.db.fetch_one("select * from model order by id desc limit 1")
         if not model_dict:
