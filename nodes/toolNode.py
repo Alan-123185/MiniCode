@@ -95,6 +95,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         )
         try:
             toolresult = await tool.ainvoke(tool_args,config=config)
+            logger.info(f"调用工具 {tool_name} 成功，结果: {toolresult}")
         except Exception as e:
             logger.error(f"调用工具 {tool_name} 时发生错误: {e}")
             toolresult = toolResult(success=False, message=f"调用工具 {tool_name} 时发生错误: {compress_error(str(e))}")

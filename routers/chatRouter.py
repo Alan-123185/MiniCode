@@ -32,7 +32,7 @@ async def chat_to_agent(chat_request: ChatRequest,background_tasks:BackgroundTas
                     response=interrupt_result.agentResult
                 )
 
-                if get_session(create_chat_config(chat_request.session_id)).session_name!="新会话":
+                if get_session(create_chat_config(chat_request.session_id)).session_name=="新会话":
                     background_tasks.add_task(
                         new_title,
                    chat_request.session_id,

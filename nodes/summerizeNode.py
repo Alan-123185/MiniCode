@@ -1,4 +1,6 @@
 from langchain_core.messages import SystemMessage
+from loguru import logger
+
 from config.dependencies import create_no_streaming_model
 from config.modelConfig import model_config
 from exceptions import BizException
@@ -34,6 +36,7 @@ async def summerize_node(state:OverAllState) -> OverAllState:
         [SystemMessage(content=summerize_prompt)]
     )
     summary_state=summarystate if summarystate else summary_state  #防止模型返回空值
+    logger.info(f"summary_state: {summary_state}")
     return {
         "summary_state":summary_state,
         "last_summary_pos":pos

@@ -1,4 +1,6 @@
 from langgraph.constants import END
+from loguru import logger
+
 from config.data import settings
 from states.OverallState import OverAllState
 from utils.MessageTool import count_tokens
@@ -14,8 +16,10 @@ def summerize_condition_node(state:OverAllState) -> str:
         return END
     token_count=count_tokens(messages)
     if token_count>settings.LLM_MAX_TOKEN :
+        logger.info(f"消息总数: {len(messages)}, 总token数: {token_count}, 超过限制，触发摘要")
         return "summerize"
     if len(messages) > settings.LLM_MAX_UP_MESSAGE_COUNT :
+        logger.info(f"消息总数: {len(messages)}, 总token数: {token_count}, 超过限制，触发摘要")
         return "summerize"
     return END
 

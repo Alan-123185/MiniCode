@@ -3,6 +3,8 @@ import uuid
 from typing import List
 from langchain_core.messages import SystemMessage, BaseMessage, ToolMessage, AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from loguru import logger
+
 from config.data import settings
 from config.modelConfig import model_config
 from exceptions import BizException
@@ -18,7 +20,7 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
     # 型是运行时选择的,必须调用时取最新,不能在模块级绑定
     model = model_config["value"]
     if model is None:
-        raise BizException(message="---------ERROR 请先选择模型----------")
+        raise BizException(message="ERROR 请先选择模型")
     system_prompt=config["configurable"]["system_prompt"].format(history_summary=state.summary_state)
     #提示词得改一下
     response = None
@@ -26,7 +28,7 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
         async for chunk in model.bind_tools(tools).astream([SystemMessage(content=system_prompt)]+input_message):
             response = chunk if response is None else response + chunk
     except Exception as e:
-        raise BizException(message=f"---------ERROR 生成失败----------")
+        raise BizException(message=f"ERROR 生成失败")
     # 1. 生成 message_id
     message_id = str(uuid.uuid4())
     # 2. 把 message_id 塞进 additional_kwargs
@@ -34,6 +36,7 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
         response.additional_kwargs = {}
     response.additional_kwargs["memory_id"] = message_id
     usage = response.usage_metadata
+    logger.info("respnse:"+str(response))
     return {
         "output": response.content,
         "messages": [response],
