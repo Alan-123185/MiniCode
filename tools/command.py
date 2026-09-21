@@ -97,7 +97,7 @@ def run_code(code: str, filename: str, cwd: str, config: RunnableConfig ,stdin_i
     try:
         _executor = sessionmanager["executor"][config["configurable"]["session_id"]]
     except KeyError:
-        _executor = MxcExecutor(mxc_path=settings.MXC_path, workplace=cwd, session_id=config["configurable"]["session_id"])
+        _executor = MxcExecutor(mxc_path=settings.MXC_path, workplace=str(abs_cwd), session_id=config["configurable"]["session_id"])
         sessionmanager["executor"][config["configurable"]["session_id"]] = _executor
     run_result=_executor.run_code(code=code, filename=filename, stdin_input=stdin_input, time_out=time_out)
     return _fresh_result(run_result) if run_result else toolResult(

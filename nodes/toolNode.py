@@ -6,7 +6,7 @@ from core.toolResult import toolResult
 from core.toolStatusEvent import toolstatusEvent
 from states.OverallState import OverAllState
 from tools.OriginalContentTool import get_original_content_by_compressed_content, get_original_content_by_tool_call_id
-from tools.command import execute_command
+from tools.command import execute_command, run_code
 from tools.file_edit import file_edit, create_file, delete_file
 from tools.file_read import readfile, listfiles
 from tools.baidu_search import baidu_search
@@ -16,6 +16,7 @@ from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig  # 引入 Config 类型
 from tools.undo_file_edit import undo_operationgroup, query_operationgroup
 from utils.MessageTool import compress_error
+from utils.commandSafe import is_command_safe
 
 """
 
@@ -35,7 +36,8 @@ tools=[baidu_search,
        undo_operationgroup,
        query_operationgroup,
        get_original_content_by_tool_call_id,
-       get_original_content_by_compressed_content
+       get_original_content_by_compressed_content,
+       run_code
        ]
 tools_need_to_confirm=["file_edit","execute_command","delete_file","create_file","undo_operationgroup"]
 max_retry_time=settings.MAX_TOOL_CALLS
@@ -64,6 +66,8 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         # ================= 1. 处理需要确认的工具 =================
         if tool_name in tools_need_to_confirm:
             # interrupt 会暂停图的执行，等待外部通过 update_state 或 Command 恢复
+            if tool_name == "execute_command" and is_command_safe(tool_args.get("command", "")):
+                continue
             decision = interrupt(
                 InterruptInfo(
                     tool_name=tool_name,

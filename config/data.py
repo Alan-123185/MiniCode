@@ -133,8 +133,14 @@ class Settings(BaseSettings):
 
     RG_SEARCH_MAX_COUNT:int=50          #rg搜索最大返回条数
 
-
-
+    SAFE_COMMAND_WHITELIST: list[str] = [
+        r"^git (status|log|show|diff|blame|shortlog|describe)( |$)",
+        r"^git branch( (--list|-a|-v|-vv|--show-current))?$",  # 只放行列举，建/删分支不匹配
+        r"^git (ls-files|rev-parse|remote -v|stash list|worktree list)( |$)",
+        r"^(dir|type|where|ver|tree|cd|chdir|echo|findstr)( |$)",
+        r"^(python|pip|node|npm|git|rg) (--version|-V)( |$)",
+        r"^pip (list|show|freeze)( |$)",
+    ]
 
 
 

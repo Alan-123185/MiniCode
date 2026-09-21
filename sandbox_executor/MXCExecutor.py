@@ -116,11 +116,13 @@ class MxcExecutor:
         if not template:
             return commandResult(
                 success=False,
-                stdout=f"不支持的文件类型: {ext}",
+                stdout="",
+                stderr=f"不支持的文件类型: {ext}",
                 exitcode=-1
             )
 
-        cmd = f'cmd.exe /c cd /d "{self.workplace}" && {template.format(file=filename)}'
+        relative_file = script_path.relative_to(self.workplace)
+        cmd = f'cmd.exe /c cd /d "{self.workplace}" && {template.format(file=str(relative_file))}'
         return self.run(cmd, stdin_input=stdin_input, time_out=time_out)
 
 
