@@ -11,7 +11,9 @@ function getBaseUrl() {
 
 let baseUrlPromise = null
 
-async function getBase() {
+/** 获取 API 基地址: Electron IPC > 开发代理 > 生产默认值。
+ *  供 api 层内部与状态栏展示复用。 */
+export async function getBase() {
   if (window.electronAPI?.getApiBaseUrl) {
     if (!baseUrlPromise) {
       baseUrlPromise = window.electronAPI.getApiBaseUrl()
@@ -36,14 +38,44 @@ async function request(path, options = {}) {
   return data
 }
 
+/**
+ * 以 async generator 形式消费后端 SSE。
+ *
+ * 用「队列 + 唤醒器」而非单个 resolveNext: 事件随时可能到达, 消费者可能
+ * 正在 yield、正在处理上一个事件、或尚未开始等待, 单个 resolveNext 槽位会
+ * 在这些时机里丢事件或永久挂起。
+ *
+ * 结束条件由 onclose / onerror 统一驱动, 二者都保证唤醒消费者:
+ *  - 正常关闭 → finish(), 队列排空后 generator 正常 return
+ *  - 出错 → finish(err) 并在 onerror 中抛出, 让 fetch-event-source 停止
+ *    默认的每秒无限重试; 消费者排空队列后抛出该错误
+ */
 export async function* stream(endpoint, body) {
   const base = await getBase()
   const url = `${base}${endpoint}`
 
-  const events = []
-  let resolveNext = null
-  let ended = false
-  let error = null
+  const queue = []
+  let wake = null
+  let finished = false
+  let failure = null
+
+  function enqueue(payload) {
+    queue.push(payload)
+    if (wake) {
+      wake()
+      wake = null
+    }
+  }
+
+  function finish(err) {
+    if (finished) return
+    finished = true
+    if (err) failure = err
+    if (wake) {
+      wake()
+      wake = null
+    }
+  }
 
   fetchEventSource(url, {
     method: 'POST',
@@ -56,43 +88,36 @@ export async function* stream(endpoint, body) {
     },
     onmessage(ev) {
       try {
-        const payload = JSON.parse(ev.data)
-        if (resolveNext) {
-          resolveNext(payload)
-          resolveNext = null
-        } else {
-          events.push(payload)
-        }
+        enqueue(JSON.parse(ev.data))
       } catch (e) {
         console.error('解析 SSE 消息失败', e)
       }
     },
     onclose() {
-      ended = true
-      if (resolveNext) resolveNext(null)
+      finish()
     },
     onerror(err) {
-      error = err
-      ended = true
-      if (resolveNext) resolveNext(null)
+      finish(err instanceof Error ? err : new Error(String(err)))
+      // 抛出: fetch-event-source 会 dispose 连接并 reject, 不再重试
+      throw err
     },
-  })
+  }).then(
+    () => finish(),
+    (err) => finish(err instanceof Error ? err : new Error(String(err)))
+  )
 
-  while (!ended || events.length > 0) {
-    if (events.length > 0) {
-      yield events.shift()
-    } else {
-      const value = await new Promise((resolve) => {
-        resolveNext = resolve
-      })
-      if (value === null) break
-      yield value
+  while (true) {
+    if (queue.length > 0) {
+      yield queue.shift()
+      continue
     }
+    if (finished) break
+    await new Promise((resolve) => {
+      wake = resolve
+    })
   }
 
-  if (error) {
-    throw error
-  }
+  if (failure) throw failure
 }
 
 export function chatStream(body) {
@@ -108,23 +133,32 @@ export function newChat(body) {
 }
 
 export function listSessions(userId) {
-  return request(`/MiniCode/sessions/${encodeURIComponent(userId)}`)
+  // 后端: GET /MiniCode/sessions?user_id=xxx (query 参数, routers/sessionRouter.py)
+  return request(`/MiniCode/sessions?user_id=${encodeURIComponent(userId)}`)
 }
 
 export function getHistory(sessionId) {
-  return request(`/MiniCode/history/${encodeURIComponent(sessionId)}`, { method: 'POST' })
+  // 后端: GET /MiniCode/history?session_id=xxx (query 参数, routers/sessionRouter.py)
+  return request(`/MiniCode/history?session_id=${encodeURIComponent(sessionId)}`)
 }
 
 export function deleteChat(sessionId) {
-  return request(`/MiniCode/deleteChat/${encodeURIComponent(sessionId)}`, { method: 'POST' })
+  // 后端: POST /MiniCode/deleteChat?session_id=xxx (query 参数, routers/sessionRouter.py)
+  return request(`/MiniCode/deleteChat?session_id=${encodeURIComponent(sessionId)}`, { method: 'POST' })
 }
 
 export function chooseModel(body) {
-  return request('/MiniCode/model', { method: 'POST', body: JSON.stringify(body) })
+  // 后端 ModelChooseRequest 字段为 model_name (requestcommon/ModelRequest.py), 前端内部叫 model
+  const { model, ...rest } = body || {}
+  return request('/MiniCode/model', {
+    method: 'POST',
+    body: JSON.stringify({ ...rest, model_name: model }),
+  })
 }
 
 export function oldModel() {
-  return request('/MiniCode/old_model')
+  // 后端实际提供的是 GET /MiniCode/get_model (routers/modelRouter.py), 不存在 /old_model
+  return request('/MiniCode/get_model')
 }
 
 export function chooseWorkplace(body) {

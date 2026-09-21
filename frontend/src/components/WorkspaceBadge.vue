@@ -1,5 +1,5 @@
 <template>
-  <!-- 右上角会话级工作目录徽章: 展示当前会话绑定的绝对路径 -->
+  <!-- 顶栏: 当前会话绑定的工作目录徽章 -->
   <div class="workspace-badge" :class="{ empty: !path, 'pulse-in': animate }">
     <button
       class="badge-body"
@@ -10,8 +10,8 @@
       <svg
         class="badge-icon"
         xmlns="http://www.w3.org/2000/svg"
-        width="14"
-        height="14"
+        width="13"
+        height="13"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -28,6 +28,7 @@
       v-if="path"
       class="badge-clear"
       title="解绑当前会话的工作目录"
+      aria-label="解绑当前会话的工作目录"
       @click.stop="onClear"
     >×</button>
   </div>
@@ -91,6 +92,7 @@ watch(
 
 <style scoped>
 .workspace-badge {
+  position: relative;
   display: inline-flex;
   align-items: center;
   max-width: 260px;
@@ -109,24 +111,26 @@ watch(
 }
 
 .badge-body {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
-  padding: 5px 12px;
+  padding: 4px 10px;
   font-size: 12px;
   color: var(--text-secondary);
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 999px;
-  box-shadow: var(--shadow-xs);
+  border-radius: var(--radius-pill);
+  box-shadow: none;
 }
 
-.badge-body:hover {
+.badge-body:hover:not(:disabled) {
   color: var(--accent);
   background: var(--accent-light);
   border-color: var(--accent-border);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
+  transform: none;
 }
 
 .badge-icon {
@@ -145,7 +149,7 @@ watch(
 .badge-pulse {
   position: absolute;
   inset: -2px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   pointer-events: none;
   opacity: 0;
 }
@@ -166,19 +170,22 @@ watch(
 }
 
 .badge-clear {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   margin-left: -6px;
   padding: 0;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-secondary);
   background: var(--border-color);
-  border-radius: 999px;
+  border-radius: 50%;
   z-index: 1;
 }
 
-.badge-clear:hover {
+.badge-clear:hover:not(:disabled) {
   color: #fff;
   background: var(--error);
 }

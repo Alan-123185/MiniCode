@@ -10,6 +10,7 @@
         v-model="text"
         rows="1"
         :placeholder="store.isStreaming ? 'AI 正在回复…' : '输入消息，Enter 发送'"
+        :aria-label="'消息输入框'"
         @input="resize"
         @keydown.enter.exact.prevent="submit"
       ></textarea>
@@ -17,9 +18,11 @@
         class="send-btn"
         :class="{ sending: store.isStreaming }"
         :disabled="!canSend"
+        :title="store.isStreaming ? 'AI 正在回复' : '发送 (Enter)'"
+        aria-label="发送消息"
         @click="submit"
       >
-        <span v-if="store.isStreaming" class="spinner"></span>
+        <span v-if="store.isStreaming" class="spinner" aria-hidden="true"></span>
         <svg
           v-else
           xmlns="http://www.w3.org/2000/svg"
@@ -43,7 +46,7 @@
       <transition name="fade">
         <span v-if="errorMsg" class="footer-error">{{ errorMsg }}</span>
       </transition>
-      <span class="hint">Enter 发送 · Shift + Enter 换行</span>
+      <span class="hint"><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span>
     </div>
   </div>
 </template>
@@ -96,7 +99,7 @@ async function submit() {
 <style scoped>
 .input-wrap {
   position: relative;
-  padding: 12px 16px 12px;
+  padding: var(--space-3) var(--space-5);
   background: var(--bg-primary);
   border: none;
 }
@@ -107,8 +110,8 @@ async function submit() {
   left: 50%;
   bottom: calc(100% + 10px);
   transform: translateX(-50%);
-  padding: 8px 16px;
-  border-radius: 999px;
+  padding: 7px 16px;
+  border-radius: var(--radius-pill);
   background: rgba(28, 30, 34, 0.82);
   color: #fff;
   font-size: 13px;
@@ -123,7 +126,7 @@ async function submit() {
 
 .toast-fade-enter-active,
 .toast-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s var(--ease-out);
+  transition: opacity var(--dur-slow) ease, transform var(--dur-slow) var(--ease-out);
 }
 
 .toast-fade-enter-from,
@@ -135,16 +138,17 @@ async function submit() {
 .input-box {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: var(--space-3);
   background: var(--bg-primary);
-  border: 1px solid var(--accent);
-  border-radius: 16px;
-  padding: 10px 14px;
-  transition: border-color 0.25s;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px 10px 14px;
+  transition: border-color var(--dur-base), box-shadow var(--dur-base);
 }
 
 .input-box:focus-within {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .input-box textarea {
@@ -153,7 +157,7 @@ async function submit() {
   background: transparent;
   resize: none;
   padding: 6px 4px;
-  font-size: 15px;
+  font-size: 14.5px;
   line-height: 1.6;
   max-height: 160px;
   font-family: inherit;
@@ -166,14 +170,24 @@ async function submit() {
 }
 
 .send-btn {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.send-btn:active:not(:disabled) {
+  background: var(--accent-active);
 }
 
 .send-btn.sending {
@@ -181,8 +195,8 @@ async function submit() {
 }
 
 .spinner {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.35);
   border-top-color: #fff;
   border-radius: 50%;
@@ -190,10 +204,11 @@ async function submit() {
 }
 
 .input-footer {
-  margin-top: 8px;
+  margin-top: var(--space-2);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
+  min-height: 26px;
 }
 
 .footer-error {
@@ -208,13 +223,20 @@ async function submit() {
   75% { transform: translateX(3px); }
 }
 
-.fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
+.fade-enter-active, .fade-leave-active { transition: opacity var(--dur-base) ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
 .hint {
   margin-left: auto;
   font-size: 12px;
   color: var(--text-secondary);
-  opacity: 0.7;
+  opacity: 0.8;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.hint kbd {
+  font-size: 10px;
 }
 </style>

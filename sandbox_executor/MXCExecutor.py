@@ -159,7 +159,7 @@ def _truncate_output(text:str) -> str:
     # ④ 头 + 省略标记 + 尾
     truncated = (
         text[:settings.COMMAND_HEAD]                          # 前 3000 字符
-        + f"\n\n... [中间省略 {omitted} 字符] ...\n\n"   # 省略标记
+        + f"\n\n... [中间省略 {omitted} 字符] ...\n\n"          # 省略标记
         + text[-settings.COMMAND_TAIL:]                       # 后 2500 字符
     )
     return truncated
