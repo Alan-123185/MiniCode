@@ -47,6 +47,20 @@ class Settings(BaseSettings):
             .parent
             / "init_script.sql"
     )
+    MXC_path: ClassVar[Path] = (
+            Path(__file__)
+            .resolve()
+            .parent
+            .parent
+            / "bin"
+            / "MXC"
+            / "wxc-exec.exe"
+    )
+    MXC_containment: str = "processcontainer"  # 沙箱隔离方式，默认使用进程容器
+    MXC_network_egress: str = "deny"  # 沙箱网络访问策略，默认禁止外发
+    MXC_version: str="0.8.0-alpha"
+    MXC_network_ingress: str = "deny"  # 沙箱网络访问策略，默认禁止入站
+    MXC_network_hostLoopback: str = "deny"  # 沙箱网络访问策略，默认禁止回环访问
     #最大超步限制
     DEFAULT_RECURSION_LIMIT : int = 10
     # 编码方式集合

@@ -3,6 +3,7 @@ from config.sessionManager import sessionmanager
 from exceptions import BizException
 from mappercommon.Session import Session
 from requestcommon import workplaceRequest
+from pathlib import Path
 
 class WorkplaceService:
 
@@ -27,9 +28,10 @@ class WorkplaceService:
 
         elif not session_dict["workplace"]:
             self.sessionMapper.update_workplace(workplace=request.workplace,session_id=request.session_id)
+            Path(request.workplace, ".MiniCode", request.session_id).mkdir(parents=True, exist_ok=True)
 
         else:
             raise BizException(message="已经选定目录，无法更改，请创建新对话")
 
-        sessionmanager[request.session_id]=new_session
-
+        Path(request.workplace, ".MiniCode", request.session_id).mkdir(parents=True, exist_ok=True)
+        sessionmanager["session"][request.session_id]=new_session

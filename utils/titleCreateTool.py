@@ -13,7 +13,7 @@ async def new_title(session_id: str, messages: list[str]) -> None:
     model = model_config["value"]
     prompt=title_prompt.TITLE_PROMPT.format(first_message=messages)
     title_message =await model.ainvoke([SystemMessage(content=prompt)],reasoning_effort="none",extra_body={"enable_thinking": False})
-    sessionmanager[session_id].session_name = title_message.content
+    sessionmanager["session"][session_id].session_name = title_message.content
     db = DataBase()
     session_mapper = sessionMapper(db)
     try:
