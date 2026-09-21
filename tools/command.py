@@ -3,28 +3,41 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from config.data import settings
 from config.sessionManager import sessionmanager
+from core.commandResult import commandResult
 from core.toolResult import toolResult
 from sandbox_executor.MXCExecutor import MxcExecutor
-from utils.MessageTool import compress_error
 from utils.filePathTools import relativePathToAbsolute
 import os
 
 
 class ExecuteCommandInput(BaseModel):
     command: str = Field(description="要执行的命令")
-    cwd: str = Field(description="命令执行的工作目录，相对路径或绝对路径")
+    cwd: str = Field(default=".", description="命令执行的工作目录，相对路径或绝对路径，默认是 . 表示当前工作目录")
     stdin_input: str | None = Field(default=None, description="仅当命令需要交互式输入(如 input())时传入")
     time_out: int = Field(
         default=settings.COMMAND_TIMEOUT, ge=1, le=600,
         description=f"命令超时秒数，默认{settings.COMMAND_TIMEOUT}。凡 pip/npm install、编译、运行测试、下载等可能超过30秒的命令，必须传 timeout=300~600"
     )
 
+
+class RunCodeInput(BaseModel):
+    code: str = Field(description="要执行的代码脚本")
+    filename: str = Field(description="代码文件名（包含扩展名），用于确定代码类型和执行方式")
+    cwd: str = Field(default=".", description="代码执行的工作目录，相对路径或绝对路径，默认是 . 表示当前工作目录")
+    stdin_input: str | None = Field(default=None, description="仅当代码需要交互式输入(如 input())时传入")
+    time_out: int = Field(
+        default=settings.COMMAND_TIMEOUT, ge=1, le=600,
+        description=f"代码执行超时秒数，默认{settings.COMMAND_TIMEOUT}。凡 pip/npm install、编译、运行测试、下载等可能超过30秒的命令，必须传 timeout=300~600"
+    )
+
+
+
 @tool(args_schema=ExecuteCommandInput)
 def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: int =settings.COMMAND_TIMEOUT,  stdin_input: str = None) -> toolResult:
     """
-    在终端中执行 shell 命令（默认环境为 Windows cmd）。
-    当你修改了代码后，强烈建议使用此工具来运行测试或者编译命令。
-    :return: 返回一个工具调用结果类
+    在当前会话的 MXC 沙箱中执行命令并返回结构化结果。
+    Returns:
+        toolResult: 命令执行结果。
     """
     # 1. 路径转换与防御性校验 (彻底解决 WinError 267 目录无效报错)
 
@@ -45,18 +58,63 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
     new content! with MXCExecutor run command in sandbox
     
     """
-    #构造 MXCExecutor 实例，确保在沙箱中执行命令
-
     try:
         _executor = sessionmanager["executor"][config["configurable"]["session_id"]]
     except KeyError:
-        _executor = MxcExecutor(mxc_path=settings.MXC_path, workplace=cwd)
+        _executor = MxcExecutor(mxc_path=settings.MXC_path, workplace=cwd, session_id=config["configurable"]["session_id"])
         sessionmanager["executor"][config["configurable"]["session_id"]] = _executor
 
-        command_result = _executor.run(command=command, stdin_input=stdin_input, time_out=time_out)
-        stdout=command_result.stdout
-        stderr=command_result.stderr
-        code=command_result.exitcode
+
+    command_result = _executor.run(command=command, stdin_input=stdin_input, time_out=time_out)
+
+    return _fresh_result(command_result) if command_result else toolResult(
+        success=False,
+        message=f"命令退出码:{command_result.exitcode}",
+        error=command_result.stderr,
+        tool_name="execute_command"
+    )
+
+
+@tool(args_schema=RunCodeInput)
+def run_code(code: str, filename: str, cwd: str, config: RunnableConfig ,stdin_input: str | None = None, time_out: int = settings.COMMAND_TIMEOUT) -> toolResult:
+    """
+    在 MXC 沙箱中执行脚本并返回结构化结果，被执行的脚本文件将写入.MiniCode/{session_id}目录下
+    Returns:
+        toolResult: 命令执行结果。
+    """
+    try:
+        abs_cwd =relativePathToAbsolute(cwd,config)
+    except Exception :
+        abs_cwd = cwd  # 如果转换函数报错，保留原值
+
+    if not abs_cwd or not os.path.isdir(abs_cwd):
+        return toolResult(
+            success=False,
+            content="",
+            error=f"工作目录 '{abs_cwd}' 不存在或不是一个有效的目录，请检查路径是否正确。",
+            tool_name="execute_command"
+        )
+    try:
+        _executor = sessionmanager["executor"][config["configurable"]["session_id"]]
+    except KeyError:
+        _executor = MxcExecutor(mxc_path=settings.MXC_path, workplace=cwd, session_id=config["configurable"]["session_id"])
+        sessionmanager["executor"][config["configurable"]["session_id"]] = _executor
+    run_result=_executor.run_code(code=code, filename=filename, stdin_input=stdin_input, time_out=time_out)
+    return _fresh_result(run_result) if run_result else toolResult(
+        success=False,
+        content=f"命令退出码:{run_result.exitcode}",
+        error=run_result.stderr,
+        tool_name="run_code"
+    )
+
+
+
+
+
+def _fresh_result(command_result:commandResult,):
+        stdout = command_result.stdout
+        stderr = command_result.stderr
+        code = command_result.exitcode
         final_content = ""
         if stdout:
             final_content += f"--- 标准输出 (STDOUT) ---\n{stdout}\n"
@@ -73,18 +131,6 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
             content=final_content.strip(),
             tool_name="execute_command"
         )
-
-    except Exception as e:
-        # 5. 优化异常捕获：兜底所有未知错误，防止 Agent 节点直接崩溃
-        return toolResult(
-            success=False,
-            error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
-            tool_name="execute_command"
-        )
-
-
-
-
 
 
 

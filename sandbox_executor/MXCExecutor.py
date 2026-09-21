@@ -7,14 +7,27 @@ from config.data import settings
 from core.commandResult import commandResult
 from utils.MessageTool import compress_error
 
+INTERPRETERS = {
+    ".py": "python {file}",
+    ".js": "node {file}",
+    ".ts": "npx ts-node {file}",
+    ".sh": "bash {file}",
+    ".rb": "ruby {file}",
+    ".go": "go run {file}",
+    ".java": "java {file}",  # Java 11+ 可以直接跑单文件
+    ".php": "php {file}",
+    ".ps1": "powershell -File {file}",
+}
+
 
 class MxcExecutor:
     # 这是一个封装 MXC（为某个沙箱执行器）执行相关操作的类
-    def __init__(self, mxc_path: Path, workplace: str):
+    def __init__(self, mxc_path: Path, workplace: str, session_id: str):
         # mxc_path: 沙箱二进制的路径（可执行文件）
         # workplace: 在沙箱中提供给进程的工作目录（以及脚本写入目录）
         self.binary = mxc_path  # 将二进制路径转换为 Path 对象，方便后续拼接和传参
         self.workplace = Path(workplace).resolve()  # 将工作目录路径解析为绝对路径并转换为 Path 对象
+        self.session_id=session_id
 
 
     def run(self, command: str, time_out: int = settings.COMMAND_TIMEOUT, stdin_input: str = None) -> commandResult:
@@ -67,8 +80,8 @@ class MxcExecutor:
                 )
 
             # 3. 解码输出
-            stdout = smart_decode(stdout_b)
-            stderr = smart_decode(stderr_b)
+            stdout = _smart_decode(stdout_b)
+            stderr = _smart_decode(stderr_b)
             stdout = _truncate_output(stdout)
             stderr = _truncate_output(stderr)
 
@@ -83,7 +96,7 @@ class MxcExecutor:
             return commandResult(
                 success=False,
                 stdout="",
-                stderr=f"命令执行失败：{compress_error(str(e))}",
+                stderr=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
                 exitcode=-1
             )
         finally:
@@ -93,18 +106,22 @@ class MxcExecutor:
 
 
 
-    """
-    这个工具暂时只能运行python代码，到时候要修复
-    """
-    def run_code(self, code: str, filename: str = "run.py") -> commandResult:
-        # 将一段代码写入工作目录下的文件，然后构造命令通过沙箱运行该脚本
-        script_path = self.workplace / filename  # 在工作目录下定位要写入的脚本文件路径
-        script_path.write_text(code, encoding="utf-8")  # 将代码以 utf-8 写入脚本文件（覆盖已有文件）
-        # 用 cmd 切到工作区再执行，避免沙箱内找不到脚本
-        cmd = f'cmd.exe /c cd /d "{self.workplace}" && python {filename}'  # 在 Windows 下使用 cmd 切换目录并执行 python
-        return self.run(cmd)  # 复用 run 方法来生成配置并执行沙箱
 
 
+    def run_code(self, code: str, filename: str,stdin_input: str | None = None, time_out: int = settings.COMMAND_TIMEOUT) -> commandResult:
+        script_path = self.workplace / ".MiniCode" / self.session_id / filename   #指定路径为工作目录下的 .MiniCode/session_id/filename
+        script_path.write_text(code, encoding="utf-8")
+        ext = script_path.suffix.lower()
+        template = INTERPRETERS.get(ext)
+        if not template:
+            return commandResult(
+                success=False,
+                stdout=f"不支持的文件类型: {ext}",
+                exitcode=-1
+            )
+
+        cmd = f'cmd.exe /c cd /d "{self.workplace}" && {template.format(file=filename)}'
+        return self.run(cmd, stdin_input=stdin_input, time_out=time_out)
 
 
 
@@ -131,7 +148,7 @@ class MxcExecutor:
 
 
 
-def smart_decode(b: bytes) -> str:
+def _smart_decode(b: bytes) -> str:
     """按字节智能解码：优先UTF-8（程序输出），失败回退GBK（cmd自身错误消息），双双失败才replace"""
     if not b:
         return ""
