@@ -22,17 +22,16 @@ INTERPRETERS = {
 
 class MxcExecutor:
     # 这是一个封装 MXC（为某个沙箱执行器）执行相关操作的类
-    def __init__(self, mxc_path: Path, workplace: str, session_id: str):
+    def __init__(self, mxc_path: Path, session_id: str):
         # mxc_path: 沙箱二进制的路径（可执行文件）
-        # workplace: 在沙箱中提供给进程的工作目录（以及脚本写入目录）
         self.binary = mxc_path  # 将二进制路径转换为 Path 对象，方便后续拼接和传参
-        self.workplace = Path(workplace).resolve()  # 将工作目录路径解析为绝对路径并转换为 Path 对象
         self.session_id=session_id
 
 
-    def run(self, command: str, time_out: int = settings.COMMAND_TIMEOUT, stdin_input: str = None) -> commandResult:
+    def run(self, command: str,workplace: str, time_out: int = settings.COMMAND_TIMEOUT, stdin_input: str = None) -> commandResult:
         # 1. 构建沙箱配置，time_out 是秒，配置里用毫秒
-        config = self._build_config(command, time_out=time_out)
+        workplace=Path(workplace).resolve()
+        config = MxcExecutor._build_config(workplace, command, time_out=time_out)
         with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".json", encoding="utf-8", delete=False
         ) as f:
@@ -50,7 +49,7 @@ class MxcExecutor:
             # 2. 关键修改：调用沙箱二进制，把配置文件路径作为参数
             proc = subprocess.Popen(
                 [str(self.binary), config_path],  # 不再用 shell=True 直接执行 command
-                cwd=str(self.workplace),  # 沙箱进程自身的工作目录
+                cwd=str(workplace),  # 沙箱进程自身的工作目录
                 stdin=subprocess.PIPE if stdin_input is not None else None,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -108,8 +107,10 @@ class MxcExecutor:
 
 
 
-    def run_code(self, code: str, filename: str,stdin_input: str | None = None, time_out: int = settings.COMMAND_TIMEOUT) -> commandResult:
-        script_path = self.workplace / ".MiniCode" / self.session_id / filename   #指定路径为工作目录下的 .MiniCode/session_id/filename
+    def run_code(self, code: str, workplace:str,filename: str,stdin_input: str | None = None, time_out: int = settings.COMMAND_TIMEOUT) -> commandResult:
+        workplace=Path(workplace).resolve()
+        script_path = workplace / ".MiniCode" / self.session_id / filename   #指定路径为工作目录下的 .MiniCode/session_id/filename
+        script_path.parent.mkdir(parents=True, exist_ok=True)
         script_path.write_text(code, encoding="utf-8")
         ext = script_path.suffix.lower()
         template = INTERPRETERS.get(ext)
@@ -121,30 +122,34 @@ class MxcExecutor:
                 exitcode=-1
             )
 
-        relative_file = script_path.relative_to(self.workplace)
-        cmd = f'cmd.exe /c cd /d "{self.workplace}" && {template.format(file=str(relative_file))}'
-        return self.run(cmd, stdin_input=stdin_input, time_out=time_out)
+        relative_file = script_path.relative_to(workplace)
+        cmd = f'cmd.exe /c cd /d "{workplace}" && {template.format(file=str(relative_file))}'
+        return self.run(cmd,workplace=workplace, stdin_input=stdin_input, time_out=time_out)
 
 
 
 
-
-    def _build_config(self, command: str, time_out: int) -> dict:
+    @staticmethod
+    def _build_config(workplace:Path, command: str, time_out: int) -> dict:
         # 为沙箱进程构建一个配置字典，最终会被写成 JSON 提供给沙箱二进制
         return {
-            "version": settings.MXC_version,  # 配置版本
-            "containment": settings.MXC_containment,  # 容器/隔离方式（这里使用 processcontainer）
+            "version": settings.MXC_version,
+            "containment": settings.MXC_containment,
             "process": {
-                "commandLine": command  # 要在沙箱中执行的命令行字符串
+                "commandLine": command,
+                "cwd": str(workplace),
+                "timeout": time_out * 1000,
             },
             "filesystem": {
-                "readonlyPaths": [str(self.workplace)],  # 将工作目录作为只读路径（按原逻辑同时也加入可写，会覆盖）
-                "readwritePaths": [str(self.workplace)],  # 将工作目录作为可读写路径，允许沙箱进程读写该目录
+                "readonlyPaths": settings.MXC_READ_ONLY_LIST,
+                "readwritePaths": [str(workplace)],
             },
             "network": {
-                "egress": {"default": settings.MXC_network_egress},  # 禁止默认的外发网络访问
-                "ingress": {"default": settings.MXC_network_ingress, "hostLoopback": settings.MXC_network_hostLoopback},
-                # 禁止入站和回环访问
+                "egress": {"default": settings.MXC_network_egress},
+                "ingress": {
+                    "default": settings.MXC_network_ingress,
+                    "hostLoopback": settings.MXC_network_hostLoopback
+                },
             }
         }
 

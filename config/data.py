@@ -1,5 +1,7 @@
 from pathlib import Path
 from typing import ClassVar
+import os
+import string
 from langgraph.checkpoint.memory import MemorySaver, InMemorySaver
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -56,8 +58,16 @@ class Settings(BaseSettings):
             / "MXC"
             / "wxc-exec.exe"
     )
+    # On Windows, automatically detect all existing drive letters (C:\\, D:\\, ...)
+    # so the config will include all system drives. On non-Windows platforms
+    # default to an empty list.
+    MXC_READ_ONLY_LIST: list[str] = (
+        [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+        if os.name == "nt"
+        else []
+    )
     MXC_containment: str = "processcontainer"  # 沙箱隔离方式，默认使用进程容器
-    MXC_network_egress: str = "deny"  # 沙箱网络访问策略，默认禁止外发
+    MXC_network_egress: str = "allow"  # 沙箱网络访问策略，默认禁止外发
     MXC_version: str="0.8.0-alpha"
     MXC_network_ingress: str = "deny"  # 沙箱网络访问策略，默认禁止入站
     MXC_network_hostLoopback: str = "deny"  # 沙箱网络访问策略，默认禁止回环访问

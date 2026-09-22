@@ -34,4 +34,4 @@ class WorkplaceService:
             raise BizException(message="已经选定目录，无法更改，请创建新对话")
 
         Path(request.workplace, ".MiniCode", request.session_id).mkdir(parents=True, exist_ok=True)
-        sessionmanager["session"][request.session_id]=new_session
+        sessionmanager.add_session(session_id=new_session.session_id, session=new_session)

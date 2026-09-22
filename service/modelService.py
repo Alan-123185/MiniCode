@@ -20,12 +20,14 @@ class modelService:
 
 
 
-    def old_choose_model(self) -> None:
+    def old_choose_model(self) -> ModelChooseRequest:
         config=self.modelmapper.reload_model_config()
+        model = ModelChooseRequest(base_url=config["base_url"], api_key=config["api_key"],
+                                     model_name=config["model_name"], is_default=config["is_default"])
         model_config["value"]=create_model(
-            ModelChooseRequest(base_url=config["base_url"],api_key=config["api_key"],
-                               model_name=config["model_name"],is_default=config["is_default"])
+           model
         )
+        return model
 
     def settings(self,settingrequest:settingsRequest) -> None:
 

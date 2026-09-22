@@ -64,10 +64,8 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         tool = tools_by_name.get(tool_name,"不存在该工具，请检查工具命名后重试")
 
         # ================= 1. 处理需要确认的工具 =================
-        if tool_name in tools_need_to_confirm:
+        if  tool_name in tools_need_to_confirm and not (tool_name == "execute_command" and is_command_safe(tool_args.get("command", ""), tool_args.get("stdin_input", None))) :
             # interrupt 会暂停图的执行，等待外部通过 update_state 或 Command 恢复
-            if tool_name == "execute_command" and is_command_safe(tool_args.get("command", "")):
-                continue
             decision = interrupt(
                 InterruptInfo(
                     tool_name=tool_name,

@@ -204,7 +204,7 @@ class ChatService:
         self.sessionMapper.add_session(
             new_session
         )
-        sessionmanager["session"][new_session.session_id] = new_session
+        sessionmanager.add_session(session_id=new_session.session_id, session=new_session)
 
 
     """

@@ -47,7 +47,7 @@ def create_no_streaming_model(model:ChatOpenAI):
 
 def get_session(config:RunnableConfig)-> Session:
     session_id=config.get("configurable", {}).get("thread_id")
-    res=sessionmanager["session"].get(session_id, None)
+    res=sessionmanager.get_session(session_id)
     if not res:
         db = DataBase()
         sessionmapper = sessionMapper(db)
@@ -64,7 +64,7 @@ def get_session(config:RunnableConfig)-> Session:
             user_id=res["user_id"],
             create_time=res["created_at"]
         )
-        sessionmanager["session"][session_id]=result
+        sessionmanager.add_session(session_id, result)
         return result
 
     return res

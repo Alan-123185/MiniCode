@@ -1,5 +1,3 @@
-import json
-
 from config.data import settings
 from exceptions import BizException
 from requestcommon.ModelRequest import ModelChooseRequest, ModelUpdateRequest
@@ -20,11 +18,18 @@ class modelMapper:
                 return
             if self.db.fetch_one("SELECT COUNT(*) FROM model")["COUNT(*)"]>=settings.MAX_MODEL_COUNT:
                 raise BizException(message=f"最多只能添加{settings.MAX_MODEL_COUNT}个模型")
-
-            self.db.execute(
-                "INSERT INTO model (model_name,api_key,base_url,is_default) VALUES (?, ?, ?, ?)",
-                (model.model_name, model.api_key, model.base_url, model.is_default),
-            )
+            default_model = self.db.fetch_one("SELECT * FROM model WHERE is_default = 1")
+            if not default_model and model.is_default:
+                self.db.execute(
+                    "INSERT INTO model (model_name,api_key,base_url,is_default) VALUES (?, ?, ?, ?)",
+                    (model.model_name, model.api_key, model.base_url, model.is_default),
+                )
+            elif default_model and model.is_default:
+                self.db.execute("UPDATE model SET is_default = 0 WHERE id = ?", (default_model["id"],))
+                self.db.execute(
+                    "INSERT INTO model (model_name,api_key,base_url,is_default) VALUES (?, ?, ?, ?)",
+                    (model.model_name, model.api_key, model.base_url, 1),
+                )
             self.db.conn.commit()
         except Exception as e:
             self.db.conn.rollback()

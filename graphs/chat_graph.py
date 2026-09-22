@@ -77,7 +77,8 @@ async def initialize_graph():
     db = DataBase()
     model_service = modelService(modelMapper(db))
     try:
-        model_service.old_choose_model()
+        model=model_service.old_choose_model()
+        logger.info(f"✅ 模型选择成功！{model}")
     except Exception as e:
         raise BizException(message="---------ERROR 请先选择模型----------")
     finally:

@@ -35,7 +35,7 @@ class RunCodeInput(BaseModel):
 @tool(args_schema=ExecuteCommandInput)
 def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: int =settings.COMMAND_TIMEOUT,  stdin_input: str = None) -> toolResult:
     """
-    在当前会话的 MXC 沙箱中执行命令并返回结构化结果。
+    在当前会话的 MXC 沙箱中执行各种命令并返回结构化结果。
     Returns:
         toolResult: 命令执行结果。
     """
@@ -58,16 +58,15 @@ def execute_command(command: str, cwd: str, config : RunnableConfig , time_out: 
     new content! with MXCExecutor run command in sandbox
     
     """
-    try:
-        _executor = sessionmanager["executor"][config["configurable"]["session_id"]]
-    except KeyError:
-        _executor = MxcExecutor(mxc_path=settings.MXC_path, workplace=cwd, session_id=config["configurable"]["session_id"])
-        sessionmanager["executor"][config["configurable"]["session_id"]] = _executor
+    _executor = sessionmanager.get_executor(config.get("configurable", {}).get("thread_id"))
+    if not _executor:
+        _executor = MxcExecutor(mxc_path=settings.MXC_path, session_id=config.get("configurable", {}).get("thread_id"))
+        sessionmanager.add_executor(session_id=config.get("configurable", {}).get("thread_id"), executor=_executor)
 
 
-    command_result = _executor.run(command=command, stdin_input=stdin_input, time_out=time_out)
+    command_result = _executor.run(command=command, workplace=str(abs_cwd),stdin_input=stdin_input, time_out=time_out)
 
-    return _fresh_result(command_result) if command_result else toolResult(
+    return _fresh_result(command_result) if command_result.success else toolResult(
         success=False,
         message=f"命令退出码:{command_result.exitcode}",
         error=command_result.stderr,
@@ -92,15 +91,14 @@ def run_code(code: str, filename: str, cwd: str, config: RunnableConfig ,stdin_i
             success=False,
             content="",
             error=f"工作目录 '{abs_cwd}' 不存在或不是一个有效的目录，请检查路径是否正确。",
-            tool_name="execute_command"
+            tool_name="run_code"
         )
-    try:
-        _executor = sessionmanager["executor"][config["configurable"]["session_id"]]
-    except KeyError:
-        _executor = MxcExecutor(mxc_path=settings.MXC_path, workplace=str(abs_cwd), session_id=config["configurable"]["session_id"])
-        sessionmanager["executor"][config["configurable"]["session_id"]] = _executor
-    run_result=_executor.run_code(code=code, filename=filename, stdin_input=stdin_input, time_out=time_out)
-    return _fresh_result(run_result) if run_result else toolResult(
+    _executor = sessionmanager.get_executor(config.get("configurable", {}).get("thread_id"))
+    if not _executor:
+        _executor = MxcExecutor(mxc_path=settings.MXC_path,session_id=config.get("configurable", {}).get("thread_id"))
+        sessionmanager.add_executor(session_id=config.get("configurable", {}).get("thread_id"), executor=_executor)
+    run_result=_executor.run_code(code=code, filename=filename,workplace=str(abs_cwd), stdin_input=stdin_input, time_out=time_out)
+    return _fresh_result(run_result) if run_result.success else toolResult(
         success=False,
         content=f"命令退出码:{run_result.exitcode}",
         error=run_result.stderr,

@@ -1,7 +1,7 @@
 import re
 from config.data import settings
 
-_CHAIN_SPLIT = re.compile(r"&&|\|\||\||;|&|\n")   # 拆链式命令
+_CHAIN_SPLIT = re.compile(r"&&|\|\||\||;|&|\n|>>|>|<")   # 拆链式命令
 
 def is_command_safe(command: str, stdin_input: str | None = None) -> bool:
     """
