@@ -3,9 +3,10 @@ from difflib import SequenceMatcher, unified_diff
 from pathlib import Path
 from langchain_core.runnables import RunnableConfig
 from config.data import settings
+from config.sessionManager import Sessionmanager, sessionmanager
 from core.toolResult import toolResult
 from utils.MessageTool import compress_error
-from utils.filePathTools import relativePathToAbsolute
+from utils.filePathTools import relativePathToAbsolute, is_path_safe
 from utils.normalCodeTool import normalize_line
 
 encodings_to_try=settings.ENCODINGS_TO_TRY
@@ -20,7 +21,9 @@ def file_edit_tool(
 ) -> toolResult:
     target_path =relativePathToAbsolute(file_path,config)
     if not os.path.exists(target_path):
-        return toolResult(success=False, error=f"文件 '{target_path}' 不存在。如想增加文件请调用create_file工具")
+        return toolResult(success=False, error=f"文件 '{target_path}' 不存在。如想增加文件请调用create_file工具",tool_name="file_edit")
+    if is_path_safe(target_path, Path(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace)) is False:
+        return toolResult(success=False, error=f"文件 '{target_path}' 不在工作目录下，无法编辑。",tool_name="file_edit")
     file_content=None
     new_lines=new_content.splitlines(keepends=True)
     len_new_lines=len(new_lines)
@@ -103,6 +106,8 @@ def create_file_tool(file_path: str, content: str, config:RunnableConfig) -> too
             content="",
             tool_name="create_file"
         )
+    if is_path_safe(target_path, Path(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace))  is False:
+        return toolResult(success=False, error=f"文件 '{target_path}' 不在工作目录下，无法编辑。",tool_name="create_file")
 
     try:
         parent_dir = os.path.dirname(target_path)
@@ -156,6 +161,8 @@ def delete_file_tool(file_path:str, config:RunnableConfig) -> toolResult:
             error=f"文件 '{target_path}' 不存在，无法删除。",
             tool_name="delete_file"
         )
+    if is_path_safe(target_path, Path(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace)) is False:
+        return toolResult(success=False, error=f"文件 '{target_path}' 不在工作目录下，无法编辑。",tool_name="delete_file")
     old_content = ""
     try:
         for enc in encodings_to_try:

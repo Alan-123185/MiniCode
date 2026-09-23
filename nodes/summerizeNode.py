@@ -31,6 +31,7 @@ async def summerize_node(state:OverAllState) -> OverAllState:
 
     summerize_prompt=SUMMERIZE_PROMPT.format(old_summary=history_summary,conversation_history=trim_old_messages(message))
     #这里改一下提示词
+
     model=create_no_streaming_model(model)
     summarystate = await model.with_structured_output(summaryState).ainvoke(
         [SystemMessage(content=summerize_prompt)]
