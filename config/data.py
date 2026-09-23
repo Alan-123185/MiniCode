@@ -24,6 +24,10 @@ class Settings(BaseSettings):
 
     DEFAULT_THINK_LEVEL: int = 2  # 默认思考等级
 
+    web_search_timeout: int = 30  # 默认网页请求超时时间
+
+    web_search_words_limit: int = 5000  # 默认搜索最大结果字数
+
     # 百度搜索默认返回条数
     baidu_search_default_return_number: int = 2
     # 默认百度搜索接口

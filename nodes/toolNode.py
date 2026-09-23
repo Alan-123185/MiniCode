@@ -9,7 +9,7 @@ from tools.OriginalContentTool import get_original_content_by_compressed_content
 from tools.command import execute_command, run_code
 from tools.file_edit import file_edit, create_file, delete_file
 from tools.file_read import readfile, listfiles
-from tools.baidu_search import baidu_search
+from tools.web_search import baidu_search, Jina_search
 from tools.file_search import search_code_by_keyword, search_file_by_keyword
 from langchain_core.messages import ToolMessage, HumanMessage
 from langgraph.config import get_stream_writer
@@ -37,7 +37,8 @@ tools=[baidu_search,
        query_operationgroup,
        get_original_content_by_tool_call_id,
        get_original_content_by_compressed_content,
-       run_code
+       run_code,
+       Jina_search
        ]
 tools_need_to_confirm=["file_edit","execute_command","delete_file","create_file","undo_operationgroup"]
 max_retry_time=settings.MAX_TOOL_CALLS
