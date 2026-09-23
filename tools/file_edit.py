@@ -1,9 +1,11 @@
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
+from config.sessionManager import sessionmanager
 from utils.editFileTools import file_edit_tool, create_file_tool, delete_file_tool
 from config.data import settings
 from core.toolResult import toolResult
+from utils.filePathTools import is_path_safe
 
 # 与 file_read 一致的多编码尝试列表,避免让 LLM 猜编码(猜错即失败,会引发重试)
 encodings_to_try = settings.ENCODINGS_TO_TRY
@@ -30,6 +32,13 @@ def file_edit(
     使用前必须先读取最新文件内容，确保 `old_content` 与目标片段完全匹配。
     如果要删除内容，请将 `new_content` 传为空字符串 ""。
     """
+    if is_path_safe(file_path,sessionmanager.get_session(config["configurable"]["thread_id"]).workplace) is False:
+        return toolResult(
+            success=False,
+            error=f"文件路径 {file_path} 不安全，可能不在项目根目录下。",
+            tool_name="file_edit"
+        )
+
     return file_edit_tool(file_path,old_content,new_content,config)
 
 
@@ -45,6 +54,12 @@ def create_file(file_path: str, content: str, config:RunnableConfig) -> toolResu
     :param config: 运行时配置。
     :return: 返回一个工具调用结果对象。
     """
+    if is_path_safe(file_path,sessionmanager.get_session(config["configurable"]["thread_id"]).workplace) is False:
+        return toolResult(
+            success=False,
+            error=f"文件路径 {file_path} 不安全，可能不在项目根目录下。",
+            tool_name="create_file"
+        )
     return create_file_tool(file_path , content , config)
 
 
@@ -57,4 +72,10 @@ def delete_file(file_path:str,config:RunnableConfig) -> toolResult:
     :param file_path: 要删除的文件相对路径。
     :return: 返回一个工具调用结果类
     """
+    if is_path_safe(file_path,sessionmanager.get_session(config["configurable"]["thread_id"]).workplace) is False:
+        return toolResult(
+            success=False,
+            error=f"文件路径 {file_path} 不安全，可能不在项目根目录下。",
+            tool_name="delete_file"
+        )
     return delete_file_tool(file_path,config)

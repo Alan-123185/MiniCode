@@ -21,3 +21,14 @@ def absolutePathToRelative(file_path: str,config:RunnableConfig) -> Path:
         # 如果传入的路径不在项目根目录下，可以返回原路径，或者抛出更友好的异常
         # 这里选择返回原绝对路径（或你可以选择抛出异常）
         return abs_path
+
+
+def is_path_safe(path: str,workplace:str) -> bool:
+    """检查路径是否安全，即是否在项目根目录下"""
+    abs_path = Path(path).resolve()
+    root_path = Path(workplace).resolve()
+    try:
+        abs_path.relative_to(root_path)
+        return True
+    except ValueError:
+        return False
