@@ -156,7 +156,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 #     name=tool_name
                 # ))
                 info=f"\n[system Info]   {tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况"
-                toolresult_for_llm.error=toolresult_for_llm.error + info
+                toolresult_for_llm.error=toolresult_for_llm.error or "" + info
                 _emit_tool_status(
                     toolstatusEvent(status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state.input, result=None,session_id=config.get("configurable", {}).get("thread_id"))
                 )

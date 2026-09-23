@@ -11,7 +11,7 @@ from utils.MessageTool import compress_error
 @tool
 def baidu_search(question : str) -> toolResult:
     """
-    这个工具可以返回实时联网搜索结果，当涉及时效性问题或者自己无法确定的结论时务必调用获取最新信息
+    这个工具可以返回百度搜索结果，当涉及时效性问题或者自己不确定的知识时务必调用获取最新信息
 
     :param question: 要搜索的关键词或者问题描述，字符串类型
     :return:  返回一个工具调用结果类
@@ -75,7 +75,7 @@ def baidu_search(question : str) -> toolResult:
     )
 
 
-#@tool
+@tool
 def Jina_search(url:str,time_out:int=settings.web_search_timeout) -> toolResult:
     """
     使用Jina AI进行网页内容搜索

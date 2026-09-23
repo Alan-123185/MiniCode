@@ -90,8 +90,8 @@ def readfile(
             success=True,
             content=f"[system Info] 文件过大({len(raw_content)/1024:.2f}KB)， 共 {total_lines} 行)。\n"
             "为防止上下文爆炸，系统仅展示【前1500个字符】和【后1500个字符】的内容。\n"
-            "如果需要查找特定内容，请停止使用 readfile，改用 `search_file_by_keyword` 或者命令行工具 \n"
             "如果需要读取中间部分或者需要完整的格式信息，请重新调用readfile并传入 `start_line` 和 `end_line` \n"
+            "避免读取已被包含的区间，避免重复读取。\n"
             "--- 以下是文件头部 ---\n"
             f"{head}\n"
             "--- 以下是文件尾部 ---\n"

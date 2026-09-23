@@ -28,7 +28,7 @@ async def chat_to_agent(chat_request: ChatRequest,background_tasks:BackgroundTas
             # 情况二：最终结果
             elif interrupt_result.type == settings.interrupt_type_result:
                 result = Result(
-                    message=interrupt_result.agentResult.answer,
+                    message=interrupt_result.agentResult.answer or "",
                     response=interrupt_result.agentResult
                 )
 
@@ -60,7 +60,7 @@ async def approve(decision_request:decisionRequst,chat_service: ChatService=Depe
 
             elif interrupt_result.type == settings.interrupt_type_result:
                 result = Result(
-                    message=interrupt_result.agentResult.answer,
+                    message=interrupt_result.agentResult.answer or "",
                     response=interrupt_result.agentResult
                 )
 
@@ -94,7 +94,7 @@ async def edit_message(edit_message_request: editMessageRequest, chat_service: C
 
             elif interrupt_result.type == settings.interrupt_type_result:
                 result = Result(
-                    message=interrupt_result.agentResult.answer,
+                    message=interrupt_result.agentResult.answer or "",
                     response=interrupt_result.agentResult
                 )
             else:

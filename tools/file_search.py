@@ -49,7 +49,7 @@ def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".", ma
 @tool
 def search_file_by_keyword(query: str,config:RunnableConfig , path: str = ".") -> toolResult:
     """
-    按“文件名”搜索，不关心大小写 返回文件的相对路径；不检查文件内容。
+    按“文件名”搜索，大小写不敏感，比如搜索 "user" 和 "USer" 返回的结果相同；不检查文件内容。
 
     这是“定位文件”工具，不是代码搜索工具。
 

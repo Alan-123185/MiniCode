@@ -91,3 +91,5 @@ xxhash==4.0.0
 yarg==0.1.10
 yarl==1.24.5
 zstandard==0.25.0
+
+tree-sitter-language-pack

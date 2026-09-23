@@ -1,3 +1,5 @@
+import platform
+
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -7,6 +9,8 @@ from utils.MessageTool import compress_error
 from utils.filePathTools import relativePathToAbsolute
 import os
 import subprocess
+import re
+import shlex
 from pathlib import Path
 
 
@@ -102,7 +106,6 @@ def _run_shell(command: str, abs_cwd: str, time_out: int, stdin_input: str | Non
             env["PYTHONUTF8"] = "1"
             env["LANG"] = "C.UTF-8"
             env["LC_ALL"] = "C.UTF-8"
-
         proc = subprocess.Popen(
             command,
             shell=True,
@@ -169,14 +172,13 @@ def _run_shell(command: str, abs_cwd: str, time_out: int, stdin_input: str | Non
 @tool(args_schema=ExecuteCommandInput)
 def execute_command(command: str, cwd: str, config: RunnableConfig, time_out: int = settings.COMMAND_TIMEOUT, stdin_input: str = None) -> toolResult:
     """
-    在终端中执行 shell 命令（默认环境为 Windows cmd）。
+    在终端中执行 shell 命令（默认环境为 Windows cmd，注意环境差异，切忌把 Unix 命令用在 Windows 上）
     当你修改了代码后，强烈建议使用此工具来运行测试或者编译命令。
     Returns:
         toolResult: 命令执行结果。
     """
     # 路径转换与防御性校验 (彻底解决 WinError 267 目录无效报错)
     abs_cwd = _resolve_cwd(cwd, config)
-
     if not abs_cwd or not os.path.isdir(abs_cwd):
         return toolResult(
             success=False,
@@ -191,12 +193,30 @@ def execute_command(command: str, cwd: str, config: RunnableConfig, time_out: in
 @tool(args_schema=RunCodeInput)
 def run_code(code: str, filename: str, cwd: str, config: RunnableConfig, stdin_input: str | None = None, time_out: int = settings.COMMAND_TIMEOUT) -> toolResult:
     """
-    执行脚本并返回结构化结果，被执行的脚本文件将写入.MiniCode/{session_id}目录下
+    将你编写的代码写入临时文件并执行
+    【核心用途】
+    这是你进行"实验"的主要工具。当你需要：
+      - 复现一个 bug
+      - 验证一个假设
+      - 测试一段逻辑
+      - 编写并运行临时脚本
+      - 运行 pytest / unittest
+    请优先使用本工具，而不是 execute_command。
+    【与 execute_command 的区别】
+      - execute_command：执行已有命令或单行查询（如 `python -c "..."`、`dir`、`findstr`）。
+      - run_code：写入你编写的完整脚本文件并执行。适合多行、需要 import、需要定义函数/类的实验代码。
+    【典型使用模式】
+      1. 写一个最小复现脚本（如 repro.py），运行，观察现象。
+      2. 根据现象修改源码。
+      3. 再次运行同一个 repro.py，确认现象消失。
+      4. 写一个回归测试脚本，运行确认通过。
+    【文件位置】
+      脚本会被写入 .MiniCode/{session_id}/{filename}。
+      这是临时工作目录，不会污染项目源码，可以放心创建、覆盖、删除临时脚本。
     Returns:
         toolResult: 命令执行结果。
     """
     abs_cwd = _resolve_cwd(cwd, config)
-
     if not abs_cwd or not os.path.isdir(abs_cwd):
         return toolResult(
             success=False,
@@ -224,3 +244,56 @@ def run_code(code: str, filename: str, cwd: str, config: RunnableConfig, stdin_i
     relative_file = script_path.relative_to(abs_cwd)
     cmd = f'cmd.exe /c cd /d "{abs_cwd}" && {template.format(file=str(relative_file))}'
     return _run_shell(cmd, abs_cwd, time_out, stdin_input, "run_code")
+
+
+
+def _check_dialect(cmd: str) -> str:
+    """根据若干启发式规则判断命令更可能属于 PowerShell 还是 Unix shell。
+
+    规则（按优先级）：
+    1. 空命令返回平台默认：Windows -> PowerShell，其他 -> Unix
+    2. Shebang（#!）显式为 Unix
+    3. 文件扩展名（.ps1/.sh/.bash）优先判断
+    4. 整词匹配 PowerShell cmdlet
+    5. 整词匹配 Windows cmd/cmdlet 内建命令 -> PowerShell（兼容 cmd 场景）
+    6. 整词匹配常见 Unix 命令 -> Unix
+    7. 明确外壳调用（bash/sh/pwsh/cmd.exe）或路径形式（./ /usr）判断
+    8. 回退到平台默认
+    """
+    default = "PowerShell" if os.name == "nt" else "Unix"
+
+    if not cmd or not cmd.strip():
+        return default
+    s = cmd.strip()
+
+    # 1. shebang
+    if s.startswith("#!"):
+        return "Unix"
+
+    # 2. 尝试安全分词（能正确处理引号）
+    try:
+        tokens = shlex.split(s, posix=True)
+    except Exception:
+        tokens = s.split()
+
+    first = tokens[0].lower() if tokens else ""
+
+    # 3. 文件扩展名判断
+    if first.endswith(".ps1"):
+        return "PowerShell"
+    if first.endswith(".sh") or first.endswith(".bash"):
+        return "Unix"
+    # 6. 常见 Unix 命令
+    unix_commands = {"ls", "grep", "cat", "rm", "cp", "mv", "pwd", "find", "sed", "awk", "chmod", "chown", "tail", "head", "which", "sudo", "apt", "yum", "pacman", "curl", "wget", "npx", "bash", "sh", "zsh"}
+    if first in unix_commands:
+        return "Unix"
+    # 7. 明确指定的 shell 或路径迹象
+    if re.search(r"\b(bash|sh|zsh|ksh|dash)\b", s, flags=re.IGNORECASE):
+        return "Unix"
+    if re.search(r"\b(powershell|pwsh|cmd\.exe)\b", s, flags=re.IGNORECASE):
+        return "PowerShell"
+    if s.startswith("./") or s.startswith("/") or "/usr/" in s:
+        return "Unix"
+
+    # 回退到平台默认
+    return default
