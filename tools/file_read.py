@@ -231,4 +231,144 @@ def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> too
             error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="listfiles"
         )
+@tool
+async def code_outline(file_path: str, config: RunnableConfig) -> toolResult:
+    """
+    生成文件的大纲（outline），包括函数、类、方法等结构信息，适用于代码文件
+    Args:
+        file_path (str): 文件相对路径
+    Returns:
+        toolResult: 包含大纲信息的工具调用结果
+    """
+    try:
+        target_path = relativePathToAbsolute(file_path, config)
+    except Exception as e:
+        return toolResult(
+            success=False,
+            error=f"处理文件路径时出错: {compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
+            tool_name="code_outline"
+        )
+
+    if not target_path.exists():
+        return toolResult(
+            success=False,
+            error=f"文件不存在: {target_path}",
+            tool_name="code_outline"
+        )
+
+    if not target_path.is_file():
+        return toolResult(
+            success=False,
+            error=f"路径指向的不是一个普通文件: {target_path}",
+            tool_name="code_outline"
+        )
+    engine = UnifiedAnalysisEngine()
+    request = AnalysisRequest(file_path=str(target_path))
+    try:
+        result = engine.analyze_sync(request)
+    except UnsupportedLanguageError as e:
+        return toolResult(
+            success=False,
+            error=f"不支持的语言类型: {compress_error(str(e))}。请检查文件类型或跳过此步骤",
+            tool_name="code_outline"
+        )
+    if not result.success:
+        return toolResult(
+            success=False,
+            error=f"代码分析失败: {result.error}",
+            tool_name="code_outline"
+        )
+    outline=_build_outline(result)
+
+    return toolResult(
+        success=True,
+        message=f"生成文件 {file_path} 的大纲",
+        content=outline,
+        tool_name="code_outline"
+    )
+
+
+
+def _build_outline(result: AnalysisResult) -> str:
+    """把 AnalysisResult 压成紧凑的文件大纲（省 token、可序列化）。"""
+    outline = {
+        "file_path": result.file_path,
+        "language": result.language,
+        "total_lines": result.line_count,
+        "package": result.package,
+        "imports": [],
+        "variables": [],
+        "functions": [],
+        "classes": [],
+    }
+    for elem in result.elements or []:
+        if elem.element_type == "function" or elem.element_type == "method":
+            func = {
+                "name": elem.name,
+                "type": elem.element_type,
+                "start_line": elem.start_line,
+                "end_line": elem.end_line,
+                "signature": elem.raw_text.split("\n")[0],  # 取第一行作为签名，内容锚定
+            }
+            if elem.docstring:
+                func["doc"] = elem.docstring[:200]
+            # 以下字段需要确认 Function 对象是否有，先安全获取
+            if hasattr(elem, 'parameters') and elem.parameters:
+                func["parameters"] = elem.parameters
+            if hasattr(elem, 'return_type') and elem.return_type:
+                func["return_type"] = elem.return_type
+            if hasattr(elem, 'is_async') and elem.is_async:
+                func["is_async"] = True
+            if hasattr(elem, 'parent_class') and elem.parent_class:
+                func["parent_class"] = elem.parent_class
+            outline["functions"].append(func)
+        elif elem.element_type == "class":
+            # 行号在 Class 条目本身；方法从它的 methods 字段或上层归组取
+            cls = {
+                "name": elem.name,
+                "element_type": elem.element_type,
+                "lines": [elem.start_line, elem.end_line],
+            }
+            if elem.docstring:
+                cls["doc"] = elem.docstring[:200]
+            if  hasattr(elem, 'class_type') and elem.class_type:  # class/interface/struct
+                cls["kind"] = elem.class_type
+            if hasattr(elem,"interfaces") and elem.interfaces:
+                cls["interfaces"] = elem.interfaces
+            if hasattr(elem, 'superclass') and elem.superclass:
+                cls["extends"] = elem.superclass
+            if hasattr(elem, 'extends_class') and elem.extends_class:
+                cls["extends"] = elem.extends_class
+            if hasattr(elem,"methods"):
+                cls["methods"] = elem.methods
+            outline["classes"].append(cls)
+        elif elem.element_type == "variable":
+            fields={
+                "name": elem.name,
+                "element_type": elem.element_type,
+                "lines": [elem.start_line, elem.end_line]
+            }
+            if hasattr(elem, 'variable_type') and elem.variable_type:
+                fields["type"] = elem.variable_type
+            if hasattr(elem, 'is_constant') and elem.is_constant:
+                fields["is_constant"] = elem.is_constant
+            outline["variables"].append(fields)
+        elif elem.element_type == "import":
+            imports = {
+                "name": elem.name,
+                "element_type": elem.element_type,
+                "lines": [elem.start_line, elem.end_line],
+            }
+            if hasattr(elem,"alias") and elem.alias:
+                imports["alias"] = elem.alias
+            if hasattr(elem, 'module_name') and elem.module_name:
+                imports["module"] = elem.module_name
+            if hasattr(elem, 'imported_names') and elem.imported_names:
+                imports["import_names"] = elem.imported_names
+            outline["imports"].append(imports)
+
+    return dict_to_text(outline)
+
+
+
 
