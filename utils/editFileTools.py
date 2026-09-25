@@ -97,7 +97,8 @@ def file_edit_tool(
             else:
                 error_messages = [f"error: {err.type} at {err.start_point}-{err.end_point},content: {err.text}" for err in error_list]
                 #回滚逻辑
-                _replace(old_lines,normalize_file_lines,start_idx,start_idx+len(new_lines),target_path,used_encoding,file_path)
+                with open(target_path, 'w', encoding=used_encoding, newline='') as f:
+                    f.write(file_content)
                 return toolResult(
                     success=False,
                     error=f"修改失败，修改后文件 '{target_path}' 出现错误，错误详情：{error_messages}",
@@ -176,7 +177,7 @@ def create_file_tool(file_path: str, content: str, config:RunnableConfig) -> too
         if error_list:
             error_messages = [f"error: {err.type} at {err.start_point}-{err.end_point},content: {err.text}" for err in error_list]
             return toolResult(
-                success=True,
+                success=False,
                 error=f"创建文件 '{target_path}' 后出现语法错误，错误详情：{error_messages}",
                 tool_name="create_file"
             )

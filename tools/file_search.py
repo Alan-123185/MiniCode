@@ -130,7 +130,7 @@ def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".", ma
         try:
             scope_dict = parent_scope((relativePathToAbsolute(file_path, config)), int(line_number))
         except Exception as e:
-            continue
+            scope_dict=None
         if not scope_dict:
             ret.append(f"{file_path}: module:{Path(file_path).name} {code_line} (in {line_number})")
         else:

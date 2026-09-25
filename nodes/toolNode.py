@@ -118,7 +118,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             #在这里提前把压缩的 readfile 结果存储到 summary_service 中，方便后续降级使用
             if tool_name=="readfile" :
                 if not tool_args["start_line"] and not tool_args["end_line"] and "为防止上下文爆炸"not in toolresult.content and len(toolresult.content) > 100:
-                    compress_read_content=await _compress_read_result(tool_args["file_path"])
+                    compress_read_content=await _compress_read_result(tool_args["file_path"],config)
                     summary_service.add_Tool_summary(Summary(
                         session_id=config.get("configurable", {}).get("thread_id"),
                         tool_call_id=tool_call_id,
@@ -217,10 +217,10 @@ def _emit_tool_status(event: toolstatusEvent):
 """
 使用AST结构化文件读取结果，方便降级工具调用结果（仅针对于全文读取）
 """
-async def _compress_read_result(file_path: str) -> str | bool :
+async def _compress_read_result(file_path: str, config: RunnableConfig) -> str | bool :
     engine = UnifiedAnalysisEngine()
     import os
-    os.chdir(sessionmanager.get_session().workplace)  # 确保在工作区根目录下运行
+    os.chdir(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace)  # 确保在工作区根目录下运行
     try:
         request = AnalysisRequest(
             file_path=file_path,
