@@ -106,6 +106,17 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         toolresult_for_llm = toolresult
         # ================= 3. 处理执行结果 =================
         if toolresult.success:
+            #在这里提前把压缩的 readfile 结果存储到 summary_service 中，方便后续降级使用
+            if tool_name=="readfile" :
+                if not tool_args["start_line"] and not tool_args["end_line"] and "为防止上下文爆炸"not in toolresult.content:
+                    compress_read_content=await _compress_read_result(tool_args["file_path"])
+                    summary_service.add_Tool_summary(Summary(
+                        session_id=config.get("configurable", {}).get("thread_id"),
+                        tool_call_id=tool_call_id,
+                        content=toolresult.content,
+                        compressed_content=compress_read_content,
+                        message_type=settings.LLM_MESSAGE_TYPE_TOOL,
+                    ))
             # 尝试覆盖之前的所有出错消息，保持llm注意力
             failures = tool_failures.get(tool_name, 0)
             count = 0
