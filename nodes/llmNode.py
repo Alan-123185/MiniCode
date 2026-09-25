@@ -4,7 +4,6 @@ from typing import List
 from langchain_core.messages import SystemMessage, BaseMessage, ToolMessage, AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
-
 from config.data import settings
 from config.modelConfig import model_config
 from exceptions import BizException
@@ -146,3 +145,7 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
             ))
         #先暂时不对用户消息降级
     return ret
+
+
+
+

@@ -146,6 +146,7 @@ class Settings(BaseSettings):
 
 
     RG_SEARCH_MAX_COUNT:int=50          #rg搜索最大返回条数
+    RG_SEARCH_TIMEOUT:int=30            #rg搜索超时秒数
 
     SAFE_COMMAND_WHITELIST: list[str] = [
         r"^git (status|log|show|diff|blame|shortlog|describe)( |$)",

@@ -4,6 +4,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from config.data import settings
 from core.toolResult import toolResult
+from utils.commandSafe import truncate_output, smart_decode
 from utils.errormanagerTool import compress_error
 from utils.filePathTools import relativePathToAbsolute
 import os
@@ -47,37 +48,6 @@ class RunCodeInput(BaseModel):
     )
 
 
-def smart_decode(b: bytes) -> str:
-    """按字节智能解码：优先UTF-8（程序输出），失败回退GBK（cmd自身错误消息），双双失败才replace"""
-    if not b:
-        return ""
-    for enc in ("utf-8", "gbk"):
-        try:
-            return b.decode(enc)
-        except UnicodeDecodeError:
-            continue
-    return b.decode("utf-8", errors="replace")
-
-
-def _truncate_output(text: str) -> str:
-    # ① 空内容直接返回
-    if not text:
-        return ""
-
-    # ② 没超过预算，原样返回，不做任何改动
-    if len(text) <= settings.COMMAND_MAX_CHAR_COUNT:
-        return text
-
-    # ③ 计算被省略的字符数
-    omitted = len(text) - settings.COMMAND_HEAD - settings.COMMAND_TAIL
-
-    # ④ 头 + 省略标记 + 尾
-    truncated = (
-        text[:settings.COMMAND_HEAD]                          # 前 3000 字符
-        + f"\n\n... [中间省略 {omitted} 字符] ...\n\n"          # 省略标记
-        + text[-settings.COMMAND_TAIL:]                       # 后 2500 字符
-    )
-    return truncated
 
 
 def _resolve_cwd(cwd: str, config: RunnableConfig) -> str:
@@ -138,8 +108,8 @@ def _run_shell(command: str, abs_cwd: str, time_out: int, stdin_input: str | Non
             )
 
         # 3. 字节流智能解码（程序输出=UTF-8，cmd自身错误=GBK）
-        stdout = _truncate_output(smart_decode(stdout_b))
-        stderr = _truncate_output(smart_decode(stderr_b))
+        stdout = truncate_output(smart_decode(stdout_b))
+        stderr = truncate_output(smart_decode(stderr_b))
 
         final_content = ""
         if stdout:

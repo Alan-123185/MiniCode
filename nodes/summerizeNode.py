@@ -1,5 +1,7 @@
-from langchain_core.messages import SystemMessage, BaseMessage
+from langchain_core.messages import SystemMessage, BaseMessage, HumanMessage, AIMessage, ToolMessage
 from loguru import logger
+from tree_sitter_analyzer.core.analysis_engine import UnifiedAnalysisEngine
+from tree_sitter_analyzer.core.request import AnalysisRequest
 
 from config.data import settings
 from config.dependencies import create_no_streaming_model
@@ -30,7 +32,7 @@ async def summerize_node(state:OverAllState) -> OverAllState:
     已完成里程碑：{'; '.join(summary_state.completed_milestones)}  # 已完成里程碑全传（通常不多）
     """
 
-    summerize_prompt=SUMMERIZE_PROMPT.format(old_summary=history_summary,conversation_history=trim_old_messages(message))
+    summerize_prompt=SUMMERIZE_PROMPT.format(old_summary=history_summary,conversation_history=_trim_old_messages(message))
     #这里改一下提示词
 
     model=create_no_streaming_model(model)
@@ -46,7 +48,7 @@ async def summerize_node(state:OverAllState) -> OverAllState:
 
 
 
-def trim_old_messages(messages: list[BaseMessage]) -> str:
+def _trim_old_messages(messages: list[BaseMessage]) -> str:
     cleaned_history = []
     for msg in messages:
         if len(msg.content) > settings.MAX_OLD_MESSAGE_LENGTH:
@@ -54,6 +56,4 @@ def trim_old_messages(messages: list[BaseMessage]) -> str:
         else:content=msg.content
         cleaned_history.append(f"{msg.type}:{content}")
     return "\n".join(cleaned_history)
-
-
 

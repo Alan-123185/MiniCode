@@ -1,9 +1,14 @@
 from langgraph.types import interrupt
 from loguru import logger
+from tree_sitter_analyzer.core.analysis_engine import UnifiedAnalysisEngine
+from tree_sitter_analyzer.core.request import AnalysisRequest
+
 from core.InterruptInfo import InterruptInfo
 from config.data import settings
 from core.toolResult import toolResult
 from core.toolStatusEvent import toolstatusEvent
+from mappercommon.summary import Summary
+from service.summaryService import summaryService
 from states.OverallState import OverAllState
 from tools.OriginalContentTool import get_original_content_by_compressed_content, get_original_content_by_tool_call_id
 from tools.command import execute_command, run_code
@@ -40,6 +45,7 @@ tools=[baidu_search,
        run_code,
        Jina_search
        ]
+summary_service=summaryService()
 tools_need_to_confirm=["file_edit","execute_command","delete_file","create_file","undo_operationgroup"]
 max_retry_time=settings.MAX_TOOL_CALLS
 # try:

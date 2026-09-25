@@ -237,6 +237,9 @@ def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> too
 async def code_outline(file_path: str, config: RunnableConfig) -> toolResult:
     """
     生成文件的大纲（outline），包括函数、类、方法等结构信息，适用于代码文件
+    【核心用途】
+    1. 当你需要快速了解一个代码文件的结构时，使用 code_outline
+    2. read_file返回内容截断时，使用 code_outline 可以快速获取文件结构信息
     Args:
         file_path (str): 文件相对路径
     Returns:
@@ -370,7 +373,5 @@ def _build_outline(result: AnalysisResult) -> str:
             outline["imports"].append(imports)
 
     return dict_to_text(outline)
-
-
 
 
