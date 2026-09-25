@@ -1,12 +1,14 @@
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
+from tree_sitter_analyzer.core._analysis_engine_errors import UnsupportedLanguageError
+from tree_sitter_analyzer.models import AnalysisResult
 from config.data import settings
 from core.toolResult import toolResult
-from utils.MessageTool import compress_error
+from utils.dictToText import dict_to_text
+from utils.errormanagerTool import compress_error
 from utils.filePathTools import relativePathToAbsolute
-
-
+from tree_sitter_analyzer.core.analysis_engine import UnifiedAnalysisEngine, AnalysisRequest
 
 @tool
 def readfile(
@@ -34,7 +36,7 @@ def readfile(
         return toolResult(
             success=False,
             content="",
-            error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
+            error=f"处理文件路径时出错: {compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="readfile"
         )
 
@@ -165,7 +167,7 @@ def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> too
     except Exception as e:
         return toolResult(
             success=False,
-            error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
+            error=f"处理文件路径时出错: {compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="listfiles"
         )
 

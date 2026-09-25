@@ -5,7 +5,7 @@ import tempfile  # 导入 tempfile 模块，用于创建临时文件（存放沙
 from pathlib import Path  # 从 pathlib 导入 Path 类，用于跨平台的路径操作
 from config.data import settings
 from core.commandResult import commandResult
-from utils.MessageTool import compress_error
+from utils.errormanagerTool import compress_error
 
 INTERPRETERS = {
     ".py": "python {file}",

@@ -1,13 +1,14 @@
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, BaseMessage
 from loguru import logger
 
+from config.data import settings
 from config.dependencies import create_no_streaming_model
 from config.modelConfig import model_config
 from exceptions import BizException
 from prompt.summerize_prompt import SUMMERIZE_PROMPT
 from states.OverallState import OverAllState
 from states.SummaryState import summaryState
-from utils.MessageTool import trim_message, trim_old_messages
+from utils.MessageTool import trim_message
 
 
 async def summerize_node(state:OverAllState) -> OverAllState:
@@ -44,6 +45,15 @@ async def summerize_node(state:OverAllState) -> OverAllState:
     }
 
 
+
+def trim_old_messages(messages: list[BaseMessage]) -> str:
+    cleaned_history = []
+    for msg in messages:
+        if len(msg.content) > settings.MAX_OLD_MESSAGE_LENGTH:
+            content = msg.content[:settings.MAX_OLD_MESSAGE_LENGTH]+"...该条消息太长，已截断"
+        else:content=msg.content
+        cleaned_history.append(f"{msg.type}:{content}")
+    return "\n".join(cleaned_history)
 
 
 

@@ -15,8 +15,6 @@ from requestcommon.chatRequest import ChatRequest
 from requestcommon.decisionRequst import decisionRequst
 from typing import AsyncGenerator
 
-from utils.MessageTool import generate_summary
-
 
 class ChatService:
     def __init__(self,graph,chat_config,sessionMapper,fileMapper,operationgroupMapper):
@@ -262,3 +260,22 @@ def find_safe_message_index(messages: list[BaseMessage]) -> int:
                 for tc in (msg.tool_calls or [])):
             return i + 1
     return 0
+
+
+
+
+
+#一个简陋的用户提示词压缩函数
+def generate_summary(user_prompt: str) -> str:
+    """提取或截断用户的 Prompt，只保留核心语义用于 UI 展示  这一版不够严谨，到时候需要更改"""
+    # 1. 去除首尾空白
+    prompt = user_prompt.strip()
+
+    # 2. 如果太长（比如用户粘贴了大段代码），只取前 50 个字符
+    if len(prompt) > 50:
+        return prompt[:50] + "..."
+
+    return prompt
+
+
+

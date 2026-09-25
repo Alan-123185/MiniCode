@@ -15,7 +15,7 @@ from langchain_core.messages import ToolMessage, HumanMessage
 from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig  # 引入 Config 类型
 from tools.undo_file_edit import undo_operationgroup, query_operationgroup
-from utils.MessageTool import compress_error
+from utils.errormanagerTool import compress_error
 from utils.commandSafe import is_command_safe
 
 """

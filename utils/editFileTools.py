@@ -2,16 +2,38 @@ import os
 from difflib import SequenceMatcher, unified_diff
 from pathlib import Path
 from langchain_core.runnables import RunnableConfig
+from loguru import logger
+from tree_sitter import Tree, Node
+from tree_sitter_language_pack import get_parser
+
 from config.data import settings
-from config.sessionManager import Sessionmanager, sessionmanager
+from config.sessionManager import sessionmanager
 from core.toolResult import toolResult
-from utils.MessageTool import compress_error
+from utils.errormanagerTool import compress_error
 from utils.filePathTools import relativePathToAbsolute, is_path_safe
 from utils.normalCodeTool import normalize_line
 
 encodings_to_try=settings.ENCODINGS_TO_TRY
 thread_hold=settings.THREAD_HOLD
 min_hold=settings.MIN_HOLD
+language_dict= {
+    ".py":   "python",
+    ".js":   "javascript",
+    ".ts":   "typescript",
+    ".jsx":  "javascript",
+    ".tsx":  "tsx",
+    ".c":    "c",
+    ".h":    "c",
+    ".cpp":  "cpp",
+    ".cc":   "cpp",
+    ".hpp":  "cpp",
+    ".java": "java",
+    ".cs":   "csharp",
+    ".go":   "go",
+    ".rs":   "rust",
+    ".rb":   "ruby",
+    ".php":  "php"
+}
 
 def file_edit_tool(
     file_path: str,
@@ -51,23 +73,33 @@ def file_edit_tool(
         #第一级，精确匹配
         count = file_content.count(old_content)
         if count==1:
-            return exchange(count,target_path, old_content, new_content, file_content, used_encoding, file_path)
+            return _exchange(count,target_path, old_content, new_content, file_content, used_encoding, file_path)
         old_lines=old_content.splitlines(keepends=True)
         file_lines=file_content.splitlines(keepends=True)
         n=len(old_lines)
         normalize_old_lines=normalize_line(old_lines)
         normalize_file_lines=normalize_line(file_lines)
-        match,like=search(normalize_old_lines,normalize_file_lines)
+        match,like=_search(normalize_old_lines,normalize_file_lines)
         if len(match)==1:
+            #新增AST语法检查
             start_idx = match[0]
             end_idx = start_idx + n
-            diff_text=replace(new_lines,normalize_file_lines,start_idx,end_idx,target_path,used_encoding,file_path)
-            return toolResult(
-                success=True,
-                content=f"已修改 {file_path} (Line({start_idx}-{end_idx}), +{len_new_lines} -{n})",
-                message=diff_text,
-                tool_name="file_edit"
-            )
+            diff_text=_replace(new_lines,normalize_file_lines,start_idx,end_idx,target_path,used_encoding,file_path)
+            error_list = _check_error(target_path)
+            if not error_list:
+                return toolResult(
+                    success=True,
+                    content=f"已修改 {file_path} (Line({start_idx}-{end_idx}), +{len_new_lines} -{n})",
+                    message=diff_text,
+                    tool_name="file_edit"
+                )
+            else:
+                error_messages = [f"error: {err.type} at {err.start_point}-{err.end_point},content: {err.text}" for err in error_list]
+                return toolResult(
+                    success=True,
+                    error=f"修改后文件 '{target_path}' 出现错误，错误详情：{error_messages}",
+                    tool_name="file_edit"
+                )
         elif len(match) > 1:
             return toolResult(
                 success=False,
@@ -137,7 +169,14 @@ def create_file_tool(file_path: str, content: str, config:RunnableConfig) -> too
 
         with open(target_path, 'w', encoding='utf-8', newline='') as f:
             f.write(content)
-
+        error_list= _check_error(target_path)
+        if error_list:
+            error_messages = [f"error: {err.type} at {err.start_point}-{err.end_point},content: {err.text}" for err in error_list]
+            return toolResult(
+                success=True,
+                error=f"创建文件 '{target_path}' 后出现语法错误，错误详情：{error_messages}",
+                tool_name="create_file"
+            )
         return toolResult(
             success=True,
             content=f"已创建 {target_path} +{len(new_lines)} ",
@@ -189,7 +228,7 @@ def delete_file_tool(file_path:str, config:RunnableConfig) -> toolResult:
 
 
 #普通交换函数
-def exchange(count:int,target_path:Path, old_content:str, new_content:str, file_content:str, used_encoding:str, file_path:str) -> toolResult:
+def _exchange(count:int,target_path:Path, old_content:str, new_content:str, file_content:str, used_encoding:str, file_path:str) -> toolResult:
         old_file_lines = file_content.splitlines()
         file_content = file_content.replace(old_content, new_content, 1)
         diff_text = "\n".join(
@@ -217,7 +256,7 @@ def exchange(count:int,target_path:Path, old_content:str, new_content:str, file_
 
 
 #搜索函数+贪心聚类
-def search(old_lines: list[str], file_lines: list[str]) -> tuple[list[int], list[int]]:
+def _search(old_lines: list[str], file_lines: list[str]) -> tuple[list[int], list[int]]:
     matchs = []
     likes = []
     length = len(old_lines)
@@ -255,7 +294,7 @@ def search(old_lines: list[str], file_lines: list[str]) -> tuple[list[int], list
 
 
 #替换函数
-def replace(new_lines:list[str],file_lines:list[str],start:int,end:int,target_path:Path,used_encoding:str,file_path:str) -> str:
+def _replace(new_lines:list[str],file_lines:list[str],start:int,end:int,target_path:Path,used_encoding:str,file_path:str) -> str:
     old_lines_for_diff = [line.rstrip("\r\n") for line in file_lines]
     file_lines[start:end] = new_lines
     with open(target_path, 'w', encoding=used_encoding, newline='') as f:
@@ -275,3 +314,65 @@ def replace(new_lines:list[str],file_lines:list[str],start:int,end:int,target_pa
     elif len(diff_text) > 20000:
         diff_text = diff_text[:20000] + "\n... diff 过长，已截断"
     return diff_text
+
+
+
+
+def _check_syntax(file_path: Path) -> tuple[bool,Tree] | bool:
+    """
+    检查文件语法
+    """
+    name = file_path.suffix.lower()
+    if not language_dict.get(name, None):
+        return False
+    parser = get_parser(language_dict[name])
+    try:
+        with open(file_path, 'rb') as f:
+            source = f.read()
+        tree = parser.parse(source)
+        if tree.root_node.has_error:
+            return False
+        return True,tree
+    except Exception as e:
+        logger.error(f"语法检查失败: {e}")
+        return False
+
+
+def _check_error(target_path: Path) -> list[errorNode] | None:
+    """
+    返回文件中的语法错误
+    """
+    syntax_ok = _check_syntax(target_path)
+    if not syntax_ok:
+        return None
+    else:
+        ret=[]
+        tree=syntax_ok[1]
+        error_list=_find_error_nodes(tree.root_node)
+        for node in error_list:
+            ret.append(errorNode(node))
+        return ret
+
+
+def _find_error_nodes(node:Node) -> list[Node]:
+    errors = []
+
+    # 如果当前节点包含错误，但它的子节点都不包含错误，说明这就是根源
+    if node.has_error:
+        if not any(child.has_error for child in node.children):
+            errors.append(node)
+        else:
+            # 否则，继续深入那些有错误的子节点
+            for child in node.children:
+                if child.has_error:
+                    errors.extend(_find_error_nodes(child))
+
+    return errors
+
+class errorNode:
+    def __init__(self, node: Node):
+        self.node = node
+        self.start_point = node.start_point
+        self.end_point = node.end_point
+        self.type = node.type
+        self.text = node.text.decode('utf-8')
