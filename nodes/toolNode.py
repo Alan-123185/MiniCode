@@ -1,8 +1,10 @@
 from langgraph.types import interrupt
 from loguru import logger
+from tree_sitter_analyzer.core._analysis_engine_errors import UnsupportedLanguageError
 from tree_sitter_analyzer.core.analysis_engine import UnifiedAnalysisEngine
 from tree_sitter_analyzer.core.request import AnalysisRequest
 
+from config.sessionManager import sessionmanager
 from core.InterruptInfo import InterruptInfo
 from config.data import settings
 from core.toolResult import toolResult
@@ -13,7 +15,7 @@ from states.OverallState import OverAllState
 from tools.OriginalContentTool import get_original_content_by_compressed_content, get_original_content_by_tool_call_id
 from tools.command import execute_command, run_code
 from tools.file_edit import file_edit, create_file, delete_file
-from tools.file_read import readfile, listfiles
+from tools.file_read import readfile, listfiles, code_outline
 from tools.web_search import baidu_search, Jina_search
 from tools.file_search import search_code_by_keyword, search_file_by_keyword
 from langchain_core.messages import ToolMessage, HumanMessage
@@ -43,7 +45,8 @@ tools=[baidu_search,
        get_original_content_by_tool_call_id,
        get_original_content_by_compressed_content,
        run_code,
-       Jina_search
+       Jina_search,
+       code_outline
        ]
 summary_service=summaryService()
 tools_need_to_confirm=["file_edit","execute_command","delete_file","create_file","undo_operationgroup"]
@@ -114,13 +117,13 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         if toolresult.success:
             #在这里提前把压缩的 readfile 结果存储到 summary_service 中，方便后续降级使用
             if tool_name=="readfile" :
-                if not tool_args["start_line"] and not tool_args["end_line"] and "为防止上下文爆炸"not in toolresult.content:
+                if not tool_args["start_line"] and not tool_args["end_line"] and "为防止上下文爆炸"not in toolresult.content and len(toolresult.content) > 100:
                     compress_read_content=await _compress_read_result(tool_args["file_path"])
                     summary_service.add_Tool_summary(Summary(
                         session_id=config.get("configurable", {}).get("thread_id"),
                         tool_call_id=tool_call_id,
                         content=toolresult.content,
-                        compressed_content=compress_read_content,
+                        compressed_content=compress_read_content if compress_read_content else toolresult.content[:100]+"\n[----system Info----工具结果已截断，tool_call_id:"+tool_call_id+"]",
                         message_type=settings.LLM_MESSAGE_TYPE_TOOL,
                     ))
             # 尝试覆盖之前的所有出错消息，保持llm注意力
@@ -214,16 +217,23 @@ def _emit_tool_status(event: toolstatusEvent):
 """
 使用AST结构化文件读取结果，方便降级工具调用结果（仅针对于全文读取）
 """
-async def _compress_read_result(file_path: str) -> str:
+async def _compress_read_result(file_path: str) -> str | bool :
     engine = UnifiedAnalysisEngine()
-    request = AnalysisRequest(
-        file_path=file_path,
-        include_details=False,  # 摘要不需要详细属性
-        include_complexity=False,
-    )
-    result = await engine.analyze(request)
+    import os
+    os.chdir(sessionmanager.get_session().workplace)  # 确保在工作区根目录下运行
+    try:
+        request = AnalysisRequest(
+            file_path=file_path,
+            include_details=False,  # 摘要不需要详细属性
+            include_complexity=False,
+        )
+        result = await engine.analyze(request)
+    except UnsupportedLanguageError as e:
+        return False
+    except Exception as e:
+        return False
     if not result.success:
-        return f"[{file_path}: 解析失败 - {result.error_message}]"
+        return False
 
     lines = [f"[{file_path} 共 {result.line_count} 行]"]
 

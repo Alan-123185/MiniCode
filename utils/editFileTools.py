@@ -85,7 +85,7 @@ def file_edit_tool(
             #新增AST语法检查
             start_idx = match[0]
             end_idx = start_idx + n
-            diff_text=_replace(new_lines,normalize_file_lines,start_idx,end_idx,target_path,used_encoding,file_path)
+            normalize_file_lines,diff_text=_replace(new_lines,normalize_file_lines,start_idx,end_idx,target_path,used_encoding,file_path)
             error_list = _check_error(target_path)
             if not error_list:
                 return toolResult(
@@ -96,9 +96,11 @@ def file_edit_tool(
                 )
             else:
                 error_messages = [f"error: {err.type} at {err.start_point}-{err.end_point},content: {err.text}" for err in error_list]
+                #回滚逻辑
+                _replace(old_lines,normalize_file_lines,start_idx,start_idx+len(new_lines),target_path,used_encoding,file_path)
                 return toolResult(
-                    success=True,
-                    error=f"修改后文件 '{target_path}' 出现错误，错误详情：{error_messages}",
+                    success=False,
+                    error=f"修改失败，修改后文件 '{target_path}' 出现错误，错误详情：{error_messages}",
                     tool_name="file_edit"
                 )
         elif len(match) > 1:
@@ -248,6 +250,17 @@ def _exchange(count:int,target_path:Path, old_content:str, new_content:str, file
             diff_text = diff_text[:20000] + "\n... diff 过长，已截断"
         with open(target_path, 'w', encoding=used_encoding, newline='') as f:
             f.write(file_content)
+        error_list=_check_error(target_path)
+        if error_list:
+            # 回滚逻辑
+            with open(target_path, 'w', encoding=used_encoding, newline='') as f:
+                f.write(file_content.replace(new_content, old_content, 1))
+            error_messages = [f"error: {err.type} at {err.start_point}-{err.end_point},content: {err.text}" for err in error_list]
+            return toolResult(
+                success=False,
+                error=f"替换失败，替换后文件 '{target_path}' 出现错误，错误详情：{error_messages}",
+                tool_name="file_edit"
+            )
         return toolResult(
             success=True,
             message=f"文件 '{target_path}' 已成功替换为新内容",
@@ -295,7 +308,7 @@ def _search(old_lines: list[str], file_lines: list[str]) -> tuple[list[int], lis
 
 
 #替换函数
-def _replace(new_lines:list[str],file_lines:list[str],start:int,end:int,target_path:Path,used_encoding:str,file_path:str) -> str:
+def _replace(new_lines:list[str],file_lines:list[str],start:int,end:int,target_path:Path,used_encoding:str,file_path:str) :
     old_lines_for_diff = [line.rstrip("\r\n") for line in file_lines]
     file_lines[start:end] = new_lines
     with open(target_path, 'w', encoding=used_encoding, newline='') as f:
@@ -314,7 +327,7 @@ def _replace(new_lines:list[str],file_lines:list[str],start:int,end:int,target_p
         diff_text = "（替换成功，但没有产生实际文本变化）"
     elif len(diff_text) > 20000:
         diff_text = diff_text[:20000] + "\n... diff 过长，已截断"
-    return diff_text
+    return file_lines , diff_text
 
 
 
@@ -332,8 +345,9 @@ def _check_syntax(file_path: Path) -> tuple[bool,Tree] | bool:
             source = f.read()
         tree = parser.parse(source)
         if tree.root_node.has_error:
+            return True,tree
+        else:
             return False
-        return True,tree
     except Exception as e:
         logger.error(f"语法检查失败: {e}")
         return False

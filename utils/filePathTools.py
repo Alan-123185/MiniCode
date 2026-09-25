@@ -31,3 +31,4 @@ def is_path_safe(abs_path: Path,workplace: Path) -> bool:
         return True
     except ValueError:
         return False
+
