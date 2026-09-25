@@ -186,3 +186,40 @@ def _emit_tool_status(event: toolstatusEvent):
         writer(event)
     except Exception as e:
         logger.warning(f"无法发送工具状态事件: {e}")
+
+
+
+
+
+
+
+
+"""
+使用AST结构化文件读取结果，方便降级工具调用结果（仅针对于全文读取）
+"""
+async def _compress_read_result(file_path: str) -> str:
+    engine = UnifiedAnalysisEngine()
+    request = AnalysisRequest(
+        file_path=file_path,
+        include_details=False,  # 摘要不需要详细属性
+        include_complexity=False,
+    )
+    result = await engine.analyze(request)
+    if not result.success:
+        return f"[{file_path}: 解析失败 - {result.error_message}]"
+
+    lines = [f"[{file_path} 共 {result.line_count} 行]"]
+
+    for elem in result.elements:
+        lines.append(f"signature: {elem.raw_text.split('\n')[0]}")
+        if elem.element_type == "function":
+            # 提取函数名、行号范围，可进一步从 raw_text 提取签名
+            lines.append(f"  def {elem.name} L{elem.start_line}-L{elem.end_line}")
+        elif elem.element_type == "class":
+            lines.append(f"class {elem.name} L{elem.start_line}-L{elem.end_line}")
+        elif elem.element_type == "variable" and elem.is_constant:
+            lines.append(f"  const {elem.name} L{elem.start_line}-L{elem.end_line}")
+        elif elem.element_type == "import":
+            lines.append(f"  import {elem.name} L{elem.start_line}-L{elem.end_line}")
+
+    return "\n".join(lines)
