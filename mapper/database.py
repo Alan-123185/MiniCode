@@ -5,8 +5,8 @@ from config.data import settings
 class DataBase:  # 定义 DataBase 类，封装数据库操作
     """数据库操作类"""
 
-    def __init__(self, db_path="minicodexdatabase.db"):  # 构造函数，允许传入数据库文件路径，默认为 minicodexdatabase.db
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)  # 创建数据库连接，关闭同线程检查以支持多线程访问
+    def __init__(self):  # 构造函数，允许传入数据库文件路径，默认为 minicodexdatabase.db
+        self.conn = sqlite3.connect(str(settings.db_path), check_same_thread=False)  # 创建数据库连接，关闭同线程检查以支持多线程访问
         self.conn.row_factory = sqlite3.Row  # 将行工厂设置为 sqlite3.Row，以便可以像字典一样通过列名访问结果
         self.conn.execute("PRAGMA journal_mode=WAL;")  # 设置 WAL 模式以提高并发性能
 

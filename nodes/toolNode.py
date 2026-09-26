@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from langgraph.types import interrupt
 from loguru import logger
 from tree_sitter_analyzer.core._analysis_engine_errors import UnsupportedLanguageError
@@ -15,6 +17,7 @@ from langchain_core.messages import ToolMessage, HumanMessage
 from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 from tools.toolManage import unsafe_tool, tools_by_name
+from utils.normalizeMCPresult import normalize_MCP_result
 from utils.errormanagerTool import compress_error
 from utils.commandSafe import is_command_safe
 
@@ -75,6 +78,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         )
         try:
             toolresult = await tool.ainvoke(tool_args,config=config)
+            toolresult=normalize_MCP_result(toolresult,tool_name)
             logger.info(f"调用工具 {tool_name} 成功，结果: {toolresult}")
         except Exception as e:
             logger.error(f"调用工具 {tool_name} 时发生错误: {e}")
@@ -189,11 +193,11 @@ def _emit_tool_status(event: toolstatusEvent):
 """
 async def _compress_read_result(file_path: str, config: RunnableConfig) -> str | bool :
     engine = UnifiedAnalysisEngine()
-    import os
-    os.chdir(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace)  # 确保在工作区根目录下运行
+    abs_path=sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace  # 确保在工作区根目录下运行
+    abs_file_path = str(Path(abs_path) / file_path)
     try:
         request = AnalysisRequest(
-            file_path=file_path,
+            file_path=abs_file_path,
             include_details=False,  # 摘要不需要详细属性
             include_complexity=False,
         )

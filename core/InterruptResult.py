@@ -2,7 +2,7 @@ from typing import Optional, Literal
 
 from pydantic import BaseModel
 
-from config.data import Settings, settings
+from config.data import settings
 from core.AgentResult import AgentResult
 from core.toolStatusEvent import toolstatusEvent
 

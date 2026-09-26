@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 from fastapi.params import Depends
+
+from config.modelConfig import model_config
 from core.Result import Result
 from requestcommon.ModelRequest import ModelChooseRequest
 from requestcommon.settingsRequest import settingsRequest
@@ -37,4 +39,11 @@ async def get_settings(user_id: str, model_service:modelService=Depends(get_mode
 async def get_model(model_service:modelService=Depends(get_model_service)):
     return Result(
         response=model_service.get_model()
+    )
+
+
+@router.get("/MiniCode/cur_model")
+async def cur_model():
+    return Result(
+        response=model_config["value"]
     )

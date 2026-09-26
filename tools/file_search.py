@@ -80,6 +80,7 @@ def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".", ma
     cmd = [str(settings.rg_path),
            "--line-number",  # 显示匹配行的行号
            "--no-heading",  # 不按文件分组，每行前面直接带文件名
+           "--with-filename",  # 关键：强制总是输出文件名
            "--smart-case",  # 智能大小写：搜索词全小写就忽略大小写，有大写就区分
            "--max-count",str(max_count),
            query,

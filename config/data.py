@@ -63,6 +63,10 @@ class Settings(BaseSettings):
             / "wxc-exec.exe"
     )
 
+    db_path: ClassVar[Path] = (
+            Path(__file__).resolve().parent.parent / "minicodexdatabase.db"
+    )
+
     node_path:ClassVar[Path] = (
             Path(__file__)
             .resolve()
