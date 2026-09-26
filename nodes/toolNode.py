@@ -26,7 +26,7 @@ from utils.commandSafe import is_command_safe
 
 
 """
-tools=create_tool()
+
 summary_service=summaryService()
 tools_need_to_confirm=unsafe_tool()
 max_retry_time=settings.MAX_TOOL_CALLS
@@ -35,8 +35,12 @@ max_retry_time=settings.MAX_TOOL_CALLS
 # except Exception:
 #     writer = None
 tools_by_name = {}
-for tooln in tools:
-    tools_by_name[tooln.name] = tooln
+
+
+async def get_tools():
+    tools = await create_tool()
+    for tooln in tools:
+        tools_by_name[tooln.name] = tooln
 
 
 # 注意：这里增加了 config: RunnableConfig 参数，这是触发事件的关键！

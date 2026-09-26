@@ -13,7 +13,7 @@ from nodes.toolConditionNode import tool_condition_node
 from nodes.inputNode import input_node
 from nodes.llmNode import llm_node
 from nodes.outputNode import output_node
-from nodes.toolNode import tool_node
+from nodes.toolNode import tool_node, get_tools
 from service.modelService import modelService
 from states.InputState import InputState
 from states.OverallState import OverAllState
@@ -65,11 +65,13 @@ async def initialize_graph():
     if graph is not None:
         return  # 防止重复初始化
 
-    logger.info("🔄 正在初始化")
+    logger.info(" 正在初始化")
 
     _db_conn = await aiosqlite.connect("minicodex_checkpointer.db")  # ★ 独立文件，不再和业务库混用
 
     checkpointer = AsyncSqliteSaver(_db_conn)
+
+    await get_tools()  # ★ 确保工具列表初始化（原代码从没调过，之前靠共用文件里的旧表侥幸工作）
 
     await checkpointer.setup()  # ★ 确保其内部表初始化（原代码从没调过，之前靠共用文件里的旧表侥幸工作）
 
@@ -78,12 +80,12 @@ async def initialize_graph():
     model_service = modelService(modelMapper(db))
     try:
         model=model_service.old_choose_model()
-        logger.info(f"✅ 模型选择成功！{model}")
+        logger.info(f" 模型选择 {model}")
     except Exception as e:
-        raise BizException(message="---------ERROR 请先选择模型----------")
+        raise BizException(message="ERROR 请先选择模型")
     finally:
-        db.conn.close()  # 确保数据库连接关闭，避免资源泄漏
-    logger.info("✅ LangGraph 和 AsyncSqliteSaver 初始化成功！")
+         await db.conn.close()  # 确保数据库连接关闭，避免资源泄漏
+    logger.info(" LangGraph 和 AsyncSqliteSaver 初始化成功！")
 
 
 # 4. 定义清理函数
@@ -91,4 +93,4 @@ async def close_graph():
     global _db_conn
     if _db_conn:
         await _db_conn.close()
-        logger.info("🛑 LangGraph 数据库连接已关闭")
+        logger.info(" LangGraph 数据库连接已关闭")
