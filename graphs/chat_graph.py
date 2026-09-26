@@ -13,7 +13,7 @@ from nodes.toolConditionNode import tool_condition_node
 from nodes.inputNode import input_node
 from nodes.llmNode import llm_node
 from nodes.outputNode import output_node
-from nodes.toolNode import tool_node, get_tools
+from nodes.toolNode import tool_node
 from service.modelService import modelService
 from states.InputState import InputState
 from states.OverallState import OverAllState
@@ -71,8 +71,6 @@ async def initialize_graph():
 
     checkpointer = AsyncSqliteSaver(_db_conn)
 
-    await get_tools()  # ★ 确保工具列表初始化（原代码从没调过，之前靠共用文件里的旧表侥幸工作）
-
     await checkpointer.setup()  # ★ 确保其内部表初始化（原代码从没调过，之前靠共用文件里的旧表侥幸工作）
 
     graph = builder.compile(checkpointer=checkpointer)
@@ -84,7 +82,7 @@ async def initialize_graph():
     except Exception as e:
         raise BizException(message="ERROR 请先选择模型")
     finally:
-         await db.conn.close()  # 确保数据库连接关闭，避免资源泄漏
+        db.conn.close()  # 确保数据库连接关闭，避免资源泄漏
     logger.info(" LangGraph 和 AsyncSqliteSaver 初始化成功！")
 
 

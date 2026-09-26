@@ -3,7 +3,6 @@ from loguru import logger
 from tree_sitter_analyzer.core._analysis_engine_errors import UnsupportedLanguageError
 from tree_sitter_analyzer.core.analysis_engine import UnifiedAnalysisEngine
 from tree_sitter_analyzer.core.request import AnalysisRequest
-
 from config.sessionManager import sessionmanager
 from core.InterruptInfo import InterruptInfo
 from config.data import settings
@@ -14,18 +13,11 @@ from service.summaryService import summaryService
 from states.OverallState import OverAllState
 from langchain_core.messages import ToolMessage, HumanMessage
 from langgraph.config import get_stream_writer
-from langchain_core.runnables import RunnableConfig  # 引入 Config 类型
-
-from tools.toolManage import create_tool, unsafe_tool
+from langchain_core.runnables import RunnableConfig
+from tools.toolManage import unsafe_tool, tools_by_name
 from utils.errormanagerTool import compress_error
 from utils.commandSafe import is_command_safe
 
-"""
-
-这里需要传入工具列表.....
-
-
-"""
 
 summary_service=summaryService()
 tools_need_to_confirm=unsafe_tool()
@@ -34,13 +26,6 @@ max_retry_time=settings.MAX_TOOL_CALLS
 #     writer = get_stream_writer()
 # except Exception:
 #     writer = None
-tools_by_name = {}
-
-
-async def get_tools():
-    tools = await create_tool()
-    for tooln in tools:
-        tools_by_name[tooln.name] = tooln
 
 
 # 注意：这里增加了 config: RunnableConfig 参数，这是触发事件的关键！
@@ -100,7 +85,9 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         if toolresult.success:
             #在这里提前把压缩的 readfile 结果存储到 summary_service 中，方便后续降级使用
             if tool_name=="readfile" :
-                if not tool_args["start_line"] and not tool_args["end_line"] and "为防止上下文爆炸"not in toolresult.content and len(toolresult.content) > 100:
+                start_line = tool_args.get("start_line")
+                end_line = tool_args.get("end_line")
+                if not start_line and not end_line and "为防止上下文爆炸" not in toolresult.content and len(toolresult.content) > 100:
                     compress_read_content=await _compress_read_result(tool_args["file_path"],config)
                     summary_service.add_Tool_summary(Summary(
                         session_id=config.get("configurable", {}).get("thread_id"),

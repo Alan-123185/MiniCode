@@ -11,7 +11,7 @@ from tools.undo_file_edit import undo_operationgroup, query_operationgroup
 """
 9.26 MCP 工具注册
 """
-async def create_tool():
+async def create_tool() -> list:
     """
     创建一个 MultiServerMCPClient 实例，并注册一组工具函数。
     """
@@ -28,8 +28,7 @@ async def create_tool():
     )
     mcp_tools = await client.get_tools()
     allowed_names = {
-        "free_search",
-        "free_extract",
+        "free_search"
     }
     mcp_tools=[
         tool for tool in mcp_tools if tool.name in allowed_names
@@ -60,12 +59,43 @@ def unsafe_tool():
     return tools_need_to_confirm
 
 
-if __name__ == "__main__":
-    import asyncio
+tools:list=[]
+tools_by_name:dict={}
 
-    async def main():
-        tools = await create_tool()
-        for tool in tools:
-            print(f"Registered tool: {tool.name}")
+def get_tools_by_name():
+    return {tooln.name: tooln for tooln in tools}
 
-    asyncio.run(main())
+
+async def init_tools():
+    global tools
+    new_tools = await create_tool()
+    tools.clear()
+    tools.extend(new_tools)  # 原地更新，已 import 它的模块引用的还是同一个 list 对象
+    global tools_by_name
+    new_tools_by_name = get_tools_by_name()
+    tools_by_name.clear()
+    tools_by_name.update(new_tools_by_name)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# if __name__ == "__main__":
+#     import asyncio
+#
+#     async def main():
+#         tools = await create_tool()
+#         for tool in tools:
+#             print(f"Registered tool: {tool.name}")
+#
+#     asyncio.run(main())
