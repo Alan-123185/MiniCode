@@ -12,16 +12,11 @@ from core.toolStatusEvent import toolstatusEvent
 from mappercommon.summary import Summary
 from service.summaryService import summaryService
 from states.OverallState import OverAllState
-from tools.OriginalContentTool import get_original_content_by_compressed_content, get_original_content_by_tool_call_id
-from tools.command import execute_command, run_code
-from tools.file_edit import file_edit, create_file, delete_file
-from tools.file_read import readfile, listfiles, code_outline
-from tools.web_search import baidu_search, Jina_search
-from tools.file_search import search_code_by_keyword, search_file_by_keyword
 from langchain_core.messages import ToolMessage, HumanMessage
 from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig  # 引入 Config 类型
-from tools.undo_file_edit import undo_operationgroup, query_operationgroup
+
+from tools.toolManage import create_tool, unsafe_tool
 from utils.errormanagerTool import compress_error
 from utils.commandSafe import is_command_safe
 
@@ -31,25 +26,9 @@ from utils.commandSafe import is_command_safe
 
 
 """
-tools=[baidu_search,
-       readfile,
-       listfiles,
-       search_code_by_keyword,
-       search_file_by_keyword,
-       file_edit,
-       delete_file,
-       create_file,
-       execute_command,
-       undo_operationgroup,
-       query_operationgroup,
-       get_original_content_by_tool_call_id,
-       get_original_content_by_compressed_content,
-       run_code,
-       Jina_search,
-       code_outline
-       ]
+tools=create_tool()
 summary_service=summaryService()
-tools_need_to_confirm=["file_edit","execute_command","delete_file","create_file","undo_operationgroup"]
+tools_need_to_confirm=unsafe_tool()
 max_retry_time=settings.MAX_TOOL_CALLS
 # try:
 #     writer = get_stream_writer()

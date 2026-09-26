@@ -62,6 +62,28 @@ class Settings(BaseSettings):
             / "MXC"
             / "wxc-exec.exe"
     )
+
+    node_path:ClassVar[Path] = (
+            Path(__file__)
+            .resolve()
+            .parent
+            .parent
+            / "bin"
+            / "node"
+            / "node.exe"
+    )
+
+    index_path:ClassVar[Path] = (
+            Path(__file__)
+            .resolve()
+            .parent
+            .parent
+            / "MCP"
+            / "agent_search_mcp"
+            / "dist"
+            / "index.js"
+    )
+
     # On Windows, automatically detect all existing drive letters (C:\\, D:\\, ...)
     # so the config will include all system drives. On non-Windows platforms
     # default to an empty list.
