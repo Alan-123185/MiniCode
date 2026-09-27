@@ -43,13 +43,14 @@ class summaryService:
             db.conn.close()
 
 
-    def get_content_by_compressed_content(self,memory_id: str) -> dict:
+
+    def get_content_by_memory_id(self,memory_id: str) -> dict:
         """
         根据压缩后的内容获取对应的 summary
         """
         db=DataBase()
         try:
-            return summaryMapper(db).get_content_by_compressed_content(memory_id)
+            return summaryMapper(db).get_content_by_memory_id(memory_id)
         finally:
             db.conn.close()
 

@@ -1,5 +1,7 @@
-import re
+
 from config.data import settings
+import re
+
 
 _CHAIN_SPLIT = re.compile(r"&&|\|\||\||;|&|\n|>>|>|<")   # 拆链式命令
 
@@ -19,24 +21,46 @@ def is_command_safe(command: str, stdin_input: str | None = None) -> bool:
 
 
 #压缩命令行输出
+
+
 def truncate_output(text: str) -> str:
-    # ① 空内容直接返回
     if not text:
         return ""
 
-    # ② 没超过预算，原样返回，不做任何改动
+    # 没超过预算，原样返回
     if len(text) <= settings.COMMAND_MAX_CHAR_COUNT:
         return text
 
-    # ③ 计算被省略的字符数
-    omitted = len(text) - settings.COMMAND_HEAD - settings.COMMAND_TAIL
+    lines = text.splitlines()
 
-    # ④ 头 + 省略标记 + 尾
+    # 【核心优化 1】：正则捞报错（忽略大小写）
+    error_pattern = re.compile(r"(error|exception|traceback|failed|fatal)", re.IGNORECASE)
+    error_lines = [line for line in lines if error_pattern.search(line)]
+
+    # 如果有报错，把报错行提取出来放在最前面（最多保留 10 行，防刷屏）
+    error_block = ""
+    if error_lines:
+        error_block = "[error]:\n" + "\n".join(error_lines[:10]) + "\n\n"
+
+    # 【核心优化 2】：按“行”掐头去尾，而不是按字符
+    # 计算头尾保留多少行（简单按字符数换算成行数，或者直接设定固定行数）
+    head_lines = lines[:settings.COMMAND_HEAD_LINES]  # 比如前 50 行
+    tail_lines = lines[-settings.COMMAND_TAIL_LINES:]  # 比如后 50 行
+
+    omitted_lines = len(lines) - len(head_lines) - len(tail_lines)
+
+    # 拼接：关键报错 + 头部 + 省略标记 + 尾部
     truncated = (
-        text[:settings.COMMAND_HEAD]                          # 前 3000 字符
-        + f"\n\n... [中间省略 {omitted} 字符] ...\n\n"          # 省略标记
-        + text[-settings.COMMAND_TAIL:]                       # 后 2500 字符
+            error_block
+            + "\n".join(head_lines)
+            + f"\n\n... [中间省略 {omitted_lines} 行日志] ...\n\n"
+            + "\n".join(tail_lines)
     )
+
+    # 最后兜底：如果拼起来还是太长（极端情况），再按字符硬切一次
+    if len(truncated) > settings.COMMAND_MAX_CHAR_COUNT:
+        truncated = truncated[:settings.COMMAND_MAX_CHAR_COUNT] + "\n... [超出最大字符限制，强制截断]"
+
     return truncated
 
 """按字节智能解码：优先UTF-8（程序输出），失败回退GBK（cmd自身错误消息），双双失败才replace"""

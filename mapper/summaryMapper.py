@@ -11,7 +11,8 @@ class summaryMapper:
         return self.db.fetch_one("SELECT content FROM summary WHERE tool_call_id = ?", (tool_call_id,))
 
 
-    def get_content_by_compressed_content(self,memory_id: str):
+
+    def get_content_by_memory_id(self,memory_id: str):
         """
         根据压缩后的内容获取对应的 summary
         """

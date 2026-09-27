@@ -29,7 +29,7 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
     except Exception as e:
         raise BizException(message=f"ERROR 生成失败")
     # 1. 生成 message_id
-    message_id = str(uuid.uuid4())
+    message_id =str(uuid.uuid4()).replace("-", "")
     # 2. 把 message_id 塞进 additional_kwargs
     if response.additional_kwargs is None:
         response.additional_kwargs = {}
@@ -66,7 +66,6 @@ def pre_call_func(state: OverAllState,config:RunnableConfig) -> List[BaseMessage
 def degrade_windows(messages:List[BaseMessage],all_tokens:int,config:RunnableConfig) -> List[BaseMessage]:
     """
     当消息过长时，尝试降级窗口内的消息，保留最新的对话和系统提示，
-
     这里先这样处理，每次都单独处理一次窗口内消息，后面再来优化
     """
     # 1. 保留最新的对话
@@ -98,7 +97,9 @@ def degrade_windows(messages:List[BaseMessage],all_tokens:int,config:RunnableCon
 
 
 
-
+"""
+9.27 分层消息降级，杜绝字符粗暴截断 丢失细节的自然语言摘要
+"""
 def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
     ret=msg
     if isinstance(msg, ToolMessage):
@@ -110,8 +111,8 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
                 name=msg.name
             )
         else:
-            snippet = (msg.content or "")[:100]  #要么是content，要么是error，至少有一个不为空
-            content = f"{snippet}\n[----system Info----工具结果已截断，tool_call_id:{msg.tool_call_id}]"
+            snippet =
+            content = f"{snippet}\n [system Info]工具结果已降级，tool_call_id:{msg.tool_call_id}]"
             ret=ToolMessage(
                 content=content,
                 tool_call_id=msg.tool_call_id,
@@ -145,6 +146,20 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
             ))
         #先暂时不对用户消息降级
     return ret
+
+
+
+def _compress_ai_message(msg:AIMessage,session_id:str) -> str:
+    content=msg.content
+    if not msg.tool_calls:
+
+
+
+
+def _compress_tool_message(msg:ToolMessage,session_id:str) -> str:
+    if msg.name=="readfile":
+
+
 
 
 

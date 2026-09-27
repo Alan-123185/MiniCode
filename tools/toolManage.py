@@ -1,7 +1,6 @@
 from langchain_mcp_adapters.client import MultiServerMCPClient
-
 from config.data import settings
-from tools.OriginalContentTool import get_original_content_by_tool_call_id, get_original_content_by_compressed_content
+from tools.OriginalContentTool import get_original_content_by_tool_call_id,get_original_content_by_memory_id
 from tools.file_read import readfile, listfiles, code_outline
 from tools.file_search import search_file_by_keyword, search_code_by_keyword
 from tools.command import run_code,execute_command
@@ -11,44 +10,28 @@ from tools.undo_file_edit import undo_operationgroup, query_operationgroup
 """
 9.26 MCP 工具注册
 """
+
+
 async def create_tool() -> list:
     """
     创建一个 MultiServerMCPClient 实例，并注册一组工具函数。
     """
-    client=MultiServerMCPClient(
-        {
-            "agent-search": {
-                "command": str(settings.node_path),
-                "args": [
-                    str(settings.index_path),
-                ],
-                "transport": "stdio",
-            }
-        }
-    )
-    mcp_tools = await client.get_tools()
-    allowed_names = {
-        "free_search"
-    }
-    mcp_tools=[
-        tool for tool in mcp_tools if tool.name in allowed_names
-    ]
-
+    mcp_tools = await get_mcp_tools()
     tools=[
-           readfile,
-           listfiles,
-           search_code_by_keyword,
-           search_file_by_keyword,
-           file_edit,
-           delete_file,
-           create_file,
-           execute_command,
-           undo_operationgroup,
-           query_operationgroup,
-           get_original_content_by_tool_call_id,
-           get_original_content_by_compressed_content,
-           run_code,
-           code_outline,
+        readfile,
+        listfiles,
+        search_code_by_keyword,
+        search_file_by_keyword,
+        file_edit,
+        delete_file,
+        create_file,
+        execute_command,
+        undo_operationgroup,
+        query_operationgroup,
+        get_original_content_by_tool_call_id,
+        get_original_content_by_memory_id,
+        run_code,
+        code_outline,
            *mcp_tools  # 将 MCP 工具列表展开并添加到 tools 列表中
            ]
     return tools
@@ -77,11 +60,42 @@ async def init_tools():
     tools_by_name.update(new_tools_by_name)
 
 
+"""
+探索型子代理的工具注册
+"""
+async def search_agent_tools():
+    return [
+        readfile,
+        listfiles,
+        search_code_by_keyword,
+        search_file_by_keyword,
+        code_outline,
+        get_original_content_by_tool_call_id
+    ]
 
 
 
 
-
+async def get_mcp_tools() -> list:
+    client = MultiServerMCPClient(
+        {
+            "agent-search": {
+                "command": str(settings.node_path),
+                "args": [
+                    str(settings.index_path),
+                ],
+                "transport": "stdio",
+            }
+        }
+    )
+    mcp_tools = await client.get_tools()
+    allowed_names = {
+        "free_search"
+    }
+    mcp_tools=[
+        tool for tool in mcp_tools if tool.name in allowed_names
+    ]
+    return mcp_tools
 
 
 

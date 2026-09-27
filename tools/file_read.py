@@ -1,12 +1,18 @@
+import os
+from pathlib import Path
+
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from tree_sitter_analyzer.core._analysis_engine_errors import UnsupportedLanguageError
+from tree_sitter_analyzer.core.engine_manager import EngineManager
 from tree_sitter_analyzer.models import AnalysisResult
 from config.data import settings
+from config.sessionManager import sessionmanager
 from core.toolResult import toolResult
 from utils.dictToText import dict_to_text
 from utils.errormanagerTool import compress_error
+from utils.fileManageTool import build_folded_source
 from utils.filePathTools import relativePathToAbsolute
 from tree_sitter_analyzer.core.analysis_engine import UnifiedAnalysisEngine, AnalysisRequest
 
@@ -86,18 +92,22 @@ def readfile(
     lines = raw_content.splitlines()
     total_lines = len(lines)
     if len(raw_content) > settings.READ_FILE_MAX_COUNT and start_line is None and end_line is None:
-        head = raw_content[:settings.RETURN_FILE_MAX_COUNT]
-        tail = raw_content[-settings.RETURN_FILE_MAX_COUNT:]
+        #返回折叠后的源码骨架，避免一次性返回过大内容
+        try:
+            project_path=Path(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace).resolve()
+            engine=UnifiedAnalysisEngine(project_root=str(project_path))
+            request = AnalysisRequest(file_path=str(target_path))
+            result = engine.analyze_sync(request)
+        except UnsupportedLanguageError as e:
+            return toolResult(
+                success=False,
+                error=f"不支持的语言类型: {compress_error(str(e))}。请检查文件类型或跳过此步骤",
+                tool_name="readfile"
+            )
         return toolResult(
             success=True,
-            content=f"[system Info] 文件过大({len(raw_content)/1024:.2f}KB)， 共 {total_lines} 行)。\n"
-            "为防止上下文爆炸，系统仅展示【前1500个字符】和【后1500个字符】的内容。\n"
-            "如果需要读取中间部分或者需要完整的格式信息，请重新调用readfile并传入 `start_line` 和 `end_line` \n"
-            "避免读取已被包含的区间，避免重复读取。\n"
-            "--- 以下是文件头部 ---\n"
-            f"{head}\n"
-            "--- 以下是文件尾部 ---\n"
-            f"{tail}",
+            message=f"文件 {file_path} 内容过大，仅返回折叠后的源码骨架",
+            content=build_folded_source(result, raw_content),
             tool_name="readfile"
         )
 
@@ -233,7 +243,10 @@ def listfiles(config:RunnableConfig,folder_path: str = ".",depth:int =1 ) -> too
             error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="listfiles"
         )
-@tool
+
+
+
+
 async def code_outline(file_path: str, config: RunnableConfig) -> toolResult:
     """
     生成文件的大纲（outline），包括函数、类、方法等结构信息，适用于代码文件
@@ -267,8 +280,8 @@ async def code_outline(file_path: str, config: RunnableConfig) -> toolResult:
             error=f"路径指向的不是一个普通文件: {target_path}",
             tool_name="code_outline"
         )
-    engine = UnifiedAnalysisEngine()
-    request = AnalysisRequest(file_path=str(target_path))
+    rel = os.path.relpath(target_path)
+    request = AnalysisRequest(file_path=rel)
     try:
         result = engine.analyze_sync(request)
     except UnsupportedLanguageError as e:
@@ -313,7 +326,7 @@ def _build_outline(result: AnalysisResult) -> str:
                 "type": elem.element_type,
                 "start_line": elem.start_line,
                 "end_line": elem.end_line,
-                "signature": elem.raw_text.split("\n")[0],  # 取第一行作为签名，内容锚定
+                    "signature": elem.raw_text.split("\n")[0].lstrip(),  # 取第一行作为签名，内容锚定
             }
             if elem.docstring:
                 func["doc"] = elem.docstring[:200]
@@ -332,7 +345,9 @@ def _build_outline(result: AnalysisResult) -> str:
             cls = {
                 "name": elem.name,
                 "element_type": elem.element_type,
-                "lines": [elem.start_line, elem.end_line],
+                "start_line": elem.start_line,
+                "end_line": elem.end_line,
+                "signature": elem.raw_text.split("\n")[0].lstrip(),  # 取第一行作为签名，内容锚定
             }
             if elem.docstring:
                 cls["doc"] = elem.docstring[:200]
@@ -351,7 +366,9 @@ def _build_outline(result: AnalysisResult) -> str:
             fields={
                 "name": elem.name,
                 "element_type": elem.element_type,
-                "lines": [elem.start_line, elem.end_line]
+                "start_line": elem.start_line,
+                "end_line": elem.end_line,
+                "signature": elem.raw_text.split("\n")[0].lstrip(),  # 取第一行作为签名，内容锚定
             }
             if hasattr(elem, 'variable_type') and elem.variable_type:
                 fields["type"] = elem.variable_type
@@ -362,7 +379,9 @@ def _build_outline(result: AnalysisResult) -> str:
             imports = {
                 "name": elem.name,
                 "element_type": elem.element_type,
-                "lines": [elem.start_line, elem.end_line],
+                "start_line": elem.start_line,
+                "end_line": elem.end_line,
+                "signature": elem.raw_text.split("\n")[0].lstrip(),  # 取第一行作为签名，内容锚定
             }
             if hasattr(elem,"alias") and elem.alias:
                 imports["alias"] = elem.alias

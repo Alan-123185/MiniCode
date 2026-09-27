@@ -16,7 +16,7 @@ logger.add(
 # 文件输出
 logger.add(
     "logs/agent_{time}.log",
-    rotation="10 MB",
+    rotation="100 MB",
     retention="7 days",
     encoding="utf-8",
     level="DEBUG",
