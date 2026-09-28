@@ -18,6 +18,7 @@ from langchain_core.messages import ToolMessage, HumanMessage
 from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 from tools.toolManage import unsafe_tool, tools_by_name
+from utils.compressMessage import _compress_read_result, _compress_execute_command_result, _compress_search_code_result
 from utils.normalizeMCPresult import normalize_MCP_result
 from utils.errormanagerTool import compress_error
 from utils.commandSafe import is_command_safe
@@ -86,22 +87,43 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             toolresult = toolResult(success=False, message=f"调用工具 {tool_name} 时发生错误: {compress_error(str(e))}")
         logger.info(str(toolresult))
         toolresult_for_llm = toolresult
+
+        if tool_name == "readfile":
+            compress_read_content = await _compress_read_result(tool_result=toolresult, tool_call_id=tool_call_id)
+            if not (compress_read_content == toolresult.error or compress_read_content == toolresult.content):
+                summary_service.add_Tool_summary(Summary(
+                    session_id=config.get("configurable", {}).get("thread_id"),
+                    tool_call_id=tool_call_id,
+                    content=toolresult.content,
+                    compressed_content=compress_read_content ,
+                    message_type=settings.LLM_MESSAGE_TYPE_TOOL,
+                ))
+        if tool_name == "execute_command" or "run_code":
+            compress_command_content=await _compress_execute_command_result(toolresult.content, tool_call_id=tool_call_id)
+            if not (compress_command_content==toolresult.error or compress_command_content==toolresult.content):
+                summary_service.add_Tool_summary(Summary(
+                    session_id=config.get("configurable", {}).get("thread_id"),
+                    tool_call_id=tool_call_id,
+                    content=toolresult.content,
+                    compressed_content=compress_command_content ,
+                    message_type=settings.LLM_MESSAGE_TYPE_TOOL,
+                ))
+        if tool_name == "search_code_by_keyword":
+            compress_search_content = await _compress_search_code_result(tool_result=toolresult, tool_call_id=tool_call_id)
+            if not (compress_search_content == toolresult.error or compress_search_content== toolresult.content):
+                summary_service.add_Tool_summary(Summary(
+                    session_id=config.get("configurable", {}).get("thread_id"),
+                    tool_call_id=tool_call_id,
+                    content=toolresult.content,
+                    compressed_content=compress_search_content,
+                    message_type=settings.LLM_MESSAGE_TYPE_TOOL,
+                ))
         # ================= 3. 处理执行结果 =================
         if toolresult.success:
-            #在这里提前把压缩的 readfile 结果存储到 summary_service 中，方便后续降级使用
-            if tool_name=="readfile" :
-                start_line = tool_args.get("start_line")
-                end_line = tool_args.get("end_line")
-                # if not start_line and not end_line and  not in toolresult.content and len(toolresult.content) > 100:
-                #     compress_read_content=await _compress_read_result(tool_args["file_path"],config)
-                #     summary_service.add_Tool_summary(Summary(
-                #         session_id=config.get("configurable", {}).get("thread_id"),
-                #         tool_call_id=tool_call_id,
-                #         content=toolresult.content,
-                #         compressed_content=compress_read_content if compress_read_content else toolresult.content[:100]+"\n[----system Info----工具结果已截断，tool_call_id:"+tool_call_id+"]",
-                #         message_type=settings.LLM_MESSAGE_TYPE_TOOL,
-                #     ))
-            # 尝试覆盖之前的所有出错消息，保持llm注意力
+            """
+            在这里把工具调用消息就降级了，存入summary_service，方便后续的总结节点使用
+            """
+           # 尝试覆盖之前的所有出错消息，保持llm注意力
             failures = tool_failures.get(tool_name, 0)
             count = 0
             idx = len(state.messages) - 2
@@ -188,67 +210,3 @@ def _emit_tool_status(event: toolstatusEvent):
 
 
 
-
-"""
-压缩命令行执行结果
-"""
-async def _compress_execute_command_result(result:str,tool_call_id:str) -> str:
-   if "标准输出 (STDOUT)" in result:
-        # 只保留标准输出部分
-        return "[system Info] command executed successfully.（已降级，只返回最终结果） tool_call_id:"+tool_call_id
-   else:
-       # 只保留错误输出部分
-        return result
-"""
-降级代码搜索结果，保留文件路径和行号
-"""
-async def _compress_search_code_result(result:str,tool_call_id:str) -> str:
-
-    PATTERN = re.compile(r'^(?P<file_path>.+?):\s+.+\(in (?P<line>\d+)\)$')
-
-    def extract(s: str) -> tuple[str, int] | None:
-        m = PATTERN.match(s)
-        if not m:
-            return None
-        return m.group("file_path"), int(m.group("line"))
-    first_info="\n[system Info]代码搜索结果已进行压缩处理 tool_call_id:"+tool_call_id
-    lines = result.split("\n")
-    extracted = [f"{extract(line)[0]}:{extract(line)[1]}" for line in lines]
-    return  "\n".join(extracted)+first_info
-
-"""
-使用AST结构化文件读取结果，方便降级工具调用结果（仅针对于全文读取）
-"""
-async def _compress_read_result(file_path: str, config: RunnableConfig, tool_call_id: str) -> str | bool :
-    try:
-        abs_path = sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace  # 确保在工作区根目录下运行
-        engine = UnifiedAnalysisEngine(project_root=abs_path)
-        abs_file_path = str(Path(abs_path) / file_path)
-        request = AnalysisRequest(
-            file_path=abs_file_path,
-            include_details=False,  # 摘要不需要详细属性
-            include_complexity=False,
-        )
-        result = await engine.analyze(request)
-    except UnsupportedLanguageError as e:
-        return False
-    except Exception as e:
-        return False
-    if not result.success:
-        return False
-
-    lines = [f"[{file_path} 共 {result.line_count} 行]"]
-    elements = sorted(result.elements, key=lambda e: (e.start_line, e.end_line))
-    for elem in elements:
-        lines.append(f"signature: {elem.raw_text.split('\n')[0]}")
-        if elem.element_type == "function":
-            # 提取函数名、行号范围，可进一步从 raw_text 提取签名
-            lines.append(f"  def {elem.name} L{elem.start_line}-L{elem.end_line}")
-        elif elem.element_type == "class":
-            lines.append(f"class {elem.name} L{elem.start_line}-L{elem.end_line}")
-        elif elem.element_type == "variable" and elem.is_constant:
-            lines.append(f"  const {elem.name} L{elem.start_line}-L{elem.end_line}")
-        elif elem.element_type == "import":
-            lines.append(f"  import {elem.name} L{elem.start_line}-L{elem.end_line}")
-
-    return "\n".join(lines)+f"\n[system Info]文件读取结果已降级，tool_call_id:{tool_call_id}，"

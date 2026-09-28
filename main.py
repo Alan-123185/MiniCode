@@ -1,8 +1,7 @@
 from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
-from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.staticfiles import StaticFiles
+from core.Result import Result
 from handler import register_exception_handlers
 from mapper.database import init_tables
 from tools.toolManage import init_tools
@@ -11,6 +10,8 @@ from graphs.chat_graph import initialize_graph, close_graph
 from routers.workplaceRouter import router as workplace_router
 from routers.modelRouter import router as model_router
 from routers.chatRouter import router as chat_router
+from utils.gitInstall import check_git
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_tables()
@@ -38,23 +39,10 @@ app.include_router(session_router)
 """
 the first version, a basical chat robot with some easy tools  2026.8.13
 """
-# swagger-ui 静态资源本地化,不依赖外网 CDN
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
-
-@app.get("/docs", include_in_schema=False)
-async def swagger_ui_html():
-    return get_swagger_ui_html(
-        openapi_url=app.openapi_url,
-        title=f"{app.title} - Swagger UI",
-        swagger_js_url="/static/swagger/swagger-ui-bundle.js",
-        swagger_css_url="/static/swagger/swagger-ui.css",
-    )
-
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+@app.get("/MiniCode/checkGit")
+async def checkgit():
+    return Result(response=check_git())
 
 
 

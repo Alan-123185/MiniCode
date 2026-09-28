@@ -111,7 +111,7 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
                 name=msg.name
             )
         else:
-            snippet =
+            snippet = (msg.content or "")[:100]  # 要么是content，要么是error，至少有一个不为空
             content = f"{snippet}\n [system Info]工具结果已降级，tool_call_id:{msg.tool_call_id}]"
             ret=ToolMessage(
                 content=content,
@@ -148,16 +148,6 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
     return ret
 
 
-
-def _compress_ai_message(msg:AIMessage,session_id:str) -> str:
-    content=msg.content
-    if not msg.tool_calls:
-
-
-
-
-def _compress_tool_message(msg:ToolMessage,session_id:str) -> str:
-    if msg.name=="readfile":
 
 
 

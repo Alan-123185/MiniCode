@@ -4,10 +4,14 @@ import os
 import string
 from langgraph.checkpoint.memory import MemorySaver, InMemorySaver
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from utils.gitInstall import get_exe_dir
 
+
+
+ENV_FILE = get_exe_dir() / ".env"
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env") # ← 关键：读 .env
+    model_config = {"env_file": str(ENV_FILE), "env_file_encoding": "utf-8"}
     DEFAULT_BASE_URL: str = ""  # 默认 base_url
 
     DEFAULT_API_KEY: str = ""  # 默认 api_key
@@ -158,7 +162,7 @@ class Settings(BaseSettings):
 
     THREAD_HOLD :float=0.85   #文本匹配相似度
     MIN_HOLD: float =0.5      #最小近似相似度
-
+    GIT_BASH_PATH: str | None = None
 
     THINK_LEVEL_LOW: int= 1
     THINK_LEVEL_HIGH: int= 3
@@ -169,6 +173,8 @@ class Settings(BaseSettings):
     COMMAND_MAX_CHAR_COUNT: int = 6000  #命令行返回结果最大字符数
     COMMAND_HEAD:int = 3000             #命令行返回结果头部最大字符数
     COMMAND_TAIL:int = 2500             #命令行返回结果尾部最大字符数
+    COMMAND_HEAD_LINE:int=15            #命令行返回结果头部最大行数
+    COMMAND_TAIL_LINE:int=25            #命令行返回结果尾部最大行数
 
 
     RG_SEARCH_MAX_COUNT:int=50          #rg搜索最大返回条数

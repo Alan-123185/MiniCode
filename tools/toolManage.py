@@ -31,8 +31,7 @@ async def create_tool() -> list:
         get_original_content_by_tool_call_id,
         get_original_content_by_memory_id,
         run_code,
-        code_outline,
-           *mcp_tools  # 将 MCP 工具列表展开并添加到 tools 列表中
+        *mcp_tools  # 将 MCP 工具列表展开并添加到 tools 列表中
            ]
     return tools
 

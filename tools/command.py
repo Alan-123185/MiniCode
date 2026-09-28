@@ -1,3 +1,4 @@
+import shutil
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
@@ -17,15 +18,14 @@ from pathlib import Path
 INTERPRETERS = {
     ".py": "python {file}",
     ".js": "node {file}",
-    ".ts": "npx ts-node {file}",
-    ".sh": "bash {file}",
+    ".ts": "npx --yes ts-node {file}",           # ★ 加 --yes
+    ".sh": "bash -e {file}",                     # ★ 加 -e（可选）
     ".rb": "ruby {file}",
     ".go": "go run {file}",
-    ".java": "java {file}",  # Java 11+ 可以直接跑单文件
+    ".java": "java {file}",
     ".php": "php {file}",
-    ".ps1": "powershell -File {file}",
+    ".ps1": 'powershell -NoProfile -ExecutionPolicy Bypass -File "{file}"',  # ★ 加引号和参数
 }
-
 
 class ExecuteCommandInput(BaseModel):
     command: str = Field(description="要执行的命令")
@@ -58,56 +58,70 @@ def _resolve_cwd(cwd: str, config: RunnableConfig) -> str:
         return cwd
 
 
-def _run_shell(command: str, abs_cwd: str, time_out: int, stdin_input: str | None, tool_name: str) -> toolResult:
-    """在宿主机直接执行命令（Windows 默认 cmd 环境），返回结构化结果"""
+
+def _run_bash(command: str, abs_cwd: str, time_out: int,
+               stdin_input: str | None, tool_name: str) -> toolResult:
+    """在 Git Bash 下执行命令，返回结构化结果"""
     try:
-        # 1. 动态决定是否需要 stdin 管道 (确保向后兼容)
-        # 如果 stdin_input 为 None，则 stdin 为 None（保持默认行为）
-        # 如果 stdin_input 有值，则 stdin 为 PIPE（准备接收输入）
+        # 0. 定位 Git Bash
+        bash_path = settings.GIT_BASH_PATH
+        if not bash_path:
+            return toolResult(
+                success=False,
+                content="",
+                error="未找到 Git Bash (bash.exe)，请确认已安装 Git for Windows 或将 <Git>\\bin 加入 PATH",
+                tool_name=tool_name
+            )
+
+        # 1. 动态决定是否需要 stdin 管道
         stdin_arg = subprocess.PIPE if stdin_input is not None else None
 
-        # 向子进程传递 UTF-8 环境变量，兼容 Python/Node/npm 等程序输出（UTF-8）
-        # 注意：cmd 自身的错误消息（如"不是内部或外部命令"）固定按系统 OEM 代码页(GBK)写管道，
-        # chcp 65001 对管道路径无效，解码交由 smart_decode 双编码尝试处理
+        # 2. UTF-8 友好的环境变量
+        #    Git Bash 本身就是 UTF-8 环境，这里主要是给 Python/Node 等子进程兜底
         env = os.environ.copy()
-        if os.name == "nt":
-            env["PYTHONIOENCODING"] = "utf-8"
-            env["PYTHONUTF8"] = "1"
-            env["LANG"] = "C.UTF-8"
-            env["LC_ALL"] = "C.UTF-8"
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+        env["LANG"] = "C.UTF-8"
+        env["LC_ALL"] = "C.UTF-8"
+
+        # 3. 用 bash -c 执行命令
+        #    注意：shell=False，直接调用 bash.exe，避免被 cmd 再包一层
         proc = subprocess.Popen(
-            command,
-            shell=True,
+            [bash_path, "-c", command],
+            shell=False,
             cwd=abs_cwd,
             stdin=stdin_arg,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=env
+            env=env,
         )
 
         try:
-            # 2. 将 stdin_input 传给 communicate
-            # 如果 stdin_input 是 None，communicate 会忽略 input，行为和原来一致
             stdout_b, stderr_b = proc.communicate(
                 input=stdin_input.encode("utf-8") if stdin_input is not None else None,
                 timeout=time_out
             )
         except subprocess.TimeoutExpired:
-            # 超过超时时间仍在运行: 终止整棵进程树 (Windows 专属)
-            subprocess.run(
-                f"taskkill /F /T /PID {proc.pid}",
-                shell=True,
-                capture_output=True,
-            )
-            proc.kill()  # 确保 Python 层面的进程对象也被清理
+            # 超时：终止整棵进程树
+            #   bash 是父进程，taskkill /T 会连带杀掉它 fork 出来的子进程
+            if os.name == "nt":
+                subprocess.run(
+                    f"taskkill /F /T /PID {proc.pid}",
+                    shell=True,
+                    capture_output=True,
+                )
+            try:
+                proc.kill()
+            except Exception:
+                pass
             return toolResult(
                 success=False,
                 content="",
-                message=f"命令执行超时({time_out}秒),已强制终止",
+                message=f"命令执行超时({time_out}秒)，已强制终止",
                 tool_name=tool_name
             )
 
-        # 3. 字节流智能解码（程序输出=UTF-8，cmd自身错误=GBK）
+        # 4. 解码输出（Git Bash 里基本是 UTF-8，smart_decode 仍能兜底意外字节）
         stdout = truncate_output(smart_decode(stdout_b))
         stderr = truncate_output(smart_decode(stderr_b))
 
@@ -117,7 +131,6 @@ def _run_shell(command: str, abs_cwd: str, time_out: int, stdin_input: str | Non
         if stderr:
             final_content += f"--- 错误输出 (STDERR) ---\n{stderr}\n"
 
-        # 如果两者都为空，给个明确的提示
         if not final_content:
             final_content = "命令执行完毕，无标准输出和错误输出。"
 
@@ -129,7 +142,6 @@ def _run_shell(command: str, abs_cwd: str, time_out: int, stdin_input: str | Non
         )
 
     except Exception as e:
-        # 4. 兜底所有未知错误，防止 Agent 节点直接崩溃
         return toolResult(
             success=False,
             content="",
@@ -137,15 +149,15 @@ def _run_shell(command: str, abs_cwd: str, time_out: int, stdin_input: str | Non
             tool_name=tool_name
         )
 
-
 @tool(args_schema=ExecuteCommandInput)
 def execute_command(command: str, cwd: str, config: RunnableConfig, time_out: int = settings.COMMAND_TIMEOUT, stdin_input: str = None) -> toolResult:
     """
-    在终端中执行 shell 命令（默认环境为 Windows cmd，注意环境差异，切忌把 Unix 命令用在 Windows 上）
-    当你修改了代码后，强烈建议使用此工具来运行测试或者编译命令。
-    Returns:
-        toolResult: 命令执行结果。
-    """
+      在 Git Bash 中执行一条 shell 命令并返回结果。
+      用于执行**现成的命令**：运行测试、编译构建、查目录、搜文件、看版本等。
+      如果代码是你现写的多行脚本（需要 import、定义函数），请用 run_code。
+      Returns:
+          toolResult: 包含退出码、stdout、stderr。
+      """
     # 路径转换与防御性校验 (彻底解决 WinError 267 目录无效报错)
     abs_cwd = _resolve_cwd(cwd, config)
     if not abs_cwd or not os.path.isdir(abs_cwd):
@@ -156,7 +168,7 @@ def execute_command(command: str, cwd: str, config: RunnableConfig, time_out: in
             tool_name="execute_command"
         )
 
-    return _run_shell(command, abs_cwd, time_out, stdin_input, "execute_command")
+    return _run_bash(command, abs_cwd, time_out, stdin_input, "execute_command")
 
 
 @tool(args_schema=RunCodeInput)
@@ -210,59 +222,10 @@ def run_code(code: str, filename: str, cwd: str, config: RunnableConfig, stdin_i
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text(code, encoding="utf-8")
 
-    relative_file = script_path.relative_to(abs_cwd)
-    cmd = f'cmd.exe /c cd /d "{abs_cwd}" && {template.format(file=str(relative_file))}'
-    return _run_shell(cmd, abs_cwd, time_out, stdin_input, "run_code")
+    relative_file = script_path.relative_to(abs_cwd).as_posix()
+    cmd = template.format(file=relative_file)
+    return _run_bash(cmd, abs_cwd, time_out, stdin_input, "run_code")
 
 
 
-def _check_dialect(cmd: str) -> str:
-    """根据若干启发式规则判断命令更可能属于 PowerShell 还是 Unix shell。
 
-    规则（按优先级）：
-    1. 空命令返回平台默认：Windows -> PowerShell，其他 -> Unix
-    2. Shebang（#!）显式为 Unix
-    3. 文件扩展名（.ps1/.sh/.bash）优先判断
-    4. 整词匹配 PowerShell cmdlet
-    5. 整词匹配 Windows cmd/cmdlet 内建命令 -> PowerShell（兼容 cmd 场景）
-    6. 整词匹配常见 Unix 命令 -> Unix
-    7. 明确外壳调用（bash/sh/pwsh/cmd.exe）或路径形式（./ /usr）判断
-    8. 回退到平台默认
-    """
-    default = "PowerShell" if os.name == "nt" else "Unix"
-
-    if not cmd or not cmd.strip():
-        return default
-    s = cmd.strip()
-
-    # 1. shebang
-    if s.startswith("#!"):
-        return "Unix"
-
-    # 2. 尝试安全分词（能正确处理引号）
-    try:
-        tokens = shlex.split(s, posix=True)
-    except Exception:
-        tokens = s.split()
-
-    first = tokens[0].lower() if tokens else ""
-
-    # 3. 文件扩展名判断
-    if first.endswith(".ps1"):
-        return "PowerShell"
-    if first.endswith(".sh") or first.endswith(".bash"):
-        return "Unix"
-    # 6. 常见 Unix 命令
-    unix_commands = {"ls", "grep", "cat", "rm", "cp", "mv", "pwd", "find", "sed", "awk", "chmod", "chown", "tail", "head", "which", "sudo", "apt", "yum", "pacman", "curl", "wget", "npx", "bash", "sh", "zsh"}
-    if first in unix_commands:
-        return "Unix"
-    # 7. 明确指定的 shell 或路径迹象
-    if re.search(r"\b(bash|sh|zsh|ksh|dash)\b", s, flags=re.IGNORECASE):
-        return "Unix"
-    if re.search(r"\b(powershell|pwsh|cmd\.exe)\b", s, flags=re.IGNORECASE):
-        return "PowerShell"
-    if s.startswith("./") or s.startswith("/") or "/usr/" in s:
-        return "Unix"
-
-    # 回退到平台默认
-    return default
