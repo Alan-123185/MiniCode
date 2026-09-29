@@ -1,9 +1,6 @@
 from typing import Any
-
 from mcp_types import TextContent
-
 from core.toolResult import toolResult
-
 
 
 def normalize_MCP_result(result:Any,tool_name:str) -> toolResult:

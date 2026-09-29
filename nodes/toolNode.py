@@ -1,12 +1,7 @@
-import re
-from pathlib import Path
-
+import asyncio
+from typing import Any
 from langgraph.types import interrupt
 from loguru import logger
-from tree_sitter_analyzer.core._analysis_engine_errors import UnsupportedLanguageError
-from tree_sitter_analyzer.core.analysis_engine import UnifiedAnalysisEngine
-from tree_sitter_analyzer.core.request import AnalysisRequest
-from config.sessionManager import sessionmanager
 from core.InterruptInfo import InterruptInfo
 from config.data import settings
 from core.toolResult import toolResult
@@ -27,11 +22,6 @@ from utils.commandSafe import is_command_safe
 summary_service=summaryService()
 tools_need_to_confirm=unsafe_tool()
 max_retry_time=settings.MAX_TOOL_CALLS
-# try:
-#     writer = get_stream_writer()
-# except Exception:
-#     writer = None
-
 
 # 注意：这里增加了 config: RunnableConfig 参数，这是触发事件的关键！
 async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState:
@@ -39,14 +29,17 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
     output = []
     step = []
     last_message = state.messages[-1]
+    pending_calls:list[tuple[Any,dict]] = []
+
+    """
+     串行处理需要确认的工具
+    """
 
     for tool_call in last_message.tool_calls:
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
         tool_call_id = tool_call["id"]
-        tool = tools_by_name.get(tool_name,"不存在该工具，请检查工具命名后重试")
 
-        # ================= 1. 处理需要确认的工具 =================
         if  tool_name in tools_need_to_confirm and not (tool_name == "execute_command" and is_command_safe(tool_args.get("command", ""), tool_args.get("stdin_input", None))) :
             # interrupt 会暂停图的执行，等待外部通过 update_state 或 Command 恢复
             decision = interrupt(
@@ -70,24 +63,63 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 ))
                 step.append(f"user refused tool:{tool_name}")
                 continue
+        pending_calls.append((tools_by_name[tool_name], tool_call))
 
-        # ================= 2. 执行工具 =================
-        step.append(f"try to use tool:{tool_name}")
+    """
+    9.29
+    改为并行执行工具
+    """
+    sem = asyncio.Semaphore(5)  # 限流，防止一次打爆下游
 
-        # 【自定义事件】实时通知前端：开始尝试调用
-        _emit_tool_status(
-            toolstatusEvent(status=settings.tool_try, tool_name=tool_name, args=tool_args, result=None,session_id=config.get("configurable", {}).get("thread_id"),user_prompt=state.input)
-        )
-        try:
-            toolresult = await tool.ainvoke(tool_args,config=config)
-            toolresult=normalize_MCP_result(toolresult,tool_name)
-            logger.info(f"调用工具 {tool_name} 成功，结果: {toolresult}")
-        except Exception as e:
-            logger.error(f"调用工具 {tool_name} 时发生错误: {e}")
-            toolresult = toolResult(success=False, message=f"调用工具 {tool_name} 时发生错误: {compress_error(str(e))}")
-        logger.info(str(toolresult))
+    async def _invoke(tool, tool_call_dict:dict):
+        toolname = tool_call["name"]
+        toolargs = tool_call["args"]
+
+        _emit_tool_status(toolstatusEvent(
+            status=settings.tool_try,
+            tool_name=toolname,
+            args=toolargs,
+            result=None,
+            session_id=config.get("configurable", {}).get("thread_id"),
+            user_prompt=state.input,
+        ))
+        async with sem:
+            try:
+                result = await tool.ainvoke(tool_args, config=config)
+                result = normalize_MCP_result(result, tool_name)
+                logger.info(f"调用工具 {tool_name} 成功，结果: {result}")
+            except Exception as e:
+                logger.error(f"调用工具 {tool_name} 时发生错误: {e}")
+                result = toolResult(
+                    success=False,
+                    message=f"调用工具 {tool_name} 时发生错误: {compress_error(str(e))}",
+                )
+        return tool_call, result
+
+    raw_results = await asyncio.gather(
+        *(_invoke(tool, tc ) for tool, tc in pending_calls),
+        return_exceptions=True,  # _invoke 已吞异常，这里兜底
+    )
+    #重新排序
+    order = {tc["id"]: i for i, tc in enumerate(last_message.tool_calls)}
+    results_sorted = sorted(
+        (r for r in raw_results if not isinstance(r, BaseException)),
+        key=lambda x: order.get(x[0]["id"], 0),
+    )
+
+    """
+    串行处理工具调用结果，按原始顺序返回
+    """
+
+    for tool_call, toolresult in results_sorted:
+        tool_name = tool_call["name"]
+        tool_args = tool_call["args"]
+        tool_call_id = tool_call["id"]
         toolresult_for_llm = toolresult
 
+        """
+        降级工具调用结果，存入summary_service，方便后续的总结节点使用        
+        """
         if tool_name == "readfile":
             compress_read_content = await _compress_read_result(tool_result=toolresult, tool_call_id=tool_call_id)
             if not (compress_read_content == toolresult.error or compress_read_content == toolresult.content):
@@ -98,7 +130,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                     compressed_content=compress_read_content ,
                     message_type=settings.LLM_MESSAGE_TYPE_TOOL,
                 ))
-        if tool_name == "execute_command" or "run_code":
+        if tool_name in ("execute_command", "run_code"):
             compress_command_content=await _compress_execute_command_result(toolresult.content, tool_call_id=tool_call_id)
             if not (compress_command_content==toolresult.error or compress_command_content==toolresult.content):
                 summary_service.add_Tool_summary(Summary(
