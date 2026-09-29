@@ -87,7 +87,7 @@ def _run_bash(command: str, abs_cwd: str, time_out: int,
         # 3. 用 bash -c 执行命令
         #    注意：shell=False，直接调用 bash.exe，避免被 cmd 再包一层
         proc = subprocess.Popen(
-            [bash_path, "-c", command],
+            [bash_path, "-lc", command],
             shell=False,
             cwd=abs_cwd,
             stdin=stdin_arg,
