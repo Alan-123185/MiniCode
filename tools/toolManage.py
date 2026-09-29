@@ -1,6 +1,6 @@
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from config.data import settings
-from tools.sub_agent import search_sub_agent
+from tools.sub_agent import  search_sub_agent
 from tools.OriginalContentTool import get_original_content_by_tool_call_id,get_original_content_by_memory_id
 from tools.file_read import readfile, listfiles, code_outline
 from tools.file_search import search_file_by_keyword, search_code_by_keyword
@@ -32,8 +32,8 @@ async def create_tool() -> list:
         get_original_content_by_tool_call_id,
         get_original_content_by_memory_id,
         run_code,
-        search_sub_agent
-        * mcp_tools  # 将 MCP 工具列表展开并添加到 tools 列表中
+        search_sub_agent,
+        *mcp_tools  # 将 MCP 工具列表展开并添加到 tools 列表中
            ]
     return tools
 
@@ -64,15 +64,6 @@ async def init_tools():
 """
 探索型子代理的工具注册
 """
-async def search_agent_tools():
-    return [
-        readfile,
-        listfiles,
-        search_code_by_keyword,
-        search_file_by_keyword,
-        code_outline,
-        get_original_content_by_tool_call_id
-    ]
 
 
 

@@ -30,6 +30,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
     step = []
     last_message = state.messages[-1]
     pending_calls:list[tuple[Any,dict]] = []
+    forbid_calls:list[tuple[Any,toolResult]] = []
 
     """
      串行处理需要确认的工具
@@ -56,11 +57,9 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                     toolstatusEvent(status=settings.tool_refused, tool_name=tool_name, args=tool_args, result=None,session_id=config.get("configurable", {}).get("thread_id"))
                 )
 
-                output.append(ToolMessage(
-                    content=f"用户拒绝了 {tool_name} 的调用,请如实告知用户,如果任务无法进行,可以自行决定是否继续",
-                    tool_call_id=tool_call_id,
-                    name=tool_name
-                ))
+                forbid_calls.append((tool_call, toolResult(
+                  success=False, message=f"user refused tool:{tool_name}"
+                )))
                 step.append(f"user refused tool:{tool_name}")
                 continue
         pending_calls.append((tools_by_name[tool_name], tool_call))
@@ -72,8 +71,8 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
     sem = asyncio.Semaphore(5)  # 限流，防止一次打爆下游
 
     async def _invoke(tool, tool_call_dict:dict):
-        toolname = tool_call["name"]
-        toolargs = tool_call["args"]
+        toolname = tool_call_dict["name"]
+        toolargs = tool_call_dict["args"]
 
         _emit_tool_status(toolstatusEvent(
             status=settings.tool_try,
@@ -85,21 +84,22 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         ))
         async with sem:
             try:
-                result = await tool.ainvoke(tool_args, config=config)
-                result = normalize_MCP_result(result, tool_name)
-                logger.info(f"调用工具 {tool_name} 成功，结果: {result}")
+                result = await tool.ainvoke(toolargs, config=config)
+                result = normalize_MCP_result(result, toolname)
+                logger.info(f"调用工具 {toolname} 成功，结果: {result}")
             except Exception as e:
-                logger.error(f"调用工具 {tool_name} 时发生错误: {e}")
+                logger.error(f"调用工具 {toolname} 时发生错误: {e}")
                 result = toolResult(
                     success=False,
-                    message=f"调用工具 {tool_name} 时发生错误: {compress_error(str(e))}",
+                    error=f"调用工具 {toolname} 时发生错误: {compress_error(str(e))}",
                 )
-        return tool_call, result
+        return tool_call_dict , result
 
     raw_results = await asyncio.gather(
         *(_invoke(tool, tc ) for tool, tc in pending_calls),
         return_exceptions=True,  # _invoke 已吞异常，这里兜底
     )
+    raw_results+=forbid_calls
     #重新排序
     order = {tc["id"]: i for i, tc in enumerate(last_message.tool_calls)}
     results_sorted = sorted(
@@ -163,7 +163,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 msg = state.messages[idx]
                 if isinstance(msg, HumanMessage):  # 碰到用户输入说明失败记录不在本轮，停止
                     break
-                if isinstance(msg, ToolMessage):
+                if isinstance(msg, ToolMessage) and msg.name == tool_name:  # ← 关键修复：只覆盖 Tool 消息
                     output.append(ToolMessage(
                         id=msg.id,
                         content=f"调用{tool_name}失败",
@@ -198,12 +198,6 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                         ))
                         count += 1
                     idx -= 1
-                # output.append(ToolMessage(
-                #     id=state.messages[-1].id,
-                #     content=f"{tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况",
-                #     tool_call_id=tool_call_id,
-                #     name=tool_name
-                # ))
                 info=f"\n[system Info]   {tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况"
                 toolresult_for_llm.error=toolresult_for_llm.error or "" + info
                 _emit_tool_status(

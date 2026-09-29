@@ -4,11 +4,18 @@ from pydantic import BaseModel, Field
 from config.modelConfig import model_config
 from core.toolResult import toolResult
 from prompt.subAgent.search_agent_prompt import SEARCH_AGENT_PROMPT
-from tools.toolManage import search_agent_tools
+from tools.OriginalContentTool import get_original_content_by_tool_call_id
+from tools.file_read import code_outline, readfile, listfiles
+from tools.file_search import search_code_by_keyword, search_file_by_keyword
 
-
-
-
+tools_for_sub =[
+        readfile,
+        listfiles,
+        search_code_by_keyword,
+        search_file_by_keyword,
+        code_outline,
+        get_original_content_by_tool_call_id
+    ]
 """子代理工具定义。
 
 该模块提供一个只读的代码探索型子代理，用于在主代理无法直接深挖代码时，
@@ -47,7 +54,7 @@ async def search_sub_agent(
     Return:
         子代理的执行结果，通常包含与任务相关的代码位置、符号信息、依赖关系或分析结论。
     """
-    tools_for_sub=await search_agent_tools()
+
     # 这里可以添加子代理的处理逻辑
     sub_agent=create_agent(
         model=model_config["value"],

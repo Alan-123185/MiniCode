@@ -227,5 +227,8 @@ def run_code(code: str, filename: str, cwd: str, config: RunnableConfig, stdin_i
     return _run_bash(cmd, abs_cwd, time_out, stdin_input, "run_code")
 
 
-
+if __name__ == "__main__":
+    print(settings.GIT_BASH_PATH)
+    result=_run_bash("echo Hello World", ".", 5, None, "test")
+    print(result)
 
