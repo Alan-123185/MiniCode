@@ -1,6 +1,6 @@
-
 from config.data import settings
 import re
+
 
 
 _CHAIN_SPLIT = re.compile(r"&&|\|\||\||;|&|\n|>>|>|<")   # 拆链式命令

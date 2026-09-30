@@ -3,7 +3,7 @@ from typing import ClassVar
 import os
 import string
 from langgraph.checkpoint.memory import MemorySaver, InMemorySaver
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 from utils.gitInstall import get_exe_dir
 
 
