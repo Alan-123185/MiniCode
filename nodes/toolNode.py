@@ -31,7 +31,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
     last_message = state.messages[-1]
     pending_calls:list[tuple[Any,dict]] = []
     forbid_calls:list[tuple[Any,toolResult]] = []
-
+    result_list:list[tuple[Any,toolResult]] = []
     """
      串行处理需要确认的工具
     """
@@ -95,10 +95,29 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 )
         return tool_call_dict , result
 
-    raw_results = await asyncio.gather(
-        *(_invoke(tool, tc ) for tool, tc in pending_calls),
-        return_exceptions=True,  # _invoke 已吞异常，这里兜底
-    )
+
+    raw_results:list[tuple[Any, toolResult]] = []
+    buffer = []
+    for pending_call in pending_calls:
+        if pending_call[1]["name"] in ("file_edit", "delete_file", "create_file"):
+            # 这些工具调用可能会修改文件系统，先执行前面的工具调用，确保文件系统状态是最新的
+            if buffer:
+                raw_results += await asyncio.gather(
+                    *(_invoke(tool, tc) for tool, tc in buffer),
+                    return_exceptions=True,
+                )
+                buffer.clear()
+            tool, tc = pending_call
+            raw_results.append(await _invoke(tool, tc))
+        else:
+            buffer.append(pending_call)
+    if buffer:
+        raw_results += await asyncio.gather(
+            *(_invoke(tool, tc) for tool, tc in buffer),
+            return_exceptions=True,
+        )
+
+
     raw_results+=forbid_calls
     #重新排序
     order = {tc["id"]: i for i, tc in enumerate(last_message.tool_calls)}

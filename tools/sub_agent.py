@@ -1,10 +1,10 @@
 from langchain.agents import create_agent
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from config.modelConfig import model_config
 from core.toolResult import toolResult
 from prompt.subAgent.search_agent_prompt import SEARCH_AGENT_PROMPT
-from tools.OriginalContentTool import get_original_content_by_tool_call_id
 from tools.file_read import code_outline, readfile, listfiles
 from tools.file_search import search_code_by_keyword, search_file_by_keyword
 
@@ -13,8 +13,7 @@ tools_for_sub =[
         listfiles,
         search_code_by_keyword,
         search_file_by_keyword,
-        code_outline,
-        get_original_content_by_tool_call_id
+        code_outline
     ]
 """子代理工具定义。
 
@@ -35,6 +34,7 @@ class searchSubAgentTask(BaseModel):
 
 @tool(args_schema=searchSubAgentTask)
 async def search_sub_agent(
+    config:RunnableConfig,
     mission: str,
     background: str | None = None,
     scope: list[str] | None = None,
@@ -71,7 +71,8 @@ async def search_sub_agent(
     result=await sub_agent.ainvoke(
         {
             "messages": [{"role": "user", "content": user_msg}]
-        }
+        },
+        config=config
     )
     return toolResult(
         success=True,

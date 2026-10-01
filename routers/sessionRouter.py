@@ -22,3 +22,4 @@ async def get_history(session_id: str, session_service: sessionService = Depends
 async def delete_chat(session_id: str, session_service: sessionService = Depends(get_session_service)):
     await session_service.delete_chat(session_id)
     return Result.success()
+

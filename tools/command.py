@@ -1,17 +1,14 @@
-import shutil
-
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from config.data import settings
+from config.sessionManager import sessionmanager
 from core.toolResult import toolResult
 from utils.commandSafe import truncate_output, smart_decode
 from utils.errormanagerTool import compress_error
 from utils.filePathTools import relativePathToAbsolute
 import os
 import subprocess
-import re
-import shlex
 from pathlib import Path
 
 
@@ -59,8 +56,13 @@ def _resolve_cwd(cwd: str, config: RunnableConfig) -> str:
 
 
 
-def _run_bash(command: str, abs_cwd: str, time_out: int,
-               stdin_input: str | None, tool_name: str) -> toolResult:
+def _run_bash(command: str,
+              abs_cwd: str,
+              time_out: int,
+              stdin_input: str | None,
+              tool_name: str,
+              config:RunnableConfig
+              ) -> toolResult:
     """在 Git Bash 下执行命令，返回结构化结果"""
     try:
         # 0. 定位 Git Bash
@@ -83,6 +85,7 @@ def _run_bash(command: str, abs_cwd: str, time_out: int,
         env["PYTHONUTF8"] = "1"
         env["LANG"] = "C.UTF-8"
         env["LC_ALL"] = "C.UTF-8"
+        env["PYTHONPATH"] = sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace + os.pathsep + env.get("PYTHONPATH", "")
 
         # 3. 用 bash -c 执行命令
         #    注意：shell=False，直接调用 bash.exe，避免被 cmd 再包一层
@@ -168,7 +171,7 @@ def execute_command(command: str, cwd: str, config: RunnableConfig, time_out: in
             tool_name="execute_command"
         )
 
-    return _run_bash(command, abs_cwd, time_out, stdin_input, "execute_command")
+    return _run_bash(command, abs_cwd, time_out, stdin_input, "execute_command",config)
 
 
 @tool(args_schema=RunCodeInput)
@@ -224,7 +227,7 @@ def run_code(code: str, filename: str, cwd: str, config: RunnableConfig, stdin_i
 
     relative_file = script_path.relative_to(abs_cwd).as_posix()
     cmd = template.format(file=relative_file)
-    return _run_bash(cmd, abs_cwd, time_out, stdin_input, "run_code")
+    return _run_bash(cmd, abs_cwd, time_out, stdin_input, "run_code",config)
 
 
 if __name__ == "__main__":

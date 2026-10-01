@@ -60,15 +60,28 @@ async def _compress_search_code_result(tool_result:toolResult,tool_call_id:str) 
         result=tool_result.content
         PATTERN = re.compile(r'^(?P<file_path>.+?):\s+.+\(in (?P<line>\d+)\)$')
 
+
+
         def extract(s: str) -> tuple[str, int] | None:
             m = PATTERN.match(s)
             if not m:
                 return None
             return m.group("file_path"), int(m.group("line"))
-        first_info="\n[system Info]代码搜索结果已进行压缩处理 tool_call_id:"+tool_call_id
+
+        first_info = "\n[system Info]代码搜索结果已进行压缩处理 tool_call_id:" + tool_call_id
         lines = result.split("\n")
-        extracted = [f"{extract(line)[0]}:{extract(line)[1]}" for line in lines]
-        return  "\n".join(extracted)+first_info
+
+        extracted = []
+        for line in lines:
+            info = extract(line)
+            if info is not None:
+                file_path, line_num = info
+                extracted.append(f"{file_path}:{line_num}")
+
+        return "\n".join(extracted) + first_info
+
+
+
     else:
         return (tool_result.error if tool_result.error else "")+f"\n[system Info]代码搜索失败，tool_call_id:{tool_call_id}，"
 

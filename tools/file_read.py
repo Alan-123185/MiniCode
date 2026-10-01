@@ -419,7 +419,7 @@ def listfiles(config: RunnableConfig, folder_path: str = ".", depth: int = 1) ->
         )
 
 
-
+@tool
 async def code_outline(file_path: str, config: RunnableConfig) -> toolResult:
     """
     生成文件的大纲（outline），包括函数、类、方法等结构信息，适用于代码文件
