@@ -1,7 +1,6 @@
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from loguru import logger
-from config.dependencies import get_db
 from core.toolResult import toolResult
 from mapper.OperationGroupMapper import operatinoGroupMapper
 from mapper.database import DataBase

@@ -5,10 +5,14 @@ from tree_sitter_analyzer.core.analysis_engine import UnifiedAnalysisEngine
 from tree_sitter_analyzer.core.request import AnalysisRequest
 from config.sessionManager import sessionmanager
 from core.toolResult import toolResult
+from service.summaryService import summaryService
 
 """
 使用AST结构化文件读取结果，方便降级工具调用结果（仅针对于全文读取）
 """
+
+
+summary_service=summaryService()
 async def _compress_read_result(tool_result:toolResult,tool_call_id: str) -> str :
     config=tool_result.data.get("config")
     file_path = tool_result.data.get("file_path")
@@ -84,8 +88,11 @@ async def _compress_search_code_result(tool_result:toolResult,tool_call_id:str) 
         return (tool_result.error if tool_result.error else "")+f"\n[system Info]代码搜索失败，tool_call_id:{tool_call_id}，"
 
 
-
-
-
-
-
+async def _forced_compress_tool_result(tool_call_id:str) -> str|None:
+    """
+    二次强制压缩工具结果，适用于工具返回内容过长的情况
+    """
+    if summary_service.get_content_by_tool_call_id(tool_call_id):
+        return f"[system Info]工具调用成功，结果已被强制压缩，调用get_original_content_by_tool_call_id可查看  tool_call_id:{tool_call_id}，"
+    else:
+        return None

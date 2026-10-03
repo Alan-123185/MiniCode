@@ -1,5 +1,6 @@
 
 import uuid
+from pyexpat.errors import messages
 from typing import List
 from langchain_core.messages import SystemMessage, BaseMessage, ToolMessage, AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -12,6 +13,7 @@ from service.summaryService import summaryService
 from states.OverallState import OverAllState
 from tools.toolManage import tools
 from utils.MessageTool import count_tokens
+from utils.compressMessage import _forced_compress_tool_result
 
 summary_service=summaryService()
 async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
@@ -58,45 +60,75 @@ def pre_call_func(state: OverAllState,config:RunnableConfig) -> List[BaseMessage
             current_message = windows_message[i:]   #这一部分消息是最新的用户消息，必须保留
             windows_message = windows_message[:i]   #这一部分消息是窗口内的历史消息，可能需要降级
             break
-    tokens = count_tokens(windows_message)
-    if tokens>settings.LLM_MAX_UP_MESSAGE_TOKEN:
-        windows_message = degrade_windows(windows_message,tokens,config)
+    windows_tokens = count_tokens(windows_message)
+    current_tokens = count_tokens(current_message)
+    all_tokens=windows_tokens+current_tokens
+    delta_tokens = all_tokens - settings.LLM_MAX_UP_MESSAGE_TOKEN
+    #如果超过了最大限制，先降级窗口内的消息，再降级当前消息
+    if delta_tokens>0:
+        windows_message, delta_tokens = degrade_windows_l1(windows_message, delta_tokens, config)
+    if delta_tokens>0:
+        current_message, delta_tokens = degrade_windows_l1(current_message, delta_tokens, config)
+    if delta_tokens>0:
+        windows_message , delta_tokens = degrade_windows_l2(windows_message, delta_tokens)
+    if delta_tokens>0:
+        current_message , delta_tokens = degrade_windows_l2(current_message, delta_tokens)
     return windows_message+current_message
 
 
 
 
-def degrade_windows(messages:List[BaseMessage],all_tokens:int,config:RunnableConfig) -> List[BaseMessage]:
+
+def degrade_windows_l1(messages:List[BaseMessage],delta_tokens,config:RunnableConfig) -> tuple[List[BaseMessage],int] :
     """
     当消息过长时，尝试降级窗口内的消息，保留最新的对话和系统提示，
     这里先这样处理，每次都单独处理一次窗口内消息，后面再来优化
     """
     # 1. 保留最新的对话
     if not messages:
-        return []
+        return [],delta_tokens
     latest_messages = []
-    tokens=0
     msg_len=len(messages)
     for i in range(0,msg_len):
         msg = messages[i]
-        if all_tokens-settings.LLM_MAX_UNDEGREDED_MESSAGE_TOKEN>tokens:
-            tokens+=count_tokens([msg])
-            latest_messages.append(compress_message(msg,config.get("configurable", {}).get("thread_id")))
+        if delta_tokens>0:
+            old_tokens=count_tokens([msg])
+            new_msg=compress_message(msg,config.get("configurable", {}).get("thread_id"))
+            latest_messages.append(new_msg)
+            new_tokens=count_tokens([new_msg])
+            delta_tokens=delta_tokens-(old_tokens-new_tokens)
         elif isinstance(msg, AIMessage) and  msg.tool_calls or isinstance(msg, ToolMessage):
             latest_messages.append(compress_message(msg,config.get("configurable", {}).get("thread_id")))
         else:
-            new_tokens=count_tokens(latest_messages)
-            if new_tokens+settings.LLM_MAX_UNDEGREDED_MESSAGE_TOKEN>settings.LLM_MAX_UP_MESSAGE_TOKEN:
-                  while i<msg_len:
-                        if isinstance(messages[i], ToolMessage):
-                            latest_messages.append(compress_message(messages[i],config.get("configurable", {}).get("thread_id")))
-                        else:
-                            latest_messages.append(messages[i])
-                        i+=1
-                  return latest_messages
-            else:
-                return latest_messages+messages[i:]
-    return latest_messages
+            return latest_messages+messages[i:],delta_tokens
+    return latest_messages,delta_tokens
+
+
+#二次降级，针对工具调用结果和AI回复的降级，为了节约成本选择丢失更多信息
+def degrade_windows_l2(messages:List[BaseMessage],delta_tokens) -> tuple[List[BaseMessage],int] :
+    if not messages:
+        return [],delta_tokens
+    msg_len=len(messages)
+    ret=[]
+    for i in range(0,msg_len):
+        msg = messages[i]
+        ret.append(msg)
+        if isinstance(msg, AIMessage):
+            j=i+1
+            while j<msg_len and isinstance(messages[j] ,ToolMessage) :
+                if delta_tokens > 0:
+                    content=_forced_compress_tool_result(messages[j].tool_call_id)
+                    ret.append(ToolMessage(content=content,tool_call_id=messages[j].tool_call_id,name=messages[j].name))
+                    old_tokens=count_tokens([messages[j]])
+                    delta_tokens=delta_tokens-old_tokens
+                    j += 1
+                else:
+                    ret.extend(messages[j:])
+                    return ret,delta_tokens
+            i=j-1
+    return ret,delta_tokens
+
+
 
 
 
@@ -149,10 +181,6 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
             ))
         #先暂时不对用户消息降级
     return ret
-
-
-
-
 
 
 
