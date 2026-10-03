@@ -16,7 +16,7 @@ async def summerize_node(state:OverAllState) -> OverAllState:
     """
     model=model_config["value"]
     if not model :
-        raise BizException(message="---------ERROR 请先选择模型----------")
+        raise BizException(message="ERROR 请先选择模型")
     all_message = state.messages
     pos=trim_message(all_message)                     #滑动窗口历史左边界，右侧是若干条完整对话
     last_summary_pos = state.last_summary_pos or 0    #把上一次摘要的位置传进来

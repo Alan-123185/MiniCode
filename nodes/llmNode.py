@@ -49,6 +49,9 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
 def pre_call_func(state: OverAllState,config:RunnableConfig) -> List[BaseMessage]:
     # 先把窗口内消息拿出来
     windows_message = state.messages[state.last_summary_pos:]
+    """
+    10.2 我决定放开豁免最新的用户消息的限制，统一处理，无论是否最新
+    """
     current_message=[]
     for i in range(len(windows_message) - 1, -1, -1):
         if isinstance(windows_message[i], HumanMessage):

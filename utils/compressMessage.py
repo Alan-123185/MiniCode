@@ -80,22 +80,11 @@ async def _compress_search_code_result(tool_result:toolResult,tool_call_id:str) 
 
         return "\n".join(extracted) + first_info
 
-
-
     else:
         return (tool_result.error if tool_result.error else "")+f"\n[system Info]代码搜索失败，tool_call_id:{tool_call_id}，"
 
 
-"""
-压缩命令行执行结果
-"""
-async def _compress_execute_command_result(result:str,tool_call_id:str) -> str:
-   if "标准输出 (STDOUT)" in result:
-        # 只保留标准输出部分
-        return "[system Info] command executed successfully.（已降级，只返回最终结果） tool_call_id:"+tool_call_id
-   else:
-       # 保留错误输出部分
-        return result
+
 
 
 

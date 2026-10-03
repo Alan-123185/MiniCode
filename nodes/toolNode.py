@@ -13,7 +13,7 @@ from langchain_core.messages import ToolMessage, HumanMessage
 from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 from tools.toolManage import unsafe_tool, tools_by_name
-from utils.compressMessage import _compress_read_result, _compress_execute_command_result, _compress_search_code_result
+from utils.compressMessage import _compress_read_result,_compress_search_code_result
 from utils.normalizeMCPresult import normalize_MCP_result
 from utils.errormanagerTool import compress_error
 from utils.commandSafe import is_command_safe
@@ -147,16 +147,6 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                     tool_call_id=tool_call_id,
                     content=toolresult.content,
                     compressed_content=compress_read_content ,
-                    message_type=settings.LLM_MESSAGE_TYPE_TOOL,
-                ))
-        if tool_name in ("execute_command", "run_code"):
-            compress_command_content=await _compress_execute_command_result(toolresult.content, tool_call_id=tool_call_id)
-            if not (compress_command_content==toolresult.error or compress_command_content==toolresult.content):
-                summary_service.add_Tool_summary(Summary(
-                    session_id=config.get("configurable", {}).get("thread_id"),
-                    tool_call_id=tool_call_id,
-                    content=toolresult.content,
-                    compressed_content=compress_command_content ,
                     message_type=settings.LLM_MESSAGE_TYPE_TOOL,
                 ))
         if tool_name == "search_code_by_keyword":

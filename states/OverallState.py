@@ -30,3 +30,9 @@ class OverAllState(BaseModel):  # 注意这里继承 BaseModel
     # 摘要与窗口（只保留一份消息，不再冗余）
     summary_state :  summaryState = summaryState()
     last_summary_pos: int = 0  # 游标，用默认覆盖即可
+
+    #新增当前任务的摘要
+    current_task_summary : summaryState = summaryState()
+    verified_facts: Annotated[list[str], operator.add] = []  # 已验证的事实列表
+
+

@@ -1,11 +1,9 @@
 import os
 from pathlib import Path
-
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from tree_sitter_analyzer.core._analysis_engine_errors import UnsupportedLanguageError
-from tree_sitter_analyzer.core.engine_manager import EngineManager
 from tree_sitter_analyzer.models import AnalysisResult
 from config.data import settings
 from config.sessionManager import sessionmanager

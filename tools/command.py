@@ -138,9 +138,9 @@ def _run_bash(command: str,
             final_content = "命令执行完毕，无标准输出和错误输出。"
 
         return toolResult(
-            success=(proc.returncode == 0),
+            success=True,
             message=f"命令退出码:{proc.returncode}",
-            content=final_content.strip(),
+            content=f"exit code:{proc.returncode}\n{final_content.strip()}",
             tool_name=tool_name
         )
 
