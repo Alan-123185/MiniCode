@@ -59,7 +59,7 @@ async def _compress_read_result(tool_result:toolResult,tool_call_id: str) -> str
 """
 降级代码搜索结果，保留文件路径和行号
 """
-async def _compress_search_code_result(tool_result:toolResult,tool_call_id:str) -> str:
+def _compress_search_code_result(tool_result:toolResult,tool_call_id:str) -> str:
     if tool_result.success:
         result=tool_result.content
         PATTERN = re.compile(r'^(?P<file_path>.+?):\s+.+\(in (?P<line>\d+)\)$')
@@ -88,7 +88,7 @@ async def _compress_search_code_result(tool_result:toolResult,tool_call_id:str) 
         return (tool_result.error if tool_result.error else "")+f"\n[system Info]代码搜索失败，tool_call_id:{tool_call_id}，"
 
 
-async def _forced_compress_tool_result(tool_call_id:str) -> str|None:
+def _forced_compress_tool_result(tool_call_id:str) -> str|None:
     """
     二次强制压缩工具结果，适用于工具返回内容过长的情况
     """
