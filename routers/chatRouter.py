@@ -107,4 +107,14 @@ async def edit_message(edit_message_request: editMessageRequest, chat_service: C
         media_type="text/event-stream"
     )
 
+#会话因为异常中断的恢复接口
+@router.post("/MiniCode/continue")
+async def continue_chat(session_id: str, chat_service: ChatService=Depends(get_chat_service)) -> Result[str]:
+    chat_service.refresh_chat(session_id)
+    return Result(message="已继续对话")
 
+
+@router.post("/MiniCode/stop")
+async def stop_chat(session_id: str, chat_service: ChatService=Depends(get_chat_service)) -> Result[str]:
+    chat_service.stop_chat(session_id)
+    return Result(message="已停止对话")

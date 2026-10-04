@@ -40,6 +40,14 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
         tool_call_id = tool_call["id"]
+        if tool_name not in tools_by_name:
+            logger.warning(f"未知工具名: {tool_name}，已注册: {list(tools_by_name.keys())}")
+            output.append(ToolMessage(
+                content=f"[system Info] 工具 '{tool_name}' 不存在。可用工具: {list(tools_by_name.keys())}",
+                tool_call_id=tool_call["id"],
+                name=tool_name,
+            ))
+            continue
 
         if  tool_name in tools_need_to_confirm and not (tool_name == "execute_command" and is_command_safe(tool_args.get("command", ""), tool_args.get("stdin_input", None))) :
             # interrupt 会暂停图的执行，等待外部通过 update_state 或 Command 恢复
