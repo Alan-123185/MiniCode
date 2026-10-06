@@ -13,7 +13,7 @@ from langchain_core.messages import ToolMessage, HumanMessage, AIMessage, BaseMe
 from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 from tools.toolManage import tools_by_name, tools_need_to_confirm
-from utils.compressMessage import _compress_read_result,_compress_search_code_result
+from utils.compressResult import _compress_read_result,_compress_search_code_result
 from utils.normalizeMCPresult import normalize_MCP_result
 from utils.errormanagerTool import compress_error
 from utils.commandSafe import is_command_safe

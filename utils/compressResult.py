@@ -86,7 +86,7 @@ def _compress_search_code_result(tool_result:toolResult,tool_call_id:str) -> str
         return (tool_result.error if tool_result.error else "")+f"\n[system Info]代码搜索失败，tool_call_id:{tool_call_id}，"
 
 
-def _forced_compress_tool_result(tool_call_id:str) -> str|None:
+def forced_compress_tool_result(tool_call_id:str) -> str|None:
     """
     二次强制压缩工具结果，适用于工具返回内容过长的情况
     """

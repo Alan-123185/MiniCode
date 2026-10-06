@@ -4,7 +4,6 @@ from pathlib import Path
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
 from tree_sitter import Tree, Node
-from tree_sitter_analyzer.ast_path import ASTPathNavigator
 from tree_sitter_language_pack import get_parser
 
 from config.data import settings
