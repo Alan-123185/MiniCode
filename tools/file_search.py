@@ -56,7 +56,7 @@ EXCLUDE_DIRS = [
 
 class SearchCodeInput(BaseModel):
    query:str=Field(...,description="要搜索的关键词或正则表达式，例如 'UserService'、'DELETE FROM'、'TODO'、'auth.*token'")
-   path:str=Field(default=".", description="相对路径，默认 '.' 表示工作区根目录；建议缩小到具体目录，避免搜索范围过大")
+   file_path:str=Field(default=".", description="相对路径，默认 '.' 表示工作区根目录；建议缩小到具体目录，避免搜索范围过大")
    max_count:int=Field(default=settings.RG_SEARCH_MAX_COUNT, gt=10, lt=100, description="最大返回结果数，llm可以根据需要调整，默认值为 50")
    file_type:str=Field(default="", description="可选参数，指定搜索文件类型；如指定读md文件，file_type='md' ，如果不指定，则搜索所有类型")
 
@@ -66,7 +66,7 @@ class SearchCodeInput(BaseModel):
 代码搜索增强 9.25
 """
 @tool(args_schema=SearchCodeInput)
-def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".", max_count: int =settings.RG_SEARCH_MAX_COUNT,file_type:str="") -> toolResult:
+def search_code_by_keyword(config:RunnableConfig,query: str, file_path: str = ".", max_count: int =settings.RG_SEARCH_MAX_COUNT,file_type:str="") -> toolResult:
     """
     这是“正文搜索”，不是“文件名搜索”。
     在代码内容中搜索关键词/正则，返回文件路径，代码父级结构及范围行，代码匹配所在行。
@@ -84,7 +84,7 @@ def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".", ma
            "--smart-case",  # 智能大小写：搜索词全小写就忽略大小写，有大写就区分
            "--max-count",str(max_count),
            query,
-           path
+           file_path
            ]
     #排除噪音目录
     for g in EXCLUDE_GLOBS:
@@ -113,7 +113,7 @@ def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".", ma
     if result.returncode == 1:
         return toolResult(
             success=True,
-            content=f"{path} 下未找到 '{query}' 的匹配",
+            content=f"{file_path} 下未找到 '{query}' 的匹配",
             tool_name="search_code_by_keyword"
         )
     if result.returncode > 1:
@@ -127,18 +127,18 @@ def search_code_by_keyword(config:RunnableConfig,query: str, path: str = ".", ma
     lines=output.strip().splitlines()
     search_results = [line.split(":",2) for line in lines]
     ret=[]
-    for file_path, line_number, code_line in search_results:
+    for path, line_number, code_line in search_results:
         try:
-            scope_dict = parent_scope((relativePathToAbsolute(file_path, config)), int(line_number))
+            scope_dict = parent_scope((relativePathToAbsolute(path, config)), int(line_number))
         except Exception as e:
             scope_dict=None
         if not scope_dict:
-            ret.append(f"{file_path}: module:{Path(file_path).name} {code_line} (in {line_number})")
+            ret.append(f"{path}: module:{Path(path).name} {code_line} (in {line_number})")
         else:
-            ret.append(f"{file_path}: {scope_dict["kind"]}:{scope_dict['name']}({scope_dict["lines"][0]}-{scope_dict["lines"][1]})   {code_line} (in {line_number})")
+            ret.append(f"{path}: {scope_dict["kind"]}:{scope_dict['name']}({scope_dict["lines"][0]}-{scope_dict["lines"][1]})   {code_line} (in {line_number})")
     return toolResult(
         success=True,
-        message=f"在目录 {path} 下搜索关键词 '{query}' 的结果",
+        message=f"在目录 {file_path} 下搜索关键词 '{query}' 的结果",
         content="\n".join(ret),
         tool_name="search_code_by_keyword"
     )

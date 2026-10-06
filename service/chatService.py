@@ -4,7 +4,7 @@ import uuid
 from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
-from config.data import Settings, settings
+from config.data import settings
 from config.dependencies import create_chat_config
 from config.sessionManager import sessionmanager
 from core.InterruptResult import InterruptResult
@@ -235,6 +235,7 @@ class ChatService:
     async def refresh_chat(self,session_id: str) -> AsyncGenerator[InterruptResult, None]:
         """从最近一个未产生异常的检查点开始执行图，用户异常恢复"""
         config = create_chat_config(thread_id=session_id)
+        self.stop_flags[session_id] = asyncio.Event()
         history_list = [h async for h in self.graph.aget_state_history(config)]  # 新的在前
         if not history_list:
             yield InterruptResult(message=f"会话 {session_id} 不存在或未初始化。", type=settings.interrupt_type_info)
@@ -248,12 +249,39 @@ class ChatService:
         if not before_exception:
             yield InterruptResult(message=f"会话 {session_id} 没有可用的安全检查点，无法恢复。", type=settings.interrupt_type_info)
             return
-        async for result in self._continue_chat(config=before_exception.config):
+        new_config=before_exception.config
+        new_config.setdefault("configurable", {})
+        new_config["configurable"]["system_prompt"] = config["configurable"]["system_prompt"]
+        async for result in self._continue_chat(config=new_config):
             yield result
         return
 
 
 
+
+
+    async def stop_chat(self, session_id: str, timeout: float = 3) -> bool:
+        stop_event = self.stop_flags.get(session_id)
+        if not stop_event:
+            return False
+
+        # 先走优雅路径
+        stop_event.set()
+
+        # 等 3 秒，看它自己停不停
+        task = self.running_tasks.get(session_id)
+        if task and not task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout)
+            except asyncio.TimeoutError:
+                # 3 秒还没停 → 说明卡在长 await 里，强制取消
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+        return True
 
 
 
@@ -280,32 +308,6 @@ def find_safe_message_index(messages: list[BaseMessage]) -> int:
 
 
 
-
-
-
-
-async def stop_chat(self, session_id: str, timeout: float = 3) -> bool:
-    stop_event = self.stop_flags.get(session_id)
-    if not stop_event:
-        return False
-
-    # 先走优雅路径
-    stop_event.set()
-
-    # 等 3 秒，看它自己停不停
-    task = self.running_tasks.get(session_id)
-    if task and not task.done():
-        try:
-            await asyncio.wait_for(asyncio.shield(task), timeout)
-        except asyncio.TimeoutError:
-            # 3 秒还没停 → 说明卡在长 await 里，强制取消
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-    return True
 
 #一个简陋的用户提示词压缩函数
 def generate_summary(user_prompt: str) -> str:

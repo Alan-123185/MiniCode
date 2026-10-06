@@ -49,7 +49,8 @@ def count_tokens(messages: list[BaseMessage], model: str = settings.DEFAULT_MODE
     return total
 
 
-
+if __name__ == "__main__":
+    count_tokens()
 
 
 

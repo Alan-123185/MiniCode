@@ -39,9 +39,23 @@ async def create_tool() -> list:
     return tools
 
 
-def unsafe_tool():
-    tools_need_to_confirm = ["file_edit", "execute_command", "delete_file", "create_file", "undo_operationgroup"]
-    return tools_need_to_confirm
+
+tools_need_to_confirm = ["file_edit", "execute_command", "delete_file", "create_file", "undo_operationgroup"]
+
+compatable_tools=[
+                  "readfile",
+                  "listfiles",
+                  "search_code_by_keyword",
+                  "search_file_by_keyword",
+                  "get_original_content_by_tool_call_id",
+                  "get_original_content_by_memory_id",
+                  "code_outline",
+                  "file_edit",
+                  "delete_file",
+                  "create_file",
+                  "execute_command",
+                  "run_code"
+                  ]
 
 
 tools:list=[]

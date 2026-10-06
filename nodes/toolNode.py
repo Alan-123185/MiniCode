@@ -9,10 +9,10 @@ from core.toolStatusEvent import toolstatusEvent
 from mappercommon.summary import Summary
 from service.summaryService import summaryService
 from states.OverallState import OverAllState
-from langchain_core.messages import ToolMessage, HumanMessage
+from langchain_core.messages import ToolMessage, HumanMessage, AIMessage, BaseMessage
 from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
-from tools.toolManage import unsafe_tool, tools_by_name
+from tools.toolManage import tools_by_name, tools_need_to_confirm
 from utils.compressMessage import _compress_read_result,_compress_search_code_result
 from utils.normalizeMCPresult import normalize_MCP_result
 from utils.errormanagerTool import compress_error
@@ -20,7 +20,6 @@ from utils.commandSafe import is_command_safe
 
 
 summary_service=summaryService()
-tools_need_to_confirm=unsafe_tool()
 max_retry_time=settings.MAX_TOOL_CALLS
 
 # 注意：这里增加了 config: RunnableConfig 参数，这是触发事件的关键！
@@ -31,7 +30,6 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
     last_message = state.messages[-1]
     pending_calls:list[tuple[Any,dict]] = []
     forbid_calls:list[tuple[Any,toolResult]] = []
-    result_list:list[tuple[Any,toolResult]] = []
     """
      串行处理需要确认的工具
     """
@@ -137,7 +135,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
     """
     串行处理工具调用结果，按原始顺序返回
     """
-
+    index = _build_call_index(state.messages[state.last_summary_pos:])
     for tool_call, toolresult in results_sorted:
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
@@ -158,7 +156,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                     message_type=settings.LLM_MESSAGE_TYPE_TOOL,
                 ))
         if tool_name == "search_code_by_keyword":
-            compress_search_content = await _compress_search_code_result(tool_result=toolresult, tool_call_id=tool_call_id)
+            compress_search_content =_compress_search_code_result(tool_result=toolresult, tool_call_id=tool_call_id)
             if not (compress_search_content == toolresult.error or compress_search_content== toolresult.content):
                 summary_service.add_Tool_summary(Summary(
                     session_id=config.get("configurable", {}).get("thread_id"),
@@ -169,10 +167,22 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 ))
         # ================= 3. 处理执行结果 =================
         if toolresult.success:
-            """
-            在这里把工具调用消息就降级了，存入summary_service，方便后续的总结节点使用
-            """
-           # 尝试覆盖之前的所有出错消息，保持llm注意力
+
+            #文件已经被修改，之前的读取结果可能已经过时，给之前的消息加上过时标记
+            if tool_name == "file_edit" or tool_name == "delete_file" or tool_name == "create_file":
+                for i , msg in enumerate(state.messages[state.last_summary_pos:]):
+                   if isinstance(msg, ToolMessage) and msg.name in ("readfile", "search_code_by_keyword") and index.get(msg.tool_call_id)["args"].get("file_path") == tool_args.get("file_path") :
+                       state.messages[i]=ToolMessage(
+                           content=msg.content,
+                           tool_call_id=msg.tool_call_id,
+                           name=msg.name,
+                           additional_kwargs={
+                               "outdated": True
+                           }
+                       )
+
+
+            # 尝试覆盖之前的所有出错消息，保持llm注意力
             failures = tool_failures.get(tool_name, 0)
             count = 0
             idx = len(state.messages) - 2
@@ -230,7 +240,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
     return {
         "messages": output,
         "steps": step,
-        "tool_call_count": tool_failures
+        "tool_call_count": tool_failures,
     }
 
 
@@ -249,7 +259,12 @@ def _emit_tool_status(event: toolstatusEvent):
 
 
 
-
-
-
-
+def _build_call_index(messages: list[BaseMessage]) -> dict[str, dict]:
+    """
+    构建一个工具调用索引，便于快速查找。
+    """
+    ret={}
+    for msg in messages :
+        if isinstance(msg, AIMessage):
+            ret.update({tool_call["id"]:tool_call for tool_call in msg.tool_calls})
+    return ret

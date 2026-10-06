@@ -50,6 +50,7 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
 def pre_call_func(state: OverAllState,config:RunnableConfig) -> List[BaseMessage]:
     # 先把窗口内消息拿出来
     windows_message = state.messages[state.last_summary_pos:]
+    windows_message = snip_message(windows_message)  # 先把低价值消息丢掉
     """
     10.2 我决定放开豁免最新的用户消息的限制，统一处理，无论是否最新
     """
@@ -59,6 +60,19 @@ def pre_call_func(state: OverAllState,config:RunnableConfig) -> List[BaseMessage
             current_message = windows_message[i:]   #这一部分消息是最新的用户消息，必须保留
             windows_message = windows_message[:i]   #这一部分消息是窗口内的历史消息，可能需要降级
             break
+    latest_message=[]
+    if len(current_message)>settings.KEEP_RECENT_COUNT:
+        latest_message=current_message[-settings.KEEP_RECENT_COUNT:]
+        current_message=current_message[:len(current_message)-settings.KEEP_RECENT_COUNT]
+        if isinstance(latest_message[0],ToolMessage):
+            i=len(current_message)-1
+            while i>=0 and not isinstance(current_message[i],AIMessage):
+                latest_message.insert(0,current_message[i])
+                current_message.pop(i)
+                i-=1
+            if i>=0 and isinstance(current_message[i],AIMessage):
+                latest_message.insert(0,current_message[i])
+                current_message.pop(i)
     windows_tokens = count_tokens(windows_message)
     current_tokens = count_tokens(current_message)
     all_tokens=windows_tokens+current_tokens
@@ -72,7 +86,7 @@ def pre_call_func(state: OverAllState,config:RunnableConfig) -> List[BaseMessage
         windows_message , delta_tokens = degrade_windows_l2(windows_message, delta_tokens)
     if delta_tokens>0:
         current_message , delta_tokens = degrade_windows_l2(current_message, delta_tokens)
-    return windows_message+current_message
+    return windows_message+current_message+latest_message
 
 
 
@@ -109,7 +123,8 @@ def degrade_windows_l2(messages:List[BaseMessage],delta_tokens) -> tuple[List[Ba
         return [],delta_tokens
     msg_len=len(messages)
     ret=[]
-    for i in range(0,msg_len):
+    i=0
+    while i < msg_len:
         msg = messages[i]
         ret.append(msg)
         if isinstance(msg, AIMessage):
@@ -117,14 +132,16 @@ def degrade_windows_l2(messages:List[BaseMessage],delta_tokens) -> tuple[List[Ba
             while j<msg_len and isinstance(messages[j] ,ToolMessage) :
                 if delta_tokens > 0:
                     content=_forced_compress_tool_result(messages[j].tool_call_id)
-                    ret.append(ToolMessage(content=content,tool_call_id=messages[j].tool_call_id,name=messages[j].name))
+                    ret.append(ToolMessage(content=content if content else messages[j].content,tool_call_id=messages[j].tool_call_id,name=messages[j].name))
                     old_tokens=count_tokens([messages[j]])
                     delta_tokens=delta_tokens-old_tokens
                     j += 1
                 else:
                     ret.extend(messages[j:])
                     return ret,delta_tokens
-            i=j-1
+            i=j
+        else:
+            i += 1
     return ret,delta_tokens
 
 
@@ -136,6 +153,14 @@ def degrade_windows_l2(messages:List[BaseMessage],delta_tokens) -> tuple[List[Ba
 """
 def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
     ret=msg
+    #把已经过时的工具调用结果降级为提示信息
+    if msg.additional_kwargs.get("outdated",False):
+        return ToolMessage(
+            content=f"{msg.content[:100]}...\n[system Info]由于文件被修改，此条工具调用已过时，如有需要建议重新读取文件或查看旧内容",
+            tool_call_id=msg.tool_call_id,
+            name=msg.name
+        )
+
     if isinstance(msg, ToolMessage):
         summary = summary_service.query_tool_summary(tool_call_id=msg.tool_call_id)
         if summary:
@@ -146,7 +171,7 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
             )
         else:
             snippet = (msg.content or "")[:100]  # 要么是content，要么是error，至少有一个不为空
-            content = f"{snippet}\n [system Info]工具结果已降级，tool_call_id:{msg.tool_call_id}]"
+            content = f"{snippet}\n [system Info]工具结果已降级"
             ret=ToolMessage(
                 content=content,
                 tool_call_id=msg.tool_call_id,
@@ -168,7 +193,7 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
             )
         else:
             ret=AIMessage(
-                content=f"{msg.content[:100]}...\n[----system message----此条ai回复已经降级，memory_id:"+msg.additional_kwargs["memory_id"]+"]",
+                content=f"{msg.content[:100]}...\n[system Info]此条ai回复已经降级，memory_id:"+msg.additional_kwargs["memory_id"],
                 tool_calls=msg.tool_calls
             )
             summary_service.add_LLM_summary(Summary(
@@ -181,6 +206,31 @@ def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
         #先暂时不对用户消息降级
     return ret
 
-
+"""
+第一级处理，减去低价值对话
+"""
+def snip_message(msgs:list[BaseMessage]) -> list[BaseMessage]:
+    msg_len=len(msgs)
+    i=0
+    while i < msg_len:
+        msg=msgs[i]
+        if isinstance(msg, AIMessage) and msg.tool_calls:
+            j = i + 1
+            while j < msg_len and isinstance(msgs[j], ToolMessage):
+                content=msgs[j].content
+                if not content or "user refused tool" in content :
+                    msg.tool_calls = [tc for tc in msg.tool_calls if tc["id"] != msgs[j].tool_call_id]
+                    msgs.pop(j)
+                    msg_len -= 1
+                else:
+                    j+=1
+            if not msg.tool_calls:
+                msgs.pop(i)
+                msg_len -= 1
+            else:
+                i=j
+        else:
+            i+=1
+    return msgs
 
 

@@ -64,8 +64,6 @@ def _compress_search_code_result(tool_result:toolResult,tool_call_id:str) -> str
         result=tool_result.content
         PATTERN = re.compile(r'^(?P<file_path>.+?):\s+.+\(in (?P<line>\d+)\)$')
 
-
-
         def extract(s: str) -> tuple[str, int] | None:
             m = PATTERN.match(s)
             if not m:
@@ -93,6 +91,6 @@ def _forced_compress_tool_result(tool_call_id:str) -> str|None:
     二次强制压缩工具结果，适用于工具返回内容过长的情况
     """
     if summary_service.get_content_by_tool_call_id(tool_call_id):
-        return f"[system Info]工具调用成功，结果已被强制压缩，调用get_original_content_by_tool_call_id可查看  tool_call_id:{tool_call_id}，"
+        return f"[system Info]工具调用成功，结果已被强制压缩，调用get_original_content_by_tool_call_id可查看"
     else:
         return None

@@ -48,6 +48,8 @@ class Settings(BaseSettings):
             / "rg.exe"
     )
 
+    KEEP_RECENT_COUNT: int = 10  # 最近10条消息不必处理
+
     file_change_tool_list:list=["file_edit","create_file","delete_file"]
 
     sql_script_path: ClassVar[Path] = (
@@ -127,7 +129,7 @@ class Settings(BaseSettings):
     tool_try : int=1                      #尝试调用工具
     tool_refused:int=2                    #用户拒绝调用工具
 
-    interrupt_type_approve: int =-1             #中断类型：需要用户确认
+    interrupt_type_approve: int =-1            #中断类型：需要用户确认
     interrupt_type_info:int =1                 #中断类型：仅提示信息
     interrupt_type_result: int = 0             #中断类型，返回结果
     #命令行执行相关参数
@@ -144,8 +146,8 @@ class Settings(BaseSettings):
     SANDBOX_USER: str = "agent"                     # 容器内执行命令的用户名（避免 root 执行权限过大）
     LLM_MAX_UNDEGREDED_MESSAGE_TOKEN :int = 20000   #滑动窗口存储的最大未处理消息token数
     LLM_MAX_UP_MESSAGE_COUNT :int = 25             #滑动窗口存储的最大上下文消息数
-    LLM_MAX_UP_MESSAGE_TOKEN : int =60000          #滑动窗口存储的最大上下文消耗token数
-    LLM_MAX_TOKEN : int = 90000                    #摘要机制触发的最小token数
+    LLM_MAX_UP_MESSAGE_TOKEN : int =45000          #滑动窗口存储的最大上下文消耗token数
+    LLM_MAX_TOKEN : int = 75000                    #摘要机制触发的最小token数
 
     MAX_OLD_MESSAGE_LENGTH: int = 300                #需要压缩的旧消息长度阈值，超过该长度的旧消息会被压缩短
 
