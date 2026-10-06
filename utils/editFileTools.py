@@ -90,7 +90,7 @@ def file_edit_tool(
             if not error_list:
                 return toolResult(
                     success=True,
-                    content=f"已修改 {file_path} (Line({start_idx}-{end_idx}), +{len_new_lines} -{n})",
+                    content=f"已修改 {file_path} (Line({start_idx}-{end_idx}), +{len_new_lines} -{n})\n[system Info]注意，该文件已被修改，先前的读取结果可能已过时，重新读取文件以获取最新内容。",
                     message=diff_text,
                     tool_name="file_edit"
                 )

@@ -114,7 +114,7 @@ class ChatService:
             await stream.aclose()
 
         # ---- 流正常跑完（没被 stop），才检查是否遇到中断 ----
-        snapshot = await self.graph.aget_state(config)
+        snapshot = await self.graph.aget_state(create_chat_config(thread_id=session_id))
         if snapshot.next:
             interrupt_message = None
             if snapshot.tasks and snapshot.tasks[0].interrupts:
