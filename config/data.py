@@ -48,7 +48,7 @@ class Settings(BaseSettings):
             / "rg.exe"
     )
 
-    KEEP_RECENT_COUNT: int = 10  # 最近10条消息不必处理
+    KEEP_RECENT_COUNT: int = 3  # 最近3条工具调用结果不处理
 
     file_change_tool_list:list=["file_edit","create_file","delete_file"]
 
@@ -189,10 +189,7 @@ class Settings(BaseSettings):
         r"^pip (list|show|freeze)( |$)",
     ]
 
-
-
-
-
+    TOOL_SCHEMA_TOKENS:int=0
 
 
 

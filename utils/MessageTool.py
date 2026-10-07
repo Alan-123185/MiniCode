@@ -1,9 +1,10 @@
+import json
 from langchain_core.messages import ToolMessage, HumanMessage, AIMessage
 from config.data import settings
 import tiktoken
 from langchain_core.messages import BaseMessage
 
-
+from config.modelConfig import model_config
 
 
 #一个简陋的滑动窗口函数，维持最大长度上文
@@ -21,36 +22,61 @@ def trim_message(message:list[BaseMessage]) -> int:
     return 0
 
 
-#token计算函数
-def count_tokens(messages: list[BaseMessage], model: str = settings.DEFAULT_MODEL) -> int:
-    """计算 LangGraph state['messages'] 的总 token 数"""
+
+
+calibration_dict={
+    "deepseek": 1.8,
+    "default": 1.0,
+    "claude": 1.6,
+    "gemini":1.16
+}
+
+def count_tokens(messages: str | list[BaseMessage], model: str | None = None) -> int:
+    if not model:
+        model = model_config["value"].model
+    arg = 1
+    if "deepseek" in model.lower():
+        arg = calibration_dict["deepseek"]
+    if "claude" in model.lower() or "anthropic" in model.lower():
+        arg = calibration_dict["claude"]
+    if "gemini" in model.lower() or "google" in model.lower():
+        arg = calibration_dict["gemini"]
+
     try:
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
         encoding = tiktoken.get_encoding("cl100k_base")
 
+    def _len(text) -> int:
+        if not text:
+            return 0
+        return len(encoding.encode(str(text)))
+
+    # 纯字符串直接算
+    if isinstance(messages, str):
+        return int(_len(messages) * arg)
+
     total = 0
     for msg in messages:
-        # 1. 消息内容
-        total += len(encoding.encode(msg.content))
+        content = msg.content
+        if isinstance(content, str):
+            total += _len(content)
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    total += _len(json.dumps(block, ensure_ascii=False))
+                else:
+                    total += _len(block)
+        else:
+            total += _len(content)
 
-        # 2. 角色名（user/assistant/system）也占 token
-        role = msg.type
-        total += len(encoding.encode(role))
+        total += _len(msg.type)
 
-        # 3. 如果有 tool_calls，也要算进去
-        if hasattr(msg, "tool_calls") and msg.tool_calls:
-            for tc in msg.tool_calls:
-                total += len(encoding.encode(str(tc)))
+        tool_calls = getattr(msg, "tool_calls", None)
+        if tool_calls:
+            for tc in tool_calls:
+                total += _len(json.dumps(tc, ensure_ascii=False))
 
-        # 4. OpenAI 每条消息的固定开销
         total += 3
 
-    return total
-
-
-if __name__ == "__main__":
-    count_tokens()
-
-
-
+    return int(total * arg)

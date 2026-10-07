@@ -1,3 +1,4 @@
+import json
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from config.data import settings
 from tools.sub_agent import  search_sub_agent
@@ -7,6 +8,7 @@ from tools.file_search import search_file_by_keyword, search_code_by_keyword
 from tools.command import run_code,execute_command
 from tools.file_edit import file_edit, create_file, delete_file
 from tools.undo_file_edit import undo_operationgroup, query_operationgroup
+from utils.MessageTool import count_tokens
 
 """
 9.26 MCP 工具注册
@@ -74,6 +76,7 @@ async def init_tools():
     new_tools_by_name = get_tools_by_name()
     tools_by_name.clear()
     tools_by_name.update(new_tools_by_name)
+    settings.TOOL_SCHEMA_TOKENS=count_tokens(get_schema())
 
 
 """
@@ -105,10 +108,35 @@ async def get_mcp_tools() -> list:
     return mcp_tools
 
 
+def get_schema() -> str:
+    """`
+    获取所有工具的 schema 信息
+    """
+    ret=[]
+    for t in tools:
+        # 参数 schema：优先 args，兜底 args_schema
+        params = getattr(t, "args", None)
+        if not params:
+            schema_obj = getattr(t, "args_schema", None)
+            if schema_obj is not None:
+                try:
+                    params = schema_obj.model_json_schema()
+                except Exception:
+                    params = {}
+            else:
+                params = {}
 
-
-
-
+        # 工具级描述：description 可能为 None
+        desc = getattr(t, "description", None) or ""
+        ret.append( {
+            "type": "function",
+            "function": {
+                "name": t.name,
+                "description": desc,
+                "parameters": params,
+            }
+        })
+    return json.dumps(ret, ensure_ascii=False)
 
 
 # if __name__ == "__main__":

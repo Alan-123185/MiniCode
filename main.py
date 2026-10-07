@@ -17,8 +17,9 @@ from utils.gitInstall import check_git
 async def lifespan(app: FastAPI):
     init_tables()
     #  启动时：初始化 LangGraph 和异步数据库
-    await init_tools()  # ★ 确保工具列表初始化
     await initialize_graph()
+    await init_tools()  # ★ 确保工具列表初始化
+
 
     yield  # 🏃 保持应用运行，处理请求
 

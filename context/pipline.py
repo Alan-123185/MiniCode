@@ -1,4 +1,4 @@
-from langchain_core.messages import BaseMessage, AIMessage, ToolMessage, HumanMessage
+from langchain_core.messages import BaseMessage, AIMessage, ToolMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from config.data import settings
 from context.compressMessage import snip_message
@@ -9,6 +9,8 @@ from utils.MessageTool import count_tokens
 
 def pre_call_func(state: OverAllState,config:RunnableConfig) -> list[BaseMessage]:
     # 先把窗口内消息拿出来
+    system_prompt = config["configurable"]["system_prompt"].format(history_summary=state.summary_state)
+    system_message = [SystemMessage(content=system_prompt)]
     windows_message = state.messages[state.last_summary_pos:]
     windows_message = snip_message(windows_message)  # 先把低价值消息丢掉
     """
@@ -21,21 +23,20 @@ def pre_call_func(state: OverAllState,config:RunnableConfig) -> list[BaseMessage
             windows_message = windows_message[:i]   #这一部分消息是窗口内的历史消息，可能需要降级
             break
     latest_message=[]
-    if len(current_message)>settings.KEEP_RECENT_COUNT:
-        latest_message=current_message[-settings.KEEP_RECENT_COUNT:]
-        current_message=current_message[:len(current_message)-settings.KEEP_RECENT_COUNT]
-        if isinstance(latest_message[0],ToolMessage):
-            i=len(current_message)-1
-            while i>=0 and not isinstance(current_message[i],AIMessage):
-                latest_message.insert(0,current_message[i])
-                current_message.pop(i)
-                i-=1
-            if i>=0 and isinstance(current_message[i],AIMessage):
-                latest_message.insert(0,current_message[i])
-                current_message.pop(i)
+    msg_len = len(current_message)
+    i=msg_len-1
+    c=0
+    while i>=0 and c< settings.KEEP_RECENT_COUNT:
+        msg = current_message[i]
+        latest_message.insert(0, msg)
+        current_message.pop(i)
+        if isinstance(msg, ToolMessage):
+            c+=1
+        i-=1
+    system_tokens=count_tokens(system_message)
     windows_tokens = count_tokens(windows_message)
     current_tokens = count_tokens(current_message)
-    all_tokens=windows_tokens+current_tokens
+    all_tokens=windows_tokens+current_tokens+system_tokens+settings.TOOL_SCHEMA_TOKENS
     delta_tokens = all_tokens - settings.LLM_MAX_UP_MESSAGE_TOKEN
     #如果超过了最大限制，先降级窗口内的消息，再降级当前消息
     if delta_tokens>0:
@@ -46,5 +47,5 @@ def pre_call_func(state: OverAllState,config:RunnableConfig) -> list[BaseMessage
         windows_message , delta_tokens = degrade_windows_l2(windows_message, delta_tokens)
     if delta_tokens>0:
         current_message , delta_tokens = degrade_windows_l2(current_message, delta_tokens)
-    return windows_message+current_message+latest_message
+    return system_message+windows_message+current_message+latest_message
 

@@ -40,6 +40,7 @@ builder.add_node("summerize_condition_node",summerize_condition_node)
 
 builder.add_edge(START, "input_node")
 builder.add_edge("output_node", END)
+builder.add_edge("tool_node","summerize_condition_node")
 builder.add_edge("summerize_node", "llm_node")
 builder.add_edge("tool_node", "llm_node")
 
