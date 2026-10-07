@@ -33,16 +33,12 @@ builder = StateGraph(
 builder.add_node("input_node", input_node)
 builder.add_node("output_node", output_node)
 builder.add_node("llm_node", llm_node)
-builder.add_node("tool_condition_node", tool_condition_node)
 builder.add_node("tool_node", tool_node)
 builder.add_node("summerize_node",summerize_node)
-builder.add_node("summerize_condition_node",summerize_condition_node)
 
 builder.add_edge(START, "input_node")
 builder.add_edge("output_node", END)
-builder.add_edge("tool_node","summerize_condition_node")
 builder.add_edge("summerize_node", "llm_node")
-builder.add_edge("tool_node", "llm_node")
 
 
 builder.add_conditional_edges(
@@ -58,6 +54,14 @@ builder.add_conditional_edges(
     summerize_condition_node,
     {
         "summerize": "summerize_node", END: "llm_node" }
+)
+
+builder.add_conditional_edges(
+    "tool_node",
+    summerize_condition_node,
+    {
+        "summerize": "summerize_node", END: "llm_node"
+    }
 )
 
 # 3. 定义异步初始化函数 (替代原来的直接编译)

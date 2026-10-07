@@ -7,13 +7,9 @@ from context.pipline import pre_call_func
 from exceptions import BizException
 from states.OverallState import OverAllState
 from tools.toolManage import tools
-from utils.MessageTool import count_tokens
 
 
 async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
-    system_prompt = config["configurable"]["system_prompt"].format(history_summary=state.summary_state)
-    system_message=[SystemMessage(content=system_prompt)]
-    prompt_token=count_tokens(system_message)
     input_message = pre_call_func(state,config)
     logger.info(input_message)
     # 型是运行时选择的,必须调用时取最新,不能在模块级绑定
@@ -23,7 +19,7 @@ async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
     #提示词得改一下
     response = None
     try:
-        async for chunk in model.bind_tools(tools).astream(system_message+input_message):
+        async for chunk in model.bind_tools(tools).astream(input_message):
             response = chunk if response is None else response + chunk
     except Exception as e:
         raise BizException(message=f"ERROR 生成失败")
