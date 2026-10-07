@@ -1,5 +1,4 @@
 import re
-
 from tree_sitter_analyzer.models import AnalysisResult
 
 def build_folded_source(result: AnalysisResult, source: str) -> str:

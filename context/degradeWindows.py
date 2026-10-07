@@ -30,8 +30,6 @@ def degrade_windows_l1(messages:list[BaseMessage],delta_tokens,config:RunnableCo
             latest_messages.append(new_msg)
             new_tokens=count_tokens([new_msg])
             delta_tokens=delta_tokens-(old_tokens-new_tokens)
-        elif isinstance(msg, AIMessage) and  msg.tool_calls or isinstance(msg, ToolMessage):
-            latest_messages.append(compress_message(msg,config.get("configurable", {}).get("thread_id"),summary_service))
         else:
             return latest_messages+messages[i:],delta_tokens
     return latest_messages,delta_tokens

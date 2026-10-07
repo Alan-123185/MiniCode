@@ -1,5 +1,4 @@
 import uuid
-from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
 from config.modelConfig import model_config
