@@ -172,7 +172,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
             if tool_name == "file_edit" or tool_name == "delete_file" or tool_name == "create_file":
                 for i , msg in enumerate(state.messages[state.last_summary_pos:]):
                    if isinstance(msg, ToolMessage) and msg.name in ("readfile", "search_code_by_keyword") and index.get(msg.tool_call_id)["args"].get("file_path") == tool_args.get("file_path") :
-                       state.messages[i]=ToolMessage(
+                       state.messages[state.last_summary_pos + i]=ToolMessage(
                            content=msg.content,
                            tool_call_id=msg.tool_call_id,
                            name=msg.name,

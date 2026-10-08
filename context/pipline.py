@@ -3,13 +3,18 @@ from langchain_core.runnables import RunnableConfig
 from config.data import settings
 from context.compressMessage import snip_message
 from context.degradeWindows import degrade_windows_l1, degrade_windows_l2
+from prompt.aseembler import build_static_system_prompt
 from states.OverallState import OverAllState
 from utils.MessageTool import count_tokens
 
 
 def pre_call_func(state: OverAllState,config:RunnableConfig) -> list[BaseMessage]:
     # 先把窗口内消息拿出来
-    system_prompt = config["configurable"]["system_prompt"].format(history_summary=state.summary_state)
+    """
+    10.8
+    TODO   要加上系统提示词.系统提示词增强
+    """
+    system_prompt = build_static_system_prompt()
     system_message = [SystemMessage(content=system_prompt)]
     windows_message = state.messages[state.last_summary_pos:]
     windows_message = snip_message(windows_message)  # 先把低价值消息丢掉
