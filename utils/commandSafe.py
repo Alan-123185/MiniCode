@@ -1,3 +1,5 @@
+from typing import Optional
+
 from config.data import settings
 import re
 
@@ -21,33 +23,83 @@ def is_command_safe(command: str, stdin_input: str | None = None) -> bool:
 
 
 # 报错关键词：加词边界，避免 matched_error / error_count 之类误伤
+
+# 假设你的 settings 已经定义
+# from your_config import settings
+
 _ERROR_RE = re.compile(
     r"(?i)(?<![\w])(traceback|exception|error|failed|failure|fatal|panic|abort)(?![\w])"
 )
 
-# 明显不是报错的行（no errors / failed=0 / 0 errors 等）
 _ERROR_NEG_RE = re.compile(
     r"(?i)(\bno\s+errors?\b|\berrors?\s*[:=]\s*0\b|\b0\s+errors?\b|\bfailed\s*[:=]\s*0\b)"
 )
 
+# 【新增】用于排除 pytest 的假阳性状态行，例如 "test_a.py::test_b FAILED"
+_PYTEST_STATUS_RE = re.compile(
+    r"(?i)^\s*(FAILED|ERROR)\s+\S+::\S+|^\s*\S+::\S+\s+(FAILED|ERROR)\b"
+)
+
+
+def _extract_pytest_block(lines: list[str], start: int, end: int, max_lines: int = 40) -> Optional[str]:
+    """
+    【新增】专门提取 pytest 的 FAILURES 或 ERRORS 块。
+    pytest 有明确的分隔符，直接提取比正则匹配准确 100 倍。
+    """
+    failure_start = -1
+    failure_end = -1
+
+    # 1. 寻找 === FAILURES === 或 === ERRORS ===
+    for i in range(start, end):
+        line = lines[i].strip()
+        if re.match(r"^=+\s*(FAILURES|ERRORS)\s*=+$", line):
+            failure_start = i
+        elif failure_start != -1 and re.match(r"^=+\s*(short test summary info|ERRORS|FAILURES)\s*=+$", line):
+            failure_end = i
+            break
+
+    if failure_start != -1:
+        if failure_end == -1:
+            failure_end = min(end, failure_start + max_lines + 10)
+
+        block = lines[failure_start:failure_end]
+        if len(block) > max_lines:
+            half = max_lines // 2
+            block = block[:half] + ["... [pytest output truncated] ..."] + block[-half:]
+
+        return "[pytest errors/failures]\n" + "\n".join(block)
+
+    # 2. 如果没有 FAILURES 块，尝试提取 short test summary info
+    summary_start = -1
+    for i in range(start, end):
+        if re.match(r"^=+\s*short test summary info\s*=+$", lines[i].strip()):
+            summary_start = i
+            break
+
+    if summary_start != -1:
+        block = lines[summary_start:min(end, summary_start + 20)]
+        return "[pytest summary]\n" + "\n".join(block)
+
+    return None
+
 
 def _extract_error_block(
-    lines: list[str],
-    start: int,
-    end: int,
-    max_errors: int = 5,
-    context: int = 2,
-    max_block_lines: int = 40,
+        lines: list[str],
+        start: int,
+        end: int,
+        max_errors: int = 5,
+        context: int = 3,  # 【优化】从 2 改为 3，Python traceback 通常需要 3 行才能看懂
+        max_block_lines: int = 40,
 ) -> str:
-    """
-    只在 [start, end) 区间里找报错，避免和 head/tail 重复。
-    每个报错行往前/后带 context 行上下文（traceback 的 File/raise 行就在上下文中）。
-    只取最后 max_errors 个报错，一般最后的才是真正致命的。
-    """
-    idxs = [
-        i for i in range(start, end)
-        if _ERROR_RE.search(lines[i]) and not _ERROR_NEG_RE.search(lines[i])
-    ]
+    """通用错误块提取（作为 pytest 特判的兜底）"""
+    idxs = []
+    for i in range(start, end):
+        line = lines[i]
+        if _ERROR_RE.search(line) and not _ERROR_NEG_RE.search(line):
+            # 【优化】排除 pytest 的假阳性状态行
+            if not _PYTEST_STATUS_RE.match(line):
+                idxs.append(i)
+
     if not idxs:
         return ""
 
@@ -58,7 +110,6 @@ def _extract_error_block(
         keep.update(range(max(start, i - context), min(end, i + context + 1)))
     keep_sorted = sorted(keep)
 
-    # 合并连续区间，避免出现一堆零碎片段
     blocks: list[tuple[int, int]] = []
     a = prev = keep_sorted[0]
     for i in keep_sorted[1:]:
@@ -72,12 +123,11 @@ def _extract_error_block(
     chunks = ["\n".join(lines[a:b + 1]) for a, b in blocks]
     joined = "\n...\n".join(chunks)
 
-    # 错误块自身也限长，否则一次刷屏又超预算
     jl = joined.splitlines()
     if len(jl) > max_block_lines:
         joined = "...\n" + "\n".join(jl[-max_block_lines:])
 
-    return "[error]\n" + joined
+    return "[error context]\n" + joined
 
 
 def truncate_output(text: str) -> str:
@@ -93,7 +143,6 @@ def truncate_output(text: str) -> str:
     tail_n = settings.COMMAND_TAIL_LINES
     total = len(lines)
 
-    # 【修复 1】总行数不够头尾分：直接按字符截，并且给后缀预留长度
     if total <= head_n + tail_n:
         suffix = "\n... [输出过长，已截断]"
         limit = max(0, max_chars - len(suffix))
@@ -101,20 +150,27 @@ def truncate_output(text: str) -> str:
 
     head_lines = lines[:head_n]
     tail_lines = lines[-tail_n:]
-    omitted = total - head_n - tail_n  # 现在一定 >= 1，不会再是负数
+    omitted = total - head_n - tail_n
 
-    # 【修复 2】只在“中间被省略的部分”捞报错，避免和 head/tail 重复
-    error_block = _extract_error_block(lines, head_n, total - tail_n)
+    # 【优化 1】优先尝试提取 Pytest 专属错误块
+    error_block = _extract_pytest_block(lines, head_n, total - tail_n)
 
+    # 【优化 2】如果没有 pytest 专属块，再使用通用正则提取
+    if not error_block:
+        error_block = _extract_error_block(lines, head_n, total - tail_n)
+
+    # 【优化 3】修正拼接顺序：Head -> Error -> 省略提示 -> Tail
     parts = []
+    parts.append("\n".join(head_lines))
+
     if error_block:
         parts.append(error_block)
-    parts.append("\n".join(head_lines))
-    parts.append(f"... [system Info]中间省略 {omitted} 行日志，调用get_original_content_by_tool_call_id查看原始内容")
+
+    parts.append(f"\n... [system Info]中间省略 {omitted} 行日志，调用get_original_content_by_tool_call_id查看原始内容\n")
     parts.append("\n".join(tail_lines))
+
     truncated = "\n".join(parts)
 
-    # 【修复 3】兜底时预留后缀长度，防止最终长度 > max_chars
     if len(truncated) > max_chars:
         suffix = "\n... [system Info]超出最大字符限制，强制截断，调用get_original_content_by_tool_call_id查看原始内容"
         limit = max_chars - len(suffix)
