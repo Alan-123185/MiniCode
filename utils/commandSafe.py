@@ -110,13 +110,13 @@ def truncate_output(text: str) -> str:
     if error_block:
         parts.append(error_block)
     parts.append("\n".join(head_lines))
-    parts.append(f"... [中间省略 {omitted} 行日志] ...")
+    parts.append(f"... [system Info]中间省略 {omitted} 行日志，调用get_original_content_by_tool_call_id查看原始内容")
     parts.append("\n".join(tail_lines))
     truncated = "\n".join(parts)
 
     # 【修复 3】兜底时预留后缀长度，防止最终长度 > max_chars
     if len(truncated) > max_chars:
-        suffix = "\n... [超出最大字符限制，强制截断]"
+        suffix = "\n... [system Info]超出最大字符限制，强制截断，调用get_original_content_by_tool_call_id查看原始内容"
         limit = max_chars - len(suffix)
         if limit <= 0:
             return truncated[:max_chars]

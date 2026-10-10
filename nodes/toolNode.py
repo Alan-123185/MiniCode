@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Any
 from langgraph.types import interrupt
 from loguru import logger
@@ -13,7 +14,8 @@ from langchain_core.messages import ToolMessage, HumanMessage, AIMessage, BaseMe
 from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 from tools.toolManage import tools_by_name, tools_need_to_confirm
-from utils.compressResult import _compress_read_result,_compress_search_code_result
+from utils.compressResult import _compress_read_result, _compress_search_code_result, _compress_run_bash_result
+from utils.dictToText import dict_to_text
 from utils.normalizeMCPresult import normalize_MCP_result
 from utils.errormanagerTool import compress_error
 from utils.commandSafe import is_command_safe
@@ -165,6 +167,19 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                     compressed_content=compress_search_content,
                     message_type=settings.LLM_MESSAGE_TYPE_TOOL,
                 ))
+        if tool_name == "run_code" or tool_name == "execute_command":
+            compress_bash_content = _compress_run_bash_result(tool_result=toolresult, tool_call_id=tool_call_id)
+            original_content=dict_to_text(json.loads(toolresult.content))
+            toolresult.content = compress_bash_content
+            if "调用get_original_content_by_tool_call_id查看原始内容" in compress_bash_content:
+                summary_service.add_Tool_summary(Summary(
+                    session_id=config.get("configurable", {}).get("thread_id"),
+                    tool_call_id=tool_call_id,
+                    content=original_content,
+                    compressed_content=compress_bash_content,
+                    message_type=settings.LLM_MESSAGE_TYPE_TOOL,
+                ))
+
         # ================= 3. 处理执行结果 =================
         if toolresult.success:
 
@@ -226,7 +241,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                         count += 1
                     idx -= 1
                 info=f"\n[system Info]   {tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况"
-                toolresult_for_llm.error=toolresult_for_llm.error or "" + info
+                toolresult_for_llm.error=(toolresult_for_llm.error or "") + info
                 _emit_tool_status(
                     toolstatusEvent(status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state.input, result=None,session_id=config.get("configurable", {}).get("thread_id"))
                 )

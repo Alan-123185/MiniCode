@@ -1,3 +1,5 @@
+import json
+
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -125,22 +127,15 @@ def _run_bash(command: str,
             )
 
         # 4. 解码输出（Git Bash 里基本是 UTF-8，smart_decode 仍能兜底意外字节）
-        stdout = truncate_output(smart_decode(stdout_b))
-        stderr = truncate_output(smart_decode(stderr_b))
+        stdout = smart_decode(stdout_b)
+        stderr = smart_decode(stderr_b)
 
-        final_content = ""
-        if stdout:
-            final_content += f"--- 标准输出 (STDOUT) ---\n{stdout}\n"
-        if stderr:
-            final_content += f"--- 错误输出 (STDERR) ---\n{stderr}\n"
-
-        if not final_content:
-            final_content = "命令执行完毕，无标准输出和错误输出。"
+        content = json.dumps({"stdout": stdout, "stderr": stderr}, ensure_ascii=False)
 
         return toolResult(
             success=True,
             message=f"命令退出码:{proc.returncode}",
-            content=f"exit code:{proc.returncode}\n{final_content.strip()}",
+            content=content,
             tool_name=tool_name
         )
 

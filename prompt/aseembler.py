@@ -1,4 +1,6 @@
+from prompt.dynamicPrompt.History import history_Summary_pro
 from prompt.staticPrompt.Actions import Actions_pro
+from prompt.staticPrompt.Forbid import Forbid_pro
 from prompt.staticPrompt.Intro import Intro_pro
 from prompt.staticPrompt.Output import Output_pro
 from prompt.staticPrompt.System import System_pro
@@ -20,6 +22,7 @@ def build_static_system_prompt() -> str:
         Task_pro,
         Actions_pro,
         UseTool_pro,
+        Forbid_pro,
         Tone_pro,
         Output_pro,
     ]
@@ -29,4 +32,6 @@ def build_static_system_prompt() -> str:
 创建并返回一个摘要历史作为动态提示词 包含当前的摘要状态信息。
 """
 def build_history_summary_prompt(state:OverAllState) -> str:
-    return dict_to_text(state.summary_state.model_dump())
+    if not state.summary_state:
+        return ""
+    return history_Summary_pro.format(history_summary=dict_to_text(state.summary_state.model_dump()))

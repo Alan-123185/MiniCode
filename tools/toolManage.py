@@ -42,7 +42,13 @@ async def create_tool() -> list:
 
 
 
-tools_need_to_confirm = ["file_edit", "execute_command", "delete_file", "create_file", "undo_operationgroup"]
+tools_need_to_confirm = ["file_edit",
+                         "execute_command",
+                         "delete_file",
+                         "create_file",
+                         "undo_operationgroup",
+                         "run_code"
+                         ]
 
 compatable_tools=[
                   "readfile",

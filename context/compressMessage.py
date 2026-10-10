@@ -68,7 +68,7 @@ def compress_message(msg:BaseMessage,session_id:str,summary_service:summaryServi
             )
         else:
             snippet = (msg.content or "")[:100]  # 要么是content，要么是error，至少有一个不为空
-            content = f"{snippet}\n [system Info]工具结果已降级"
+            content = f"{snippet}\n [system Info]工具结果已降级,需要可以调用 get_original_content_by_tool_call_id 获取完整结果"
             ret=ToolMessage(
                 content=content,
                 tool_call_id=msg.tool_call_id,
@@ -90,7 +90,7 @@ def compress_message(msg:BaseMessage,session_id:str,summary_service:summaryServi
             )
         else:
             ret=AIMessage(
-                content=f"{msg.content[:100]}...\n[system Info]此条ai回复已经降级，memory_id:"+msg.additional_kwargs["memory_id"],
+                content=f"{msg.content[:100]}...\n[system Info]此条ai回复已经降级，如需查看完整内容，可以调用 get_original_content_by_memory_id 获取。memory_id:"+msg.additional_kwargs["memory_id"],
                 tool_calls=msg.tool_calls
             )
             summary_service.add_LLM_summary(Summary(
