@@ -20,7 +20,8 @@ async def _compress_read_result(tool_result:toolResult,tool_call_id: str) -> str
     config=tool_result.data.get("config")
     file_path = tool_result.data.get("file_path")
     if tool_result.success:
-        if not tool_result.data.get("start_line") and not tool_result.data.get("end_line") and "仅返回折叠后的源码骨架" in tool_result.message:
+        #当返回了完整代码时，尝试使用AST解析器提取函数、类、常量等骨架信息
+        if not tool_result.data.get("start_line") and not tool_result.data.get("end_line") and not "仅返回折叠后的源码骨架" in tool_result.message:
             try:
                 abs_path = sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace  # 确保在工作区根目录下运行
                 engine = UnifiedAnalysisEngine(project_root=abs_path)
@@ -51,7 +52,7 @@ async def _compress_read_result(tool_result:toolResult,tool_call_id: str) -> str
                     lines.append(f"  const {elem.name} L{elem.start_line}-L{elem.end_line}")
                 elif elem.element_type == "import":
                     lines.append(f"  import {elem.name} L{elem.start_line}-L{elem.end_line}")
-                return "\n".join(lines)+f"\n[system Info]文件读取结果已降级，tool_call_id:{tool_call_id}，"
+            return "\n".join(lines)+f"\n[system Info]文件读取结果已降级为骨架，如需查看完整结果，请调用get_original_content_by_tool_call_id"
         else:
             return tool_result.content
     else:
@@ -97,16 +98,15 @@ def _compress_run_bash_result(tool_result:toolResult,tool_call_id:str) -> str:
         stderr=content["stderr"]
         out=truncate_output(stdout)
         err=truncate_output(stderr)
-        if stdout!=out or stderr!=err:
-            final_content = ""
-            if stdout:
-                final_content += f"--- 标准输出 (STDOUT) ---\n{stdout}\n"
-            if stderr:
-                final_content += f"--- 错误输出 (STDERR) ---\n{stderr}\n"
-            if not final_content:
-                final_content = "命令执行完毕，无标准输出和错误输出。"
-            return f"exit code:{int(tool_result.message.split(":")[-1].strip())}\n{final_content.strip()}"
-        else:
+        final_content = ""
+        if stdout:
+            final_content += f"--- 标准输出 (STDOUT) ---\n{out}\n"
+        if stderr:
+            final_content += f"--- 错误输出 (STDERR) ---\n{err}\n"
+        if not final_content:
+            final_content = "命令执行完毕，无标准输出和错误输出。"
+        return f"exit code:{int(tool_result.message.split(":")[-1].strip())}\n{final_content.strip()}"
+    else:
             #如果失败了就不压缩，直接返回原始内容
             return tool_result.content
 

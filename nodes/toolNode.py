@@ -169,9 +169,10 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState
                 ))
         if tool_name == "run_code" or tool_name == "execute_command":
             compress_bash_content = _compress_run_bash_result(tool_result=toolresult, tool_call_id=tool_call_id)
-            original_content=dict_to_text(json.loads(toolresult.content))
+            origin_content=toolresult.content
             toolresult.content = compress_bash_content
             if "调用get_original_content_by_tool_call_id查看原始内容" in compress_bash_content:
+                original_content = dict_to_text(json.loads(origin_content))
                 summary_service.add_Tool_summary(Summary(
                     session_id=config.get("configurable", {}).get("thread_id"),
                     tool_call_id=tool_call_id,
