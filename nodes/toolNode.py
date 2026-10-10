@@ -25,7 +25,7 @@ summary_service=summaryService()
 max_retry_time=settings.MAX_TOOL_CALLS
 
 # 注意：这里增加了 config: RunnableConfig 参数，这是触发事件的关键！
-async def tool_node(state: OverAllState, config: RunnableConfig) -> OverAllState:
+async def tool_node(state: OverAllState, config: RunnableConfig)->dict:
     tool_failures = dict(state.tool_call_count or {})
     output = []
     step = []

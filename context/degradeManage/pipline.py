@@ -1,8 +1,8 @@
 from langchain_core.messages import BaseMessage, AIMessage, ToolMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from config.data import settings
-from context.compressMessage import snip_message
-from context.degradeWindows import degrade_windows_l1, degrade_windows_l2
+from context.degradeManage.compressMessage import snip_message
+from context.degradeManage.degradeWindows import degrade_windows_l1, degrade_windows_l2
 from prompt.aseembler import build_static_system_prompt, build_history_summary_prompt
 from states.OverallState import OverAllState
 from utils.MessageTool import count_tokens
@@ -17,7 +17,7 @@ def pre_call_func(state: OverAllState,config:RunnableConfig) -> list[BaseMessage
     system_prompt = build_static_system_prompt()
     history_summary_prompt=build_history_summary_prompt(state)
     if history_summary_prompt:
-        system_message = [SystemMessage(content=system_prompt), SystemMessage(content=history_summary_prompt)]
+        system_message = [SystemMessage(content=system_prompt), HumanMessage(content=history_summary_prompt)]
     else:
         system_message = [SystemMessage(content=system_prompt)]
     windows_message = state.messages[state.last_summary_pos:]

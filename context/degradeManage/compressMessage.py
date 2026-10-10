@@ -48,7 +48,7 @@ def snip_message(msgs:list[BaseMessage]) -> list[BaseMessage]:
 
 
 
-def compress_message(msg:BaseMessage,session_id:str,summary_service:summaryService) -> BaseMessage:
+def compress_message(msg:BaseMessage,session_id:str) -> BaseMessage:
     ret=msg
     #把已经过时的工具调用结果降级为提示信息
     if msg.additional_kwargs.get("outdated",False):
@@ -59,7 +59,7 @@ def compress_message(msg:BaseMessage,session_id:str,summary_service:summaryServi
         )
 
     if isinstance(msg, ToolMessage):
-        summary = summary_service.query_tool_summary(tool_call_id=msg.tool_call_id)
+        summary = summaryService._get_tool_summary(tool_call_id=msg.tool_call_id)
         if summary:
             ret=ToolMessage(
                 content=summary["compressed_content"],
@@ -74,7 +74,7 @@ def compress_message(msg:BaseMessage,session_id:str,summary_service:summaryServi
                 tool_call_id=msg.tool_call_id,
                 name=msg.name
             )
-            summary_service.add_Tool_summary(Summary(
+            summaryService().add_Tool_summary(Summary(
                 session_id=session_id,
                 tool_call_id=msg.tool_call_id,
                 content=msg.content,
@@ -82,7 +82,7 @@ def compress_message(msg:BaseMessage,session_id:str,summary_service:summaryServi
                 message_type=settings.LLM_MESSAGE_TYPE_TOOL,
             ))
     elif isinstance(msg, AIMessage):
-        summary = summary_service.query_LLM_summary(memory_id=msg.additional_kwargs["memory_id"])
+        summary = summaryService._get_LLM_summary(memory_id=msg.additional_kwargs["memory_id"])
         if summary:
             ret=AIMessage(
                 content=summary["compressed_content"],
@@ -93,7 +93,7 @@ def compress_message(msg:BaseMessage,session_id:str,summary_service:summaryServi
                 content=f"{msg.content[:100]}...\n[system Info]此条ai回复已经降级，如需查看完整内容，可以调用 get_original_content_by_memory_id 获取。memory_id:"+msg.additional_kwargs["memory_id"],
                 tool_calls=msg.tool_calls
             )
-            summary_service.add_LLM_summary(Summary(
+            summaryService().add_LLM_summary(Summary(
                 session_id=session_id,
                 memory_id=msg.additional_kwargs["memory_id"],
                 content=msg.content,

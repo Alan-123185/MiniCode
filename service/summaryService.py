@@ -1,3 +1,4 @@
+from functools import lru_cache
 from mapper.database import DataBase
 from mapper.summaryMapper import summaryMapper
 from mappercommon.summary import Summary
@@ -5,12 +6,24 @@ from mappercommon.summary import Summary
 
 class summaryService:
 
+    @staticmethod
+    @lru_cache(maxsize=2048)
+    def _get_tool_summary(tool_call_id: str) -> dict | None:
+        return summaryService().query_tool_summary(tool_call_id)
+
+    @staticmethod
+    @lru_cache(maxsize=2048)
+    def _get_LLM_summary(memory_id: str) -> dict | None:
+        return summaryService().query_LLM_summary(memory_id)
+
+
     def add_Tool_summary(self, summary: Summary) -> None:
         db = DataBase()
         try:
             summaryMapper(db).add_Tool_summary(summary)
         finally:
             db.conn.close()
+        self._get_tool_summary.cache_clear()  # 清除缓存，以便下次查询时获取最新数据
 
     def add_LLM_summary(self,summary:Summary) -> None:
         """
@@ -21,6 +34,7 @@ class summaryService:
             summaryMapper(db).add_LLM_summary(summary)
         finally:
             db.conn.close()
+        self._get_LLM_summary.cache_clear()  # 清除缓存，以便下次查询时获取最新数据
 
     def query_tool_summary(self,tool_call_id:str) -> dict:
         """

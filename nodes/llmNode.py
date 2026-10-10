@@ -2,15 +2,15 @@ import uuid
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
 from config.modelConfig import model_config
-from context.pipline import pre_call_func
 from exceptions import BizException
+from states.degradeState import degradeState
 from states.OverallState import OverAllState
 from tools.toolManage import tools
 
 
-async def llm_node(state: OverAllState,config:RunnableConfig) -> OverAllState:
-    input_message = pre_call_func(state,config)
-    logger.info(input_message)
+
+async def llm_node(degrade_state:degradeState) -> OverAllState:
+    input_message =degrade_state.degraded_messages
     # 型是运行时选择的,必须调用时取最新,不能在模块级绑定
     model = model_config["value"]
     if model is None:
