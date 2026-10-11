@@ -1,6 +1,6 @@
 from langchain_core.messages import BaseMessage, AIMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
-from context.compressMessage import compress_message
+from context.degradeManage.compressMessage import compress_message
 from service.summaryService import summaryService
 from utils.MessageTool import count_tokens
 from utils.compressResult import forced_compress_tool_result

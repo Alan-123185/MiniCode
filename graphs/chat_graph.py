@@ -7,6 +7,7 @@ from loguru import logger
 from exceptions import BizException
 from mapper.database import DataBase
 from mapper.modelMapper import modelMapper
+from nodes.degradeNode import degrade_node
 from nodes.summeraizeConditionNode import summerize_condition_node
 from nodes.summerizeNode import summerize_node
 from nodes.toolConditionNode import tool_condition_node
@@ -29,16 +30,16 @@ builder = StateGraph(
     input_schema=InputState,
     output_schema=OutputState
 )
-
 builder.add_node("input_node", input_node)
 builder.add_node("output_node", output_node)
 builder.add_node("llm_node", llm_node)
 builder.add_node("tool_node", tool_node)
 builder.add_node("summerize_node",summerize_node)
-
+builder.add_node("degrade_node",degrade_node)
 builder.add_edge(START, "input_node")
 builder.add_edge("output_node", END)
-builder.add_edge("summerize_node", "llm_node")
+builder.add_edge("degrade_node", "llm_node")
+builder.add_edge("summerize_node", "degrade_node")
 
 
 builder.add_conditional_edges(
@@ -49,19 +50,19 @@ builder.add_conditional_edges(
         END: "output_node"  # 如果不需要调用工具，直接跳到输出节点
     }
 )
+
 builder.add_conditional_edges(
     "input_node",
     summerize_condition_node,
     {
-        "summerize": "summerize_node", END: "llm_node" }
+        "summerize": "summerize_node", END: "degrade_node" }
 )
 
 builder.add_conditional_edges(
     "tool_node",
     summerize_condition_node,
     {
-        "summerize": "summerize_node", END: "llm_node"
-    }
+        "summerize": "summerize_node", END: "degrade_node" }
 )
 
 # 3. 定义异步初始化函数 (替代原来的直接编译)

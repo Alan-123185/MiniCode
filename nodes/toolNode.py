@@ -66,7 +66,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig)->dict:
                 )
 
                 forbid_calls.append((tool_call, toolResult(
-                  success=False, message=f"user refused tool:{tool_name}"
+                  success=False, message=f"用户拒绝了工具调用:{tool_name}，请仔细反思拒绝原因，禁止反复调用！或者终止任务询问详细要求",
                 )))
                 step.append(f"user refused tool:{tool_name}")
                 continue

@@ -9,7 +9,8 @@ from tools.toolManage import tools
 
 
 
-async def llm_node(degrade_state:degradeState) -> OverAllState:
+
+async def llm_node(degrade_state:degradeState) -> dict:
     input_message =degrade_state.degraded_messages
     # 型是运行时选择的,必须调用时取最新,不能在模块级绑定
     model = model_config["value"]
@@ -21,7 +22,9 @@ async def llm_node(degrade_state:degradeState) -> OverAllState:
         async for chunk in model.bind_tools(tools).astream(input_message):
             response = chunk if response is None else response + chunk
     except Exception as e:
+        logger.error(f"ERROR 生成失败: {e}")
         raise BizException(message=f"ERROR 生成失败")
+
     # 1. 生成 message_id
     message_id =str(uuid.uuid4()).replace("-", "")
     # 2. 把 message_id 塞进 additional_kwargs
