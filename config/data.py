@@ -172,7 +172,7 @@ class Settings(BaseSettings):
 
     MAX_MODEL_COUNT: int = 5
 
-    COMMAND_MAX_CHAR_COUNT: int = 2000  #命令行返回结果最大字符数
+    COMMAND_MAX_CHAR_COUNT: int = 3000  #命令行返回结果最大字符数
     COMMAND_HEAD_LINES:int=15            #命令行返回结果头部最大行数
     COMMAND_TAIL_LINES:int=25            #命令行返回结果尾部最大行数
 

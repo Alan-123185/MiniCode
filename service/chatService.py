@@ -36,38 +36,54 @@ class ChatService:
         # 新的一轮用户交互，重置停止信号（覆盖上一次的 stop）
         self.stop_flags[session_id] = asyncio.Event()
         config = create_chat_config(thread_id=session_id)
-
-        async for result in self._stream_graph(
-                session_id=session_id,
-                config=config,
-                input_or_command={"input": chat_request.message},
-                record_operations=False,
-        ):
-            yield result
+        task=asyncio.current_task()
+        self.running_tasks[session_id] = task
+        try:
+            async for result in self._stream_graph(
+                    session_id=session_id,
+                    config=config,
+                    input_or_command={"input": chat_request.message},
+                    record_operations=False,
+            ):
+                yield result
+        finally:
+            if self.running_tasks.get(session_id) is task:
+                self.running_tasks.pop(session_id, None)
 
     async def approve(self, decision_request: decisionRequst) -> AsyncGenerator[InterruptResult, None]:
         session_id = decision_request.session_id
         self.stop_flags[session_id] = asyncio.Event()
         config = create_chat_config(thread_id=session_id)
-
-        async for result in self._stream_graph(
-                session_id=session_id,
-                config=config,
-                input_or_command=Command(resume=decision_request.decision),
-                record_operations=True,
-        ):
-            yield result
+        task = asyncio.current_task()
+        self.running_tasks[session_id] = task
+        try:
+            async for result in self._stream_graph(
+                    session_id=session_id,
+                    config=config,
+                    input_or_command=Command(resume=decision_request.decision),
+                    record_operations=True,
+            ):
+                yield result
+        finally:
+            if self.running_tasks.get(session_id) is task:
+                self.running_tasks.pop(session_id, None)
 
     async def _continue_chat(self, config: RunnableConfig) -> AsyncGenerator[InterruptResult, None]:
         session_id = config["configurable"]["thread_id"]
         # 注意：_continue_chat 不重置 stop_event，由上层决定
-        async for result in self._stream_graph(
-                session_id=session_id,
-                config=config,
-                input_or_command=None,
-                record_operations=True,
-        ):
-            yield result
+        task = asyncio.current_task()
+        self.running_tasks[session_id] = task
+        try:
+            async for result in self._stream_graph(
+                    session_id=session_id,
+                    config=config,
+                    input_or_command=None,
+                    record_operations=True,
+            ):
+                yield result
+        finally:
+            if self.running_tasks.get(session_id) is task:
+                self.running_tasks.pop(session_id, None)
 
     async def _stream_graph(
             self,
