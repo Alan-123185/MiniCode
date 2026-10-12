@@ -432,7 +432,8 @@ watch(
 .message-list {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-5) var(--space-5) var(--space-4);
+  /* 内容通道居中: 宽屏两侧自适应留白, 视线不左右扫射; 底部预留悬浮输入区 */
+  padding: var(--space-5) max(var(--space-5), calc((100% - 880px) / 2)) var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -441,7 +442,8 @@ watch(
 /* ---------- 消息气泡 ---------- */
 .message {
   position: relative;
-  max-width: 76%;
+  /* 舒适阅读宽度: 最大 800px, 且不超出居中通道 82% */
+  max-width: min(800px, 82%);
   padding: 10px 14px;
   border-radius: var(--radius-md);
   line-height: 1.6;
@@ -452,23 +454,33 @@ watch(
 
 .message.user {
   align-self: flex-end;
-  background: var(--accent);
-  color: #fff;
+  /* 用户: 靠右 + 淡蓝气泡 (低饱和主色浅底 + 深字, 与 AI 深灰气泡一眼区分) */
+  background: var(--accent-light);
+  color: var(--text-primary);
+  border: 1px solid var(--accent-border);
   border-bottom-right-radius: var(--radius-xs);
 }
 
 .message.user .message-role {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--accent);
 }
 
 .message.assistant {
-  align-self: flex-start;
-  background: var(--bg-tertiary);
-  border-bottom-left-radius: var(--radius-xs);
+  /* AI 回复融入主背景: 去除气泡底色/边框/圆角/内边距, 块级容器水平居中 (文字仍左对齐) */
+  width: 100%;
+  max-width: min(800px, 82%);
+  margin: 0 auto;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
 }
 
-/* 出错的消息: 语义错误色 */
+/* 出错的消息: 语义错误色 (仍为可见卡片, 需恢复内边距/圆角以区别于融入背景的普通 AI 回复) */
 .message.failed {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
   background: var(--error-light);
   border: 1px solid var(--error);
 }
@@ -806,20 +818,20 @@ watch(
   gap: 8px;
   margin-top: 6px;
   font-size: 12px;
-  color: #ffe0e0;
+  color: var(--error);
 }
 
 .retry-btn {
   padding: 2px 10px;
   font-size: 11px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: var(--error);
+  background: transparent;
+  border: 1px solid var(--error);
   border-radius: var(--radius-xs);
 }
 
 .retry-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--error-light);
 }
 
 .retry-btn:disabled {
@@ -959,10 +971,10 @@ watch(
   margin: 0 0 var(--space-2);
   max-width: 100%;
   font-family: var(--font-mono);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-  overflow: hidden;
+  /* 极简折叠文本: 去除边框/底色/圆角, 融入主背景, 仅保留文字与图标 */
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .tool-trace-toggle {
@@ -971,7 +983,7 @@ watch(
   gap: 6px;
   width: 100%;
   max-width: 100%;
-  padding: 6px 10px;
+  padding: 4px 6px;
   font-family: inherit;
   font-size: 12px;
   color: var(--text-secondary);
@@ -1020,13 +1032,12 @@ watch(
 /* 展开后的工具调用列表: 与标题栏用分隔线隔开, 保持等宽字体 */
 .tool-trace-list {
   margin: 0;
-  padding: var(--space-2) 10px var(--space-2) 10px;
+  padding: var(--space-2) 0 var(--space-2) 18px;
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 .tool-trace-item {

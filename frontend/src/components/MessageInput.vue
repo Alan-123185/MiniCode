@@ -125,25 +125,33 @@ async function submit() {
 <style scoped>
 .input-wrap {
   position: relative;
-  padding: var(--space-3) var(--space-5);
-  background: var(--bg-primary);
+  /* 悬浮输入区: 底部留白不贴底, 顶部渐隐让滚动内容自然过渡到输入卡片 */
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  background: linear-gradient(to top, var(--bg-primary) 55%, transparent);
   border: none;
 }
 
+/* 毛玻璃悬浮输入卡片: 与消息居中通道同宽, blur 模糊其下滚动内容 */
 .input-box {
   display: flex;
   align-items: flex-end;
   gap: var(--space-3);
-  background: var(--bg-primary);
-  border: 1px solid var(--accent-border);
+  max-width: min(880px, 100%);
+  margin: 0 auto;
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 10px 12px 10px 14px;
+  box-shadow: var(--shadow-md);
   transition: border-color var(--dur-base), box-shadow var(--dur-base);
 }
 
+/* 聚焦: 淡蓝发光边框 (一圈柔和光晕), 强化悬浮层级 */
 .input-box:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-ring);
+  box-shadow: 0 0 0 3px var(--accent-ring), var(--shadow-md);
 }
 
 .input-box textarea {
@@ -216,17 +224,19 @@ async function submit() {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  max-width: min(880px, 100%);
+  margin-inline: auto;
   min-height: 26px;
 }
 
 .fade-enter-active, .fade-leave-active { transition: opacity var(--dur-base) ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
+/* 快捷键提示: 更轻量的小字 (置于输入卡片下方, 弱化不抢焦点) */
 .hint {
   margin-left: auto;
-  font-size: 12px;
-  color: var(--text-secondary);
-  opacity: 0.8;
+  font-size: 11px;
+  color: var(--text-tertiary);
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -234,5 +244,6 @@ async function submit() {
 
 .hint kbd {
   font-size: 10px;
+  opacity: 0.75;
 }
 </style>

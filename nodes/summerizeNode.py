@@ -34,7 +34,7 @@ async def summerize_node(state:OverAllState) -> OverAllState:
 
     model=create_no_streaming_model(model)
     summarystate = await model.with_structured_output(summaryState).ainvoke(
-        [SystemMessage(content=summerize_prompt)]
+        [SystemMessage(content=summerize_prompt)],reasoning_effort = "none", extra_body = {"enable_thinking": False}
     )
     summary_state=summarystate if summarystate else summary_state  #防止模型返回空值
     logger.info(f"summary_state: {summary_state}")

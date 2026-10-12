@@ -24,6 +24,8 @@
   --bg-secondary: var(--gray-50);
   --bg-tertiary: var(--gray-100);
   --bg-hover: rgba(15, 23, 42, 0.04);
+  /* 毛玻璃: 悬浮输入框半透明底 (配合 backdrop-filter 模糊) */
+  --bg-glass: rgba(255, 255, 255, 0.72);
 
   --text-primary: var(--gray-800);
   --text-secondary: var(--gray-500);
@@ -124,6 +126,8 @@
   --bg-secondary: #17181c;
   --bg-tertiary: #26282f;
   --bg-hover: rgba(255, 255, 255, 0.05);
+  /* 毛玻璃: 悬浮输入框半透明底 (暗色) */
+  --bg-glass: rgba(29, 31, 36, 0.72);
 
   --text-primary: #e8eaed;
   --text-secondary: #9aa1ac;

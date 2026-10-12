@@ -40,7 +40,7 @@ async def chat_to_agent(chat_request: ChatRequest,background_tasks:BackgroundTas
                             background_tasks.add_task(
                                 new_title,
                            chat_request.session_id,
-                                [chat_request.message,interrupt_result.agentResult.answer]
+                                chat_request.message
                             )
                     # 情况三：中间自定义事件
                     else:
