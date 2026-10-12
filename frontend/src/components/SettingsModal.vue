@@ -15,39 +15,46 @@
         <div class="modal-section">
           <h4>模型配置</h4>
 
-          <!-- 5 组配置选项卡: ←/→ 切换, 绿点标记当前已应用到后端的分组 -->
-          <div class="tab-bar" role="tablist" aria-label="模型配置分组" @keydown="onTabKeydown">
+          <!-- 已保存的模型: 数据来自后端数据库 (GET /MiniCode/get_model), 点击一行即切换生效模型 (POST /MiniCode/set_model) -->
+          <div class="model-list" role="listbox" aria-label="已保存的模型">
+            <p v-if="listLoading" class="list-hint">正在从后端加载模型列表…</p>
+            <p v-else-if="!models.length" class="list-hint">后端暂无已保存的模型, 请在下方填写并添加</p>
             <button
-              v-for="(p, i) in profiles"
-              :key="i"
-              ref="tabBtns"
-              class="tab-btn"
-              role="tab"
-              :class="{ active: i === activeIndex }"
-              :aria-selected="i === activeIndex"
-              :title="tabTitle(i)"
-              @click="activeIndex = i"
+              v-for="m in models"
+              :key="m.id"
+              class="model-row"
+              role="option"
+              :class="{ active: m.id === activeModelId }"
+              :aria-selected="m.id === activeModelId"
+              :disabled="selectingId !== null"
+              :title="`${m.model_name} · ${m.base_url}`"
+              @click="selectModel(m)"
             >
-              <span>配置{{ i + 1 }}</span>
-              <span v-if="p.model" class="tab-model">{{ shortModel(p.model) }}</span>
-              <span v-if="i === defaultIndex" class="tab-star" title="默认配置">★</span>
-              <span v-if="i === appliedIndex" class="tab-dot" title="当前已应用"></span>
+              <span class="model-main">
+                <span class="model-name">{{ m.model_name }}</span>
+                <span class="model-url">{{ m.base_url }}</span>
+              </span>
+              <span v-if="m.is_default" class="model-badge default" title="库中标记为默认模型">默认</span>
+              <span v-if="m.id === activeModelId" class="model-badge in-use">
+                {{ selectingId === m.id ? '切换中…' : '使用中' }}
+              </span>
             </button>
           </div>
 
+          <!-- 新增模型表单: 提交到 POST /MiniCode/add_model, 后端落库并立即生效 -->
           <div class="field">
-            <label :for="fieldId('model')">模型名</label>
-            <input :id="fieldId('model')" v-model="currentProfile.model" placeholder="模型名" />
+            <label for="model-name">模型名</label>
+            <input id="model-name" v-model="form.model" placeholder="模型名, 如 qwen3.6-plus" />
           </div>
           <div class="field">
-            <label :for="fieldId('base-url')">Base URL</label>
-            <input :id="fieldId('base-url')" v-model="currentProfile.base_url" placeholder="Base URL" />
+            <label for="model-base-url">Base URL</label>
+            <input id="model-base-url" v-model="form.base_url" placeholder="Base URL" />
           </div>
           <div class="field">
-            <label :for="fieldId('api-key')">API Key</label>
+            <label for="model-api-key">API Key</label>
             <input
-              :id="fieldId('api-key')"
-              v-model="currentProfile.api_key"
+              id="model-api-key"
+              v-model="form.api_key"
               type="password"
               placeholder="API Key"
               autocomplete="off"
@@ -57,31 +64,21 @@
           <div class="btn-row">
             <button
               class="primary-btn"
-              :class="{ applied: isCurrentApplied }"
-              :disabled="applying || isCurrentApplied"
-              :title="isCurrentApplied
-                ? '当前选项卡已是生效配置；修改输入内容后可重新应用'
-                : '将当前选项卡的配置提交到后端'"
-              @click="applyProfile"
+              :disabled="adding || listLoading"
+              title="新增模型到后端数据库 (POST /MiniCode/add_model), 添加后立即生效"
+              @click="addModelFromForm"
             >
-              {{ applying ? '应用中…' : isCurrentApplied ? '✓ 已应用' : '应用此配置' }}
+              {{ adding ? '添加中…' : '添加模型' }}
             </button>
             <button
               class="ghost-btn"
-              title="将当前选项卡设为默认配置，下次启动应用时自动使用"
-              @click="setAsDefault"
+              :disabled="listLoading"
+              title="重新从后端拉取模型列表 (GET /MiniCode/get_model)"
+              @click="reloadModels"
             >
-              设为默认
-            </button>
-            <button
-              class="text-btn"
-              title="仅清空当前选项卡的输入内容，不影响其他配置组"
-              @click="resetCurrentProfile"
-            >
-              清空此组
+              刷新列表
             </button>
           </div>
-          <p v-if="feedback" :class="['feedback', feedbackType]">{{ feedback }}</p>
         </div>
 
         <!-- 生成参数: 对应后端 settingsRequest (temperature/theme/think_level), POST /MiniCode/settings 持久化 -->
@@ -133,19 +130,19 @@
               {{ savingSettings ? '保存中…' : '保存生成参数' }}
             </button>
           </div>
-          <p v-if="settingsFeedback" :class="['feedback', settingsFeedbackType]">{{ settingsFeedback }}</p>
         </div>
       </div>
       <div class="modal-footer">
-        <span class="footer-hint"><kbd>Esc</kbd> 关闭 · <kbd>←</kbd><kbd>→</kbd> 切换配置组</span>
+        <span class="footer-hint"><kbd>Esc</kbd> 关闭 · 点击列表行切换生效模型</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
-import { useChatStore, MODEL_PROFILES_KEY } from '../stores/chat'
+import { ref, computed, reactive, watch, nextTick, onBeforeUnmount } from 'vue'
+import { useChatStore } from '../stores/chat'
+import { useToastStore } from '../stores/toast'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -153,23 +150,13 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const store = useChatStore()
+const toast = useToastStore()
 
 /* ================= 生成参数 (后端 settingsRequest: temperature / theme / think_level) ================= */
 
 const appSettings = computed(() => store.appSettings)
 const levelLabels = { 1: '快速', 2: '均衡', 3: '深度' }
 const savingSettings = ref(false)
-const settingsFeedback = ref('')
-const settingsFeedbackType = ref('success')
-let settingsFeedbackTimer = null
-
-function showSettingsFeedback(message, type = 'success') {
-  settingsFeedback.value = message
-  settingsFeedbackType.value = type
-  clearTimeout(settingsFeedbackTimer)
-  settingsFeedbackTimer = setTimeout(() => (settingsFeedback.value = ''), 2600)
-}
-
 /** 保存生成参数到后端 (POST /MiniCode/settings); 首次打开未加载时先拉一次 */
 async function saveAppSettings() {
   if (savingSettings.value) return
@@ -178,144 +165,100 @@ async function saveAppSettings() {
     await store.saveSettings({
       temperature: Number(appSettings.value.temperature),
       think_level: Number(appSettings.value.think_level),
+      // 必须带上主题: 后端 settingsRequest.settings 是完整的 Settings(temperature/theme/think_level),
+      // 缺字段时 pydantic 会用「当前全局默认主题」补上, 于是保存一次生成参数就把用户
+      // 已持久化的主题偏好(以及后端的 DEFAULT_THEME)覆盖回默认值。
+      theme: !!appSettings.value.theme,
     })
-    showSettingsFeedback('生成参数已保存', 'success')
+    toast.success('生成参数已保存')
   } catch (e) {
     console.error('保存生成参数失败', e)
-    showSettingsFeedback(`保存失败: ${e.message}`, 'error')
+    toast.error(`保存失败: ${e.message}`)
   } finally {
     savingSettings.value = false
   }
 }
 
-/* ================= 5 组模型配置 (选项卡分页) ================= */
+/* ================= 模型配置 (数据源: 后端数据库, GET /MiniCode/get_model) ================= */
 
-const PROFILE_COUNT = 5
-/** 本地持久化键 (定义在 store, 供启动时自动应用默认配置) */
-const STORAGE_KEY = MODEL_PROFILES_KEY
+/** 数据库返回的模型列表 (list[ModelGetRequest]: id/base_url/api_key/model_name/is_default) */
+const models = computed(() => store.models)
+const activeModelId = computed(() => store.activeModelId)
+/** 新增模型表单 (POST /MiniCode/add_model 的 body) */
+const form = reactive({ model: '', base_url: '', api_key: '' })
+/** 正在切换生效模型的 id (防重复点击) */
+const selectingId = ref(null)
+/** 正在新增模型 */
+const adding = ref(false)
+/** 正在拉取模型列表 */
+const listLoading = ref(false)
 
-function emptyProfile() {
-  return { model: '', base_url: '', api_key: '' }
-}
+/* ---------- 列表 / 切换 / 新增 ---------- */
 
-function loadStored() {
+/** 打开或手动刷新时从后端拉取模型列表, 并用当前生效模型回填新增表单 (仅在表单为空时) */
+async function reloadModels() {
+  if (listLoading.value) return
+  listLoading.value = true
   try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-    if (raw && Array.isArray(raw.profiles) && raw.profiles.length === PROFILE_COUNT) {
-      const inRange = (n) => Number.isInteger(n) && n >= 0 && n < PROFILE_COUNT
-      return {
-        profiles: raw.profiles.map((p) => ({
-          model: p?.model || '',
-          base_url: p?.base_url || '',
-          api_key: p?.api_key || '',
-        })),
-        activeIndex: inRange(raw.activeIndex) ? raw.activeIndex : 0,
-        appliedIndex: raw.appliedIndex === -1 || inRange(raw.appliedIndex) ? raw.appliedIndex : -1,
-        appliedSnapshots:
-          Array.isArray(raw.appliedSnapshots) && raw.appliedSnapshots.length === PROFILE_COUNT
-            ? raw.appliedSnapshots.map((s) => (typeof s === 'string' ? s : ''))
-            : Array(PROFILE_COUNT).fill(''),
-        defaultIndex: raw.defaultIndex === -1 || inRange(raw.defaultIndex) ? raw.defaultIndex : -1,
-      }
-    }
-  } catch {
-    /* 存储损坏时按无存储处理 */
-  }
-  return null
-}
-
-const stored = loadStored()
-const profiles = ref(stored?.profiles ?? Array.from({ length: PROFILE_COUNT }, emptyProfile))
-const activeIndex = ref(stored?.activeIndex ?? 0)
-const appliedIndex = ref(stored?.appliedIndex ?? -1)
-/** 各组「应用时」的数据快照: 与当前输入一致 = 该组已是生效配置 (应用按钮据此置灰) */
-const appliedSnapshots = ref(stored?.appliedSnapshots ?? Array(PROFILE_COUNT).fill(''))
-/** 应用请求进行中 (防重复提交) */
-const applying = ref(false)
-/** 用户设定的默认配置组: 应用启动时自动应用 (-1 = 未设置) */
-const defaultIndex = ref(stored?.defaultIndex ?? -1)
-/** 首次打开时用后端当前配置填充空「配置1」的一次性迁移标记 */
-const seededFromStore = ref(false)
-/** 操作反馈文案与语义类型 (success / error) */
-const feedback = ref('')
-const feedbackType = ref('success')
-let feedbackTimer = null
-const tabBtns = ref([])
-
-/** 当前高亮 Tab 绑定的配置对象 (输入框直接 v-model 到该对象的字段) */
-const currentProfile = computed(() => profiles.value[activeIndex.value])
-
-/** 序列化一组配置, 用于「应用时快照 vs 当前输入」比较 */
-function snapshotOf(p) {
-  return JSON.stringify([p.model, p.base_url, p.api_key])
-}
-
-/** 当前 Tab 已应用且输入未被改动 → 「应用此配置」按钮置灰禁用; 一旦改动输入即恢复可点 */
-const isCurrentApplied = computed(
-  () =>
-    appliedIndex.value === activeIndex.value &&
-    appliedSnapshots.value[activeIndex.value] === snapshotOf(currentProfile.value)
-)
-
-function persist() {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        profiles: profiles.value.map((p) => ({ ...p })),
-        activeIndex: activeIndex.value,
-        appliedIndex: appliedIndex.value,
-        appliedSnapshots: [...appliedSnapshots.value],
-        defaultIndex: defaultIndex.value,
-      })
-    )
+    await store.refreshModels()
+    seedForm()
   } catch (e) {
-    console.error('保存模型配置分组失败', e)
+    console.error('加载模型列表失败', e)
+    toast.error(`加载模型列表失败: ${e.message}`)
+  } finally {
+    listLoading.value = false
   }
 }
 
-/* 任何编辑(含输入)/切 Tab/应用状态变化 → 自动持久化 */
-watch([profiles, activeIndex, appliedIndex, defaultIndex, appliedSnapshots], persist, { deep: true })
-
-/* ---------- Tab 交互 ---------- */
-
-function shortModel(m) {
-  return m.length > 10 ? m.slice(0, 9) + '…' : m
+function seedForm() {
+  const filled = form.model || form.base_url || form.api_key
+  if (filled) return
+  const cur =
+    models.value.find((m) => m.id === activeModelId.value) ||
+    models.value.find((m) => m.is_default) ||
+    models.value[0]
+  if (cur) {
+    Object.assign(form, { model: cur.model_name, base_url: cur.base_url, api_key: cur.api_key })
+  }
 }
 
-function tabTitle(i) {
-  const p = profiles.value[i]
-  const filled = p.model ? ` · ${p.model}` : ''
-  const isDefault = i === defaultIndex.value ? ' · 默认' : ''
-  const applied = i === appliedIndex.value ? ' · 已应用' : ''
-  return `配置${i + 1}${filled}${isDefault}${applied}`
+/** 点击列表行: POST /MiniCode/set_model?id=xxx, 把该模型设为运行时生效模型 */
+async function selectModel(m) {
+  if (selectingId.value) return
+  selectingId.value = m.id
+  try {
+    await store.activateModel(m.id)
+    toast.success(`已切换至「${m.model_name}」`)
+  } catch (e) {
+    console.error('切换模型失败', e)
+    toast.error(`切换失败: ${e.message}`)
+  } finally {
+    selectingId.value = null
+  }
 }
 
-/** Tab 内 ←/→ 循环切换, 焦点跟随 */
-function onTabKeydown(e) {
-  if (e.key === 'ArrowRight') {
-    activeIndex.value = (activeIndex.value + 1) % PROFILE_COUNT
-  } else if (e.key === 'ArrowLeft') {
-    activeIndex.value = (activeIndex.value + PROFILE_COUNT - 1) % PROFILE_COUNT
-  } else {
+/** 新增模型: POST /MiniCode/add_model, 后端落库并立即生效 */
+async function addModelFromForm() {
+  if (adding.value) return
+  if (!form.model || !form.base_url || !form.api_key) {
+    toast.error('请完整填写模型名 / Base URL / API Key')
     return
   }
-  e.preventDefault()
-  nextTick(() => tabBtns.value?.[activeIndex.value]?.focus())
-}
-
-function fieldId(name) {
-  return `setting-${name}-${activeIndex.value}`
+  adding.value = true
+  try {
+    const created = await store.addNewModel({ ...form })
+    toast.success(
+      created ? `已添加并启用「${created.model_name}」` : '该配置已存在于数据库, 已直接启用'
+    )
+  } catch (e) {
+    console.error('添加模型失败', e)
+    toast.error(`添加失败: ${e.message}`)
+  } finally {
+    adding.value = false
+  }
 }
 
 /* ---------- 打开/关闭 ---------- */
-
-function showFeedback(message, type = 'success') {
-  feedback.value = message
-  feedbackType.value = type
-  clearTimeout(feedbackTimer)
-  feedbackTimer = setTimeout(() => (feedback.value = ''), 2600)
-}
 
 watch(
   () => props.visible,
@@ -324,27 +267,13 @@ watch(
       window.removeEventListener('keydown', handleKeydown)
       return
     }
-    // 首次打开且本地无存储: 把后端当前生效的配置迁入「配置1」, 避免用户以为丢了配置
-    if (!seededFromStore.value) {
-      seededFromStore.value = true
-      const cur = store.modelConfig || {}
-      const firstEmpty =
-        !profiles.value[0].model && !profiles.value[0].base_url && !profiles.value[0].api_key
-      if (!stored && firstEmpty && (cur.model || cur.base_url || cur.api_key)) {
-        Object.assign(profiles.value[0], {
-          model: cur.model || '',
-          base_url: cur.base_url || '',
-          api_key: cur.api_key || '',
-        })
-        // 迁入的即是后端当前生效配置 → 直接标记为已应用 (按钮呈「✓ 已应用」禁用态)
-        appliedSnapshots.value[0] = snapshotOf(profiles.value[0])
-        appliedIndex.value = 0
-      }
-    }
-    feedback.value = ''
-    await nextTick()
-    tabBtns.value?.[activeIndex.value]?.focus()
+    // 立即注册快捷键监听: 打开瞬间(列表还在路上)Esc 也必须能关闭
     window.addEventListener('keydown', handleKeydown)
+    // 每次打开都从后端拉最新模型列表 (界面数据以数据库为准), 拉取失败由 reloadModels 内部提示
+    // 必须 await: 否则 nextTick 时列表还空着, 下面的 focus 永远找不到行, 弹窗打开后无初始焦点
+    await reloadModels()
+    await nextTick()
+    document.querySelector('.model-row.active, .model-row')?.focus()
   }
 )
 
@@ -369,6 +298,19 @@ function handleKeydown(e) {
       e.preventDefault()
       first.focus()
     }
+    return
+  }
+  // 模型列表上下键移动焦点 (role=listbox 的基本可访问性要求)
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const active = document.activeElement
+    if (!active || !active.classList?.contains('model-row')) return
+    e.preventDefault()
+    const rows = Array.from(document.querySelectorAll('.model-row')).filter(
+      (el) => !el.disabled && el.offsetParent !== null
+    )
+    const idx = rows.indexOf(active)
+    const next = rows[idx + (e.key === 'ArrowDown' ? 1 : -1)]
+    if (next) next.focus()
   }
 }
 
@@ -377,47 +319,6 @@ function close() {
 }
 
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
-
-/* ---------- 按钮行为 ---------- */
-
-/** 应用: 以当前高亮 Tab 的数据提交后端 (POST /MiniCode/model), 并标记该 Tab 为已应用 */
-async function applyProfile() {
-  if (applying.value || isCurrentApplied.value) return
-  const p = currentProfile.value
-  applying.value = true
-  try {
-    await store.switchModel({
-      model: p.model,
-      base_url: p.base_url,
-      api_key: p.api_key,
-    })
-    appliedSnapshots.value[activeIndex.value] = snapshotOf(p)
-    appliedIndex.value = activeIndex.value
-    showFeedback(`已应用「配置${activeIndex.value + 1}」的模型配置`, 'success')
-  } catch (e) {
-    console.error('应用模型配置失败', e)
-    showFeedback(`应用失败: ${e.message}`, 'error')
-  } finally {
-    applying.value = false
-  }
-}
-
-/** 恢复默认: 仅重置当前 Tab 的输入框, 不影响其他 4 组配置, 也不请求后端 */
-function resetCurrentProfile() {
-  Object.assign(currentProfile.value, emptyProfile())
-  showFeedback(`已重置「配置${activeIndex.value + 1}」（其他配置组不受影响）`, 'success')
-}
-
-/** 设为默认: 将当前 Tab 标记为默认配置, 应用启动时自动应用到后端 (最终用户无需重选模型) */
-function setAsDefault() {
-  const p = currentProfile.value
-  if (!p.model && !p.base_url && !p.api_key) {
-    showFeedback(`「配置${activeIndex.value + 1}」为空，请先填写模型信息`, 'error')
-    return
-  }
-  defaultIndex.value = activeIndex.value
-  showFeedback(`已将「配置${activeIndex.value + 1}」设为默认，下次启动自动应用`, 'success')
-}
 </script>
 
 <style scoped>
@@ -506,83 +407,98 @@ function setAsDefault() {
   color: var(--text-tertiary);
 }
 
-/* ---------- 5 组配置选项卡 (分段式控件, 未选中柔灰底 / 选中白底+主色) ---------- */
-.tab-bar {
+/* ---------- 模型列表 (数据来自后端数据库, 点击切换) ---------- */
+.model-list {
   display: flex;
-  gap: 2px;
-  padding: 3px;
-  margin-bottom: var(--space-4);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--space-3);
+  max-height: 190px;
+  overflow-y: auto;
 }
 
-.tab-btn {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 5px 4px;
+.list-hint {
+  margin: 0;
+  padding: 8px 10px;
   font-size: 12px;
-  color: var(--text-secondary);
-  background: transparent;
-  border: none;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
   border-radius: var(--radius-xs);
-  user-select: none;
 }
 
-.tab-btn:hover:not(:disabled) {
-  color: var(--text-primary);
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+}
+
+.model-row:hover:not(:disabled) {
+  color: inherit;
   background: var(--bg-hover);
   background-image: none;
   box-shadow: none;
   transform: none;
+  border-color: var(--accent-border);
 }
 
-.tab-btn.active {
-  color: var(--accent);
-  background: var(--bg-primary);
-  font-weight: 600;
-  box-shadow: var(--shadow-xs);
+.model-row.active {
+  background: var(--accent-light);
+  border-color: var(--accent-border);
 }
 
-.tab-btn:focus-visible {
+.model-row:focus-visible {
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-/* Tab 内的模型名缩写 (帮助区分 5 个分组) */
-.tab-model {
-  max-width: 64px;
+.model-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.model-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10.5px;
-  font-weight: 400;
+}
+
+.model-url {
+  font-size: 11px;
   color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.tab-btn.active .tab-model {
-  color: var(--accent);
-  opacity: 0.75;
-}
-
-/* 已应用标记: 绿点 */
-.tab-dot {
+.model-badge {
   flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--success);
+  padding: 2px 6px;
+  font-size: 10px;
+  line-height: 1.4;
+  border-radius: 999px;
 }
 
-/* 默认配置标记: 金色星标 */
-.tab-star {
-  font-size: 10px;
-  line-height: 1;
+/* 库中标记的默认模型 (is_default=1) */
+.model-badge.default {
   color: var(--warning);
+  background: var(--bg-tertiary);
+}
+
+/* 当前运行时生效模型 */
+.model-badge.in-use {
+  color: var(--success);
+  background: var(--success-light);
 }
 
 /* ---------- 表单 ---------- */
@@ -667,18 +583,11 @@ function setAsDefault() {
   background: var(--accent-active);
 }
 
-/* 禁用态: 提交中 / 当前 Tab 已是生效配置, 挡掉重复点击 */
+/* 禁用态: 提交中 / 正在拉取列表, 挡掉重复点击 */
 .primary-btn:disabled {
   cursor: not-allowed;
   background: var(--bg-tertiary);
   color: var(--text-tertiary);
-}
-
-/* 「已应用」禁用态: 成功色软底 + 对勾, 比纯灰更能传达「已生效, 无需再点」 */
-.primary-btn.applied {
-  cursor: default;
-  background: var(--success-light);
-  color: var(--success);
 }
 
 .ghost-btn {
@@ -690,42 +599,6 @@ function setAsDefault() {
 
 .ghost-btn:hover:not(:disabled) {
   background: var(--accent-light);
-}
-
-/* 文字按钮: 低频操作 (后端默认) 降噪处理 */
-.text-btn {
-  padding: 7px 8px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  background: transparent;
-  border: none;
-}
-
-.text-btn:hover:not(:disabled) {
-  color: var(--accent);
-  background: transparent;
-  background-image: none;
-  box-shadow: none;
-  transform: none;
-}
-
-/* 操作反馈: 成功 / 错误 */
-.feedback {
-  margin: var(--space-3) 0 0;
-  padding: 6px 10px;
-  font-size: 12.5px;
-  border-radius: var(--radius-xs);
-  animation: fadeUp 0.2s var(--ease-out) both;
-}
-
-.feedback.success {
-  color: var(--success);
-  background: var(--success-light);
-}
-
-.feedback.error {
-  color: var(--error);
-  background: var(--error-light);
 }
 
 .modal-footer {

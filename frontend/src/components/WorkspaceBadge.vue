@@ -3,8 +3,8 @@
   <div class="workspace-badge" :class="{ empty: !path, 'pulse-in': animate }">
     <button
       class="badge-body"
-      :title="path ? `会话工作目录: ${path}（点击更换）` : '为当前会话选择工作目录'"
-      :disabled="busy"
+      :title="bodyTitle"
+      :disabled="busy || !!path"
       @click="onPick"
     >
       <svg
@@ -24,26 +24,28 @@
       <span class="badge-text">{{ path ? shortPath : '未绑定目录' }}</span>
       <span v-if="path" class="badge-pulse" aria-hidden="true"></span>
     </button>
-    <button
-      v-if="path"
-      class="badge-clear"
-      title="解绑当前会话的工作目录"
-      aria-label="解绑当前会话的工作目录"
-      @click.stop="onClear"
-    >×</button>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useChatStore } from '../stores/chat'
+import { useToastStore } from '../stores/toast'
 import { useWorkspacePicker } from '../composables/useWorkspacePicker'
 
 const store = useChatStore()
+const toast = useToastStore()
 const { pickDirectory } = useWorkspacePicker()
 const busy = ref(false)
 
 const path = computed(() => store.currentWorkspacePath)
+
+/** 已绑定 → 只读展示: 后端不允许修改已选定的工作目录, 因此不再提供"更换/解绑"入口 */
+const bodyTitle = computed(() =>
+  path.value
+    ? `会话工作目录: ${path.value}（已绑定，后端不支持更改；如需更换请新建会话）`
+    : '为当前会话选择工作目录'
+)
 
 /** 长路径只显示末段 + 省略号，完整路径放 title 悬浮提示 */
 const shortPath = computed(() => {
@@ -53,27 +55,20 @@ const shortPath = computed(() => {
   return name.length > 18 ? name.slice(0, 17) + '…' : name
 })
 
-/** 点击徽章 = 重新选择目录（仅作用于当前会话） */
+/** 点击徽章 = 为该会话绑定目录（仅未绑定时可用，只作用于当前会话） */
 async function onPick() {
-  if (busy.value) return
+  if (busy.value || path.value) return
   busy.value = true
   try {
     const dir = await pickDirectory()
     if (!dir) return // 用户取消
     await store.setSessionWorkspace(store.currentSessionId, dir)
   } catch (e) {
+    // 失败必须让用户看见(原来只打 console, 点一下没反应像是坏了)
+    toast.error(e?.message || '设置工作目录失败', 4200)
     console.error('设置工作目录失败', e)
   } finally {
     busy.value = false
-  }
-}
-
-/** 解绑当前会话目录 */
-async function onClear() {
-  try {
-    await store.clearSessionWorkspace(store.currentSessionId)
-  } catch (e) {
-    console.error('解绑工作目录失败', e)
   }
 }
 
@@ -133,6 +128,12 @@ watch(
   transform: none;
 }
 
+/* 已绑定时是只读指示器(后端不允许改), 不能给"可点击"的光标暗示 */
+.badge-body:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
 .badge-icon {
   flex: none;
   opacity: 0.85;
@@ -167,27 +168,6 @@ watch(
     opacity: 0;
     box-shadow: 0 0 0 8px transparent;
   }
-}
-
-.badge-clear {
-  width: 15px;
-  height: 15px;
-  margin-left: -6px;
-  padding: 0;
-  font-size: 11px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  background: var(--border-color);
-  border-radius: 50%;
-  z-index: 1;
-}
-
-.badge-clear:hover:not(:disabled) {
-  color: #fff;
-  background: var(--error);
 }
 
 .workspace-badge.empty .badge-body {

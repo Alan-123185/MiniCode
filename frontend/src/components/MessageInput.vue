@@ -1,9 +1,5 @@
 <template>
   <div class="input-wrap">
-    <!-- 空会话轻提示: 点击"新建对话"但当前会话尚无消息时出现, 2s 后自动消失 -->
-    <transition name="toast-fade">
-      <div v-if="store.emptySessionToast" class="empty-toast">当前对话尚未开始</div>
-    </transition>
     <div class="input-box">
       <textarea
         ref="ta"
@@ -61,10 +57,7 @@
     </div>
     <!-- 底部操作区: 左侧为会话级工作目录选择按钮, 右侧为快捷键提示 -->
     <div class="input-footer">
-      <WorkspacePicker :path="store.currentWorkspacePath" @error="showError" />
-      <transition name="fade">
-        <span v-if="errorMsg" class="footer-error">{{ errorMsg }}</span>
-      </transition>
+      <WorkspacePicker :path="store.currentWorkspacePath" @error="onError" />
       <span class="hint"><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span>
     </div>
   </div>
@@ -73,18 +66,17 @@
 <script setup>
 import { ref, computed, nextTick, watch } from 'vue'
 import { useChatStore } from '../stores/chat'
+import { useToastStore } from '../stores/toast'
 import WorkspacePicker from './WorkspacePicker.vue'
 
 const store = useChatStore()
+const toast = useToastStore()
 const text = ref('')
 const ta = ref(null)
-const errorMsg = ref('')
 
-let errorTimer = null
-function showError(message) {
-  errorMsg.value = message
-  clearTimeout(errorTimer)
-  errorTimer = setTimeout(() => (errorMsg.value = ''), 3200)
+/** 操作失败统一走全局 toast, 错误时长拉长便于阅读 */
+function onError(message) {
+  toast.error(message, 4200)
 }
 
 const canSend = computed(() => text.value.trim() && !store.isStreaming)
@@ -98,7 +90,7 @@ async function stopGeneration() {
   try {
     await store.stopGeneration()
   } catch (e) {
-    showError(`停止失败: ${e.message}`)
+    onError(`停止失败: ${e.message}`)
   } finally {
     stopping.value = false
   }
@@ -136,37 +128,6 @@ async function submit() {
   padding: var(--space-3) var(--space-5);
   background: var(--bg-primary);
   border: none;
-}
-
-/* 空会话轻提示 Toast: 悬浮于输入框上方, 深色半透明胶囊 */
-.empty-toast {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 10px);
-  transform: translateX(-50%);
-  padding: 7px 16px;
-  border-radius: var(--radius-pill);
-  background: rgba(28, 30, 34, 0.82);
-  color: #fff;
-  font-size: 13px;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  box-shadow: var(--shadow-md);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  pointer-events: none;
-  z-index: 20;
-}
-
-.toast-fade-enter-active,
-.toast-fade-leave-active {
-  transition: opacity var(--dur-slow) ease, transform var(--dur-slow) var(--ease-out);
-}
-
-.toast-fade-enter-from,
-.toast-fade-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(6px);
 }
 
 .input-box {
@@ -256,18 +217,6 @@ async function submit() {
   align-items: center;
   gap: var(--space-3);
   min-height: 26px;
-}
-
-.footer-error {
-  font-size: 12px;
-  color: var(--error);
-  animation: shake 0.35s var(--ease-out);
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-3px); }
-  75% { transform: translateX(3px); }
 }
 
 .fade-enter-active, .fade-leave-active { transition: opacity var(--dur-base) ease; }

@@ -114,6 +114,9 @@
     </footer>
 
     <SettingsModal :visible="showSettings" @close="showSettings = false" />
+
+    <!-- 全局提示宿主: 所有组件的操作反馈统一由 ToastHost 渲染 -->
+    <ToastHost />
   </div>
 </template>
 
@@ -123,6 +126,7 @@ import ChatWindow from './components/ChatWindow.vue'
 import SessionList from './components/SessionList.vue'
 import SettingsModal from './components/SettingsModal.vue'
 import WorkspaceBadge from './components/WorkspaceBadge.vue'
+import ToastHost from './components/ToastHost.vue'
 import { useChatStore } from './stores/chat'
 import { getBase } from './api'
 

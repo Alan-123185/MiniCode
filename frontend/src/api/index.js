@@ -2,25 +2,35 @@ import { fetchEventSource } from '@microsoft/fetch-event-source'
 
 const DEFAULT_BASE = 'http://127.0.0.1:8000'
 
-function getBaseUrl() {
-  if (window.electronAPI?.getApiBaseUrl) {
-    return window.electronAPI.getApiBaseUrl()
-  }
+/** 非桌面端可用的基地址: 开发态走 Vite 代理 (/api → 127.0.0.1:8000), 其余直连后端 */
+function getFallbackBase() {
   return import.meta.env.DEV ? '/api' : DEFAULT_BASE
 }
 
 let baseUrlPromise = null
 
 /** 获取 API 基地址: Electron IPC > 开发代理 > 生产默认值。
- *  供 api 层内部与状态栏展示复用。 */
+ *  供 api 层内部与状态栏展示复用。
+ *  注意: IPC 失败(主进程未注册 handler / 预加载脚本未生效)时必须回退默认地址 ——
+ *  旧实现把失败的 Promise 永久缓存, 会让整个应用再也拿不到 base, 所有接口全挂;
+ *  这里失败即丢弃缓存, 后续调用可以重新尝试。 */
 export async function getBase() {
-  if (window.electronAPI?.getApiBaseUrl) {
-    if (!baseUrlPromise) {
-      baseUrlPromise = window.electronAPI.getApiBaseUrl()
-    }
-    return baseUrlPromise
+  const ipc = window.electronAPI?.getApiBaseUrl
+  if (!ipc) return getFallbackBase()
+
+  if (!baseUrlPromise) {
+    baseUrlPromise = Promise.resolve()
+      .then(() => ipc())
+      .then((base) =>
+        typeof base === 'string' && base.trim() ? base.trim().replace(/\/+$/, '') : getFallbackBase()
+      )
+      .catch((e) => {
+        console.warn('获取桌面端 API 地址失败, 已回退到默认地址', e)
+        baseUrlPromise = null // 不缓存失败结果, 下次调用可以重试
+        return getFallbackBase()
+      })
   }
-  return getBaseUrl()
+  return baseUrlPromise
 }
 
 async function request(path, options = {}) {
@@ -30,7 +40,13 @@ async function request(path, options = {}) {
     'Content-Type': 'application/json',
     ...options.headers,
   }
-  const response = await fetch(url, { ...options, headers })
+  let response
+  try {
+    response = await fetch(url, { ...options, headers })
+  } catch (e) {
+    // fetch 只在网络层失败时 reject (后端没启动 / 连接被中断), 给出可读的提示
+    throw new Error(`无法连接后端 ${base}（${e?.message || e}）`)
+  }
   const data = await response.json().catch(() => ({}))
   if (!response.ok || data.code !== 200) {
     throw new Error(data.error || data.message || `请求失败: ${response.status}`)
@@ -51,6 +67,11 @@ async function request(path, options = {}) {
  *  - 正常关闭 → finish(), 队列排空后 generator 正常 return
  *  - 出错 → finish(err) 并在 onerror 中抛出, 让 fetch-event-source 停止
  *    默认的每秒无限重试; 消费者排空队列后抛出该错误
+ *
+ * openWhenHidden 必须显式开启: fetch-event-source 默认会在页面隐藏(切标签/最小化)时
+ * abort 请求 —— 而它 abort 后既不会回调 onclose 也不会回调 onerror, 本 generator 会
+ * 永久停在等待上(界面卡在"生成中", 直到刷新页面), 重新可见时还会重新 POST 一次
+ * 造成重复生成。开启后连接在后台保持, 与"生成不应被切标签打断"的预期一致。
  */
 export async function* stream(endpoint, body) {
   const base = await getBase()
@@ -81,6 +102,7 @@ export async function* stream(endpoint, body) {
 
   fetchEventSource(url, {
     method: 'POST',
+    openWhenHidden: true,
     headers: { 'Content-Type': 'application/json' },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     async onopen(response) {
@@ -164,17 +186,28 @@ export function deleteChat(sessionId) {
   return request(`/MiniCode/deleteChat?session_id=${encodeURIComponent(sessionId)}`, { method: 'POST' })
 }
 
-export function chooseModel(body) {
-  // 后端 ModelChooseRequest 字段为 model_name (requestcommon/ModelRequest.py), 前端内部叫 model;
-  // 注意: mapper/modelMapper.add_model 只有 is_default=True 才会落库, 启动恢复依赖它, 因此默认补 true
+/**
+ * 新增模型配置 (POST /MiniCode/add_model, routers/modelRouter.py)。
+ * body 对应后端 ModelSetRequest: { base_url, api_key, model_name, is_default }。
+ * 注意:
+ *  - mapper/modelMapper.add_model 里 is_default=False 不会落库, 因此固定补 true;
+ *  - 后端 add_model 会同时把该配置设为运行时生效模型 (service/modelService.py);
+ *  - 返回值不含新纪录的 id, 需要 id 时再调 listModels() 按字段匹配。
+ */
+export function addModel(body) {
   const { model, is_default = true, ...rest } = body || {}
-  return request('/MiniCode/model', {
+  return request('/MiniCode/add_model', {
     method: 'POST',
     body: JSON.stringify({ ...rest, model_name: model, is_default }),
   })
 }
 
-/** 已保存的模型列表 (GET /MiniCode/get_model, routers/modelRouter.py) */
+/** 按库中 id 切换当前生效模型 (POST /MiniCode/set_model?id=xxx, id 是 query 参数, response 为 ModelSetRequest) */
+export function setModel(id) {
+  return request(`/MiniCode/set_model?id=${encodeURIComponent(id)}`, { method: 'POST' })
+}
+
+/** 已保存的模型列表 (GET /MiniCode/get_model): response 为 list[ModelGetRequest], 含 id/base_url/api_key/model_name/is_default */
 export function listModels() {
   return request('/MiniCode/get_model')
 }

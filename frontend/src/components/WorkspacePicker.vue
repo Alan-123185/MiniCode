@@ -1,10 +1,10 @@
 <template>
-  <!-- 底部"选择工作目录"按钮: 仅作用于当前会话 -->
+  <!-- 底部"选择工作目录"按钮: 仅作用于当前会话; 已绑定时只读 -->
   <button
     class="workspace-picker"
-    :class="{ active: !!path }"
-    :title="path ? `更换当前会话的工作目录（当前: ${path}）` : '为当前会话选择工作目录'"
-    :disabled="busy"
+    :class="{ active: !!path, bound: !!path }"
+    :title="buttonTitle"
+    :disabled="busy || !!path"
     @click="onPick"
   >
     <svg
@@ -42,12 +42,19 @@ const busy = ref(false)
 
 const label = computed(() => {
   if (busy.value) return '选择中…'
-  if (props.path) return '更换目录'
+  if (props.path) return '已绑定目录'
   return '选择工作目录'
 })
 
+/** 后端契约(choose_workplace): 工作目录一旦绑定就不能再改, 因此已绑定时按钮置灰并说明原因 */
+const buttonTitle = computed(() =>
+  props.path
+    ? `当前会话工作目录: ${props.path}（已绑定，后端不支持更改；如需更换请新建会话）`
+    : '为当前会话选择工作目录'
+)
+
 async function onPick() {
-  if (busy.value) return
+  if (busy.value || props.path) return
   busy.value = true
   try {
     const dir = await pickDirectory()
@@ -95,6 +102,12 @@ defineExpose({ isElectron })
   opacity: 0.6;
   cursor: progress;
   transform: none;
+}
+
+/* 已绑定: 只读态, 不是"正在加载" */
+.workspace-picker.bound:disabled {
+  opacity: 1;
+  cursor: default;
 }
 
 .picker-icon {

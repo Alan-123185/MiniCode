@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, computed, reactive } from 'vue'
+import { useToastStore } from './toast'
+import { ref, computed, reactive, watch } from 'vue'
 import {
   chatStream,
   approveStream,
@@ -10,7 +11,8 @@ import {
   listSessions,
   getHistory,
   deleteChat,
-  chooseModel,
+  addModel,
+  setModel,
   listModels,
   saveSettings as saveSettingsApi,
   getSettings,
@@ -49,8 +51,10 @@ function normalizeSession(row, workspaceCache = {}) {
 /** 会话级工作目录的本地缓存（仅前端持久化，后端字段缺失时兜底） */
 const SESSION_WORKSPACE_KEY = 'minicodex_session_workspaces'
 
-/** 5 组模型配置的本地持久化键（SettingsModal 与启动默认模型共用） */
-export const MODEL_PROFILES_KEY = 'minicodex_model_profiles'
+/** 旧版「5 组模型配置」的本地存储键 (已废弃, 仅用于启动时一次性迁移到后端数据库) */
+const LEGACY_MODEL_PROFILES_KEY = 'minicodex_model_profiles'
+/** 当前生效模型在后端库中的 id (本地只记 id, 配置本体一律以后端数据库为准) */
+const ACTIVE_MODEL_ID_KEY = 'minicodex_active_model_id'
 
 function loadWorkspaceCache() {
   try {
@@ -81,6 +85,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const userId = ref(getUserId())
+  const toast = useToastStore()
   const currentSessionId = ref(null)
   const sessions = ref([])
   /** 每会话消息缓存: 切换会话不丢内容, 后台流式输出始终写入其所属会话 */
@@ -94,12 +99,21 @@ export const useChatStore = defineStore('chat', () => {
   /** 当前正在流式输出的会话 id (供会话列表在对应会话项旁显示"生成中"三点动画) */
   const streamingSessionId = ref(null)
   const pendingApproval = ref(null)
+  /** 当前正在做什么的一句话状态 (如"正在调用 file_edit 工具…"), 仅作轻提示, 不进消息正文 */
+  const currentStatus = ref('')
+  // 流开始/结束都清空进度提示: 开始避免上一轮残留, 结束避免停在工具状态(无最终答案)时残留
+  watch(isStreaming, () => {
+    currentStatus.value = ''
+  })
+  /** 当前生效模型的运行时副本 (model_name/base_url/api_key, 由后端 get_model/set_model 数据回填) */
   const modelConfig = ref({ base_url: '', api_key: '', model: '', extra_params: {} })
+  /** 后端模型列表 (GET /MiniCode/get_model → list[ModelGetRequest], 数据源是数据库而非本地存储) */
+  const models = ref([])
+  /** 当前生效模型在库中的 id: 持久化到本地, 供重启后按 id 调 set_model 恢复后端运行时配置 */
+  const activeModelId = ref(Number(localStorage.getItem(ACTIVE_MODEL_ID_KEY)) || null)
   const workspaceCache = loadWorkspaceCache()
-  /* 「新建对话」空会话拦截状态: 聚焦输入框信号 + 轻提示显隐 */
+  /* 「新建对话」空会话拦截状态: 聚焦输入框信号 (轻提示已统一走 toast store) */
   const inputFocusSignal = ref(0)
-  const emptySessionToast = ref(false)
-  let emptyToastTimer = null
   /** 会话搜索聚焦信号: 全局快捷键 Ctrl+K → SessionList 搜索框 (跨组件通信) */
   const searchFocusSignal = ref(0)
   /** 后端连通性 (最近一次会话列表请求结果), 供状态栏指示灯使用 */
@@ -123,6 +137,17 @@ export const useChatStore = defineStore('chat', () => {
       messageCache.set(sessionId, list)
     }
     return list
+  }
+
+  /**
+   * 该会话在前端是否已经有内容 (含正在流式输出的)。
+   * 不能用 messageCache.has() 代替: 渲染时 messages 计算属性就会调用 getMessagesOf
+   * 顺手建出一个空数组, 于是"缓存已存在"并不代表"已经有内容"。
+   */
+  function hasLocalContent(sessionId) {
+    if (streamingSessions.has(sessionId)) return true
+    const list = messageCache.get(sessionId)
+    return !!list && list.length > 0
   }
 
   /**
@@ -198,29 +223,59 @@ export const useChatStore = defineStore('chat', () => {
     // refreshSessions 自己只在 currentSessionId 仍为空时才自动选最近会话。
     await refreshSessions()
     const sessionId = currentSessionId.value
-    // 消息缓存已存在 → 该会话已被用户使用过(或正在流式输出), 不要用历史覆盖
-    if (sessionId && !messageCache.has(sessionId)) {
+    // 必须用 hasLocalContent 而不是 messageCache.has(sessionId):
+    // 渲染会在 refreshSessions 选中会话后立刻调 getMessagesOf 建好空缓存, 而 init 的
+    // 续行是在渲染之后才执行, 于是旧的判断永远为真 → 打开应用时历史永远不加载,
+    // 明明有历史的会话也只显示"开始一个新的对话吧"。
+    if (sessionId && !hasLocalContent(sessionId)) {
       await loadHistory(sessionId)
     }
-    // 启动时把用户在设置里「设为默认」的模型配置应用到后端 (未设置/为空则跳过, 不阻塞首屏)
-    applyStartupDefaultModel()
+    // 启动时从后端数据库恢复当前生效模型 (后端运行时配置重启即失, 必须重新激活; 失败不阻塞首屏)
+    restoreActiveModel()
     // 从后端加载生成参数 (温度/主题/思考等级), 失败时静默保持默认
     loadSettings()
     // 检测后端 Git 环境 (结果仅影响状态栏指示灯, 不阻塞启动)
     checkGitStatus()
   }
 
-  /** 读取「设为默认」的模型配置并提交后端, 让最终用户重启后无需重新选模型 */
-  async function applyStartupDefaultModel() {
+  /**
+   * 启动时从后端数据库恢复当前生效模型。
+   * 优先级: 上次选中的 id (本地缓存) → 库中标记 is_default 的模型 → 列表第一条。
+   * 后端 model_config 是纯运行时配置, 重启即失, 因此必须在启动时重新 set_model 激活。
+   */
+  async function restoreActiveModel() {
     try {
-      const raw = JSON.parse(localStorage.getItem(MODEL_PROFILES_KEY) || 'null')
-      const idx = raw?.defaultIndex
-      if (!Number.isInteger(idx) || idx < 0 || idx >= (raw?.profiles?.length || 0)) return
-      const p = raw.profiles[idx]
-      if (!p || (!p.model && !p.base_url && !p.api_key)) return
-      await switchModel({ model: p.model, base_url: p.base_url, api_key: p.api_key })
+      await refreshModels()
+      if (!models.value.length) {
+        await migrateLegacyDefaultProfile()
+        return
+      }
+      const pick =
+        models.value.find((m) => m.id === activeModelId.value) ||
+        models.value.find((m) => m.is_default) ||
+        models.value[0]
+      if (pick) await activateModel(pick.id)
     } catch (e) {
-      console.error('启动应用默认模型失败', e)
+      console.error('启动恢复模型失败', e)
+    }
+  }
+
+  /** 一次性迁移: 旧版「5 组本地配置」已废弃, 库为空时把其中「设为默认」的那组写入后端数据库 */
+  async function migrateLegacyDefaultProfile() {
+    let raw = null
+    try {
+      raw = JSON.parse(localStorage.getItem(LEGACY_MODEL_PROFILES_KEY) || 'null')
+    } catch {
+      return
+    }
+    localStorage.removeItem(LEGACY_MODEL_PROFILES_KEY)
+    const idx = raw?.defaultIndex
+    const p = raw?.profiles?.[idx]
+    if (!Number.isInteger(idx) || !p || (!p.model && !p.base_url && !p.api_key)) return
+    try {
+      await addNewModel({ model: p.model, base_url: p.base_url, api_key: p.api_key })
+    } catch (e) {
+      console.error('迁移本地默认模型到后端失败', e)
     }
   }
 
@@ -232,19 +287,166 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * 把后端工具状态事件 (str(toolstatusEvent), 形如
+   * `status=1 tool_name='file_edit' args={...} result=... user_prompt=... session_id=...`)
+   * 解析成一句简短的「当前在干嘛」提示。解析不出工具名时退化为原文。
+   * status: -1 失败 / 0 成功 / 1 尝试调用 / 2 用户拒绝 (对应后端 config/data.py)
+   */
+  function formatToolStatus(raw) {
+    const text = String(raw ?? '')
+    const tool = text.match(/tool_name='([^']*)'/)?.[1] || ''
+    const status = Number(text.match(/status=(-?\d+)/)?.[1])
+    switch (status) {
+      case 1:
+        return tool ? `正在调用 ${tool} 工具…` : '正在调用工具…'
+      case 0:
+        return tool ? `${tool} 执行成功` : '工具执行成功'
+      case -1:
+        return tool ? `${tool} 执行失败` : '工具执行失败'
+      case 2:
+        return tool ? `已拒绝 ${tool}` : '已拒绝工具调用'
+      default:
+        return tool ? `正在处理 ${tool}…` : text
+    }
+  }
+
+  /* ================= 工具调用实时消息 (折叠展示, 不进正文) ================= */
+
+  /**
+   * 后端会下发的非工具类系统提示 (service/chatService.py)。
+   * 这些是真正的"正文级"信息, 必须进正文、不能被工具面板兜底吞掉。
+   */
+  function isSystemNotice(text) {
+    return (
+      text.includes('已停止生成') ||
+      text.includes('没有可用的安全检查点') ||
+      text.includes('未找到或已被影响') ||
+      text.includes('不存在或未初始化') ||
+      text.includes('没有可用的快照')
+    )
+  }
+
+  /**
+   * 把后端下发的一条工具状态消息归类。
+   * 后端有两种形态:
+   *  1) 原始 toolstatusEvent 的 repr (仅"重试超限"分支): 含 `tool_name='...'` 与 `status=N`
+   *     status: -1 失败 / 0 成功 / 1 尝试调用 / 2 用户拒绝 (对应后端 config/data.py)
+   *  2) manage_toolstatusEvent 转成的中文短句 (绝大多数工具事件走这里), 如
+   *     "尝试编辑文件 X" / "读取文件 X (lines 1-10)" / "编辑文件失败: ..." / "拒绝运行 ..."
+   *
+   * 返回 { tool, phase: 'try'|'result', status, label } 或 null (非工具事件)。
+   * phase='try' 用于新增一条 running 记录; phase='result' 用于回填最近一条同工具记录。
+   */
+  function classifyToolEvent(raw) {
+    const text = String(raw ?? '')
+    if (!text) return null
+
+    // 形态 1: 原始 repr (含 tool_name=)
+    if (text.includes('tool_name=')) {
+      const tool = text.match(/tool_name='([^']*)'/)?.[1] || ''
+      const status = Number(text.match(/status=(-?\d+)/)?.[1])
+      // 只在状态可识别时当作工具事件, 否则交回上层按原文处理
+      if ([1, 0, -1, 2].includes(status)) {
+        const phase = status === 1 ? 'try' : 'result'
+        const s = status === 1 ? 'running' : status === 0 ? 'success' : status === -1 ? 'failed' : 'refused'
+        return { tool, phase, status: s, label: formatToolStatus(text) }
+      }
+      return null
+    }
+
+    // 形态 2: 中文短句。按动词前缀/关键词识别, 尽量覆盖 core/toolStatusEvent.py 的全部文案。
+    // 尝试类 (tool_try)
+    if (/^尝试(编辑|删除|创建|运行|执行|回滚)/.test(text) || /^try run/i.test(text)) {
+      return { tool: '', phase: 'try', status: 'running', label: text }
+    }
+    // 拒绝类 (tool_refused)
+    if (/^拒绝(编辑|删除|创建|运行|执行|回滚)/.test(text) || /refused/i.test(text)) {
+      return { tool: '', phase: 'result', status: 'refused', label: text }
+    }
+    // 失败类 (tool_failed): 统一含"失败"/"failed"
+    if (/失败/.test(text) || /failed/i.test(text)) {
+      return { tool: '', phase: 'result', status: 'failed', label: text }
+    }
+    // 成功类 (tool_success): 读取/查看文件夹/删除文件/创建文件/运行...成功/执行/回滚/编辑成功 message
+    if (
+      /^读取文件/.test(text) ||
+      /^查看文件夹/.test(text) ||
+      /^删除文件/.test(text) ||
+      /^创建文件/.test(text) ||
+      /^运行 .*(成功)?$/.test(text) ||
+      /成功$/.test(text) ||
+      /^执行 /.test(text) ||
+      /^回滚/.test(text) ||
+      /^run /i.test(text) ||
+      /^已(修改|创建|删除|替换)/.test(text) ||
+      /已成功替换/.test(text)
+    ) {
+      return { tool: '', phase: 'result', status: 'success', label: text }
+    }
+    return null
+  }
+
+  /**
+   * 把一条工具状态消息并入 assistant 消息的 toolEvents 折叠列表。
+   *  - try: 追加一条 running 记录
+   *  - result: 回填最近一条同工具且仍 running 的记录 (就地替换"尝试"那行), 找不到则新开一条
+   */
+  function applyToolEvent(toolEvents, info) {
+    if (info.phase === 'try') {
+      toolEvents.push({ tool: info.tool, status: 'running', label: info.label })
+      return
+    }
+    // 结果: 优先回填"同工具 + 仍 running"的最近一条
+    for (let i = toolEvents.length - 1; i >= 0; i--) {
+      const item = toolEvents[i]
+      if (item.status === 'running' && (!info.tool || !item.tool || item.tool === info.tool)) {
+        item.status = info.status
+        item.label = info.label
+        return
+      }
+    }
+    toolEvents.push({ tool: info.tool, status: info.status, label: info.label })
+  }
+
+  /**
    * 计算单个 SSE 事件对 assistant 消息贡献的文本增量。
    * 后端 Result 结构: { code, message, response }
-   *  - 最终结果: response 为 agentResult → 取其 answer/content
-   *  - 审批中断 / 中间事件(工具状态): 仅 message → 取 message, 与已有内容间以空行分隔
-   * 拼装规则与旧版 appendEventToMessage 完全一致, 区别仅在于增量交给打字机按节奏上屏。
+   *  - 最终结果: response 为 agentResult → 取其 answer/content (交打字机逐字上屏)
+   *  - 工具调用实时消息 (尝试/结果): 剥离出正文, 折叠进 message.toolEvents, 不刷屏
+   *  - 审批中断 (见 isApprovalMessage) / 系统提示 (如"已停止生成。"): 追加到正文
    */
-  function eventTextDelta(event, received) {
+  function eventTextDelta(event, received, assistantMessage) {
     if (!event) return ''
     if (event.response != null) {
+      // 最终答案到达: 清掉进度提示, 交给打字机上屏
+      currentStatus.value = ''
       return formatAgentResult(event.response)
     }
     if (event.message) {
-      return (received ? '\n\n' : '') + event.message
+      const text = String(event.message)
+      // 审批中断: 交审批卡片, 文本仍按原逻辑进正文 (兼容既有行为)
+      if (isApprovalMessage(text)) {
+        return (received ? '\n\n' : '') + text
+      }
+      // 工具调用实时消息: 折叠进 toolEvents, 不进正文、不走打字机
+      const info = classifyToolEvent(text)
+      if (info && assistantMessage) {
+        if (!assistantMessage.toolEvents) assistantMessage.toolEvents = []
+        applyToolEvent(assistantMessage.toolEvents, info)
+        // 同步轻量进度提示 (正文尚未出现时展示"当前在干嘛"), 与折叠列表互不冲突
+        currentStatus.value = info.label
+        return ''
+      }
+      // 兜底: 无法归类、但存在"进行中"的工具记录且不是系统提示时,
+      // 视为上一条 running 工具的结果 (如 edit_file 模糊匹配返回的多行 diff),
+      // 回填以避免 diff 泄漏进正文、也避免该条永久转圈。
+      if (assistantMessage && assistantMessage.toolEvents?.some((ev) => ev.status === 'running') && !isSystemNotice(text)) {
+        applyToolEvent(assistantMessage.toolEvents, { tool: '', phase: 'result', status: 'success', label: text })
+        currentStatus.value = text
+        return ''
+      }
+      // 其他纯文本 info (已停止生成 / 异常提示等): 追加到正文
+      return (received ? '\n\n' : '') + text
     }
     return ''
   }
@@ -321,15 +523,18 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
-   * 把后端审批中断的 message (str(InterruptInfo), 形如
-   * `tool_name='file_edit' tool_args={...} message='I want to use file_edit, do you agree?'`)
-   * 解析成人类可读文本; 解析不出时原样返回。
+   * 把后端审批中断的 message 解析成人类可读文本。
+   * 新契约 (core/InterruptInfo.py manage_InterruptInfo) 下后端下发的已经是人话
+   * (如 `我想编辑 calculator.py`), 原样展示即可; 旧契约的
+   * `tool_name='file_edit' tool_args={...} message='I want to use file_edit, do you agree?'`
+   * 仍然兼容解析。
    */
   function formatInterruptMessage(raw) {
-    const text = String(raw ?? '')
+    const text = String(raw ?? '').trim()
     const tool = text.match(/tool_name='([^']*)'/)?.[1] || ''
     const marker = "message='"
     const idx = text.indexOf(marker)
+    if (!tool && idx === -1) return text
     let body = text
     if (idx !== -1) {
       body = text.slice(idx + marker.length)
@@ -339,14 +544,55 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * 后端审批中断文案 (core/InterruptInfo.py manage_InterruptInfo 的 6 个分支):
+   * 「我想执行 …」「我想运行脚本 …」「我想编辑 …」「我想创建 …」「我想删除 …」「我将执行回滚操作」。
+   * LEGACY 文案用于兼容旧后端 (`... do you agree?`)。
+   */
+  const APPROVAL_MESSAGE_RE = /^(我想执行|我想运行脚本|我想编辑|我想创建|我想删除|我将执行回滚操作)/
+  const LEGACY_APPROVAL_HINT = 'do you agree?'
+
+  /** 该文案是否为工具调用审批中断 (而非停止/失败等纯提示) */
+  function isApprovalMessage(raw) {
+    const text = String(raw ?? '').trim()
+    if (!text) return false
+    return APPROVAL_MESSAGE_RE.test(text) || text.includes(LEGACY_APPROVAL_HINT)
+  }
+
+  /**
    * 流结束后判断是否为审批中断: 最后一个事件只有 message、没有 response,
-   * 且 message 是 toolNode 里 interrupt() 的固定文案 (含 "do you agree?")。
+   * 且 message 命中审批文案 (见 isApprovalMessage)。
    * 停止/编辑失败/恢复失败等 info 事件同样「只有 message」, 不加内容判定会误弹审批卡片。
    */
   function isApprovalInterrupt(events) {
     const last = events[events.length - 1]
     if (!last || last.response != null || !last.message) return false
-    return String(last.message).includes('do you agree?')
+    return isApprovalMessage(last.message)
+  }
+
+  /**
+   * 收尾: 整轮流既没有正文也没有工具记录时, 移除这个"空气泡"。
+   * 否则界面会永久停在只有三点动画的空白气泡上 ——
+   * 后端 approve 在「当前没有待审批中断」时就是这样: 一个事件都不下发。
+   */
+  function dropEmptyAssistantMessage(sessionMessages, assistantMessage, hint) {
+    if (assistantMessage.content || assistantMessage.toolEvents?.length) return false
+    const idx = sessionMessages.indexOf(assistantMessage)
+    if (idx !== -1) sessionMessages.splice(idx, 1)
+    if (hint) toast.info(hint)
+    return true
+  }
+
+  /**
+   * 收尾时把仍处于「running」的工具记录标记为「stopped」。
+   * 流结束后(正常/异常/用户停止)若某条工具的 result 事件始终没到, 不标记就会在
+   * 折叠面板里永远转圈 —— 例如用户在工具执行过程中点了停止。
+   */
+  function finalizeToolEvents(assistantMessage) {
+    const list = assistantMessage?.toolEvents
+    if (!list) return
+    for (const ev of list) {
+      if (ev.status === 'running') ev.status = 'stopped'
+    }
   }
 
   async function sendMessage(content) {
@@ -384,7 +630,8 @@ export const useChatStore = defineStore('chat', () => {
 
     // 必须是 reactive: 裸对象 push 进 reactive 数组后, 直接改裸对象会绕过
     // Proxy 的 set 拦截, 界面收不到通知 —— AI 气泡会永远空白
-    const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream' })
+    // toolEvents: 工具调用实时消息的折叠列表 (尝试/结果), 不进正文
+    const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream', toolEvents: [] })
     sessionMessages.push(assistantMessage)
 
     // 打字机: 事件文本先进缓冲再逐字上屏; received 记录已收到的全部文本(供分隔符判断)
@@ -400,13 +647,14 @@ export const useChatStore = defineStore('chat', () => {
       for await (const event of stream) {
         events.push(event)
         // 收到即计算文本增量入缓冲, 由打字机节奏逐字上屏
-        const delta = eventTextDelta(event, received)
+        const delta = eventTextDelta(event, received, assistantMessage)
         received += delta
         typewriter.push(delta)
       }
       // 流结束: 等缓冲全部打完再落定, 保证逐字效果完整收尾
       await typewriter.finish()
       assistantMessage.type = 'text'
+      finalizeToolEvents(assistantMessage)
       // 成功: 流式接口不回显用户消息, 本地原文即真实消息 → 落定状态并去除 pending 标记
       localMessage.status = 'sent'
       interruptedSessions.delete(sessionId)
@@ -416,16 +664,18 @@ export const useChatStore = defineStore('chat', () => {
           sessionId,
         }
       }
+      dropEmptyAssistantMessage(sessionMessages, assistantMessage, '本次生成没有返回任何内容')
       // 后端会生成会话名,流结束后刷新一次
       await refreshSessions()
     } catch (error) {
       // 失败: 剩余缓冲立即上屏, 错误信息不延迟; 保留消息并标记失败, 由 ChatWindow 展示错误并提供重试入口
       typewriter.flush()
+      finalizeToolEvents(assistantMessage)
       if (stoppingSessions.has(sessionId)) {
         // 用户主动停止: 连接被后端强制取消属预期行为, 按正常收尾展示已生成内容
-        stoppingSessions.delete(sessionId)
         assistantMessage.type = 'text'
         localMessage.status = 'sent'
+        dropEmptyAssistantMessage(sessionMessages, assistantMessage, null)
       } else {
         localMessage.status = 'failed'
         localMessage.error = error.message
@@ -435,6 +685,9 @@ export const useChatStore = defineStore('chat', () => {
         interruptedSessions.add(sessionId)
       }
     } finally {
+      // 停止标记只服务于"当前这轮流", 必须在这里清掉:
+      // 漏清会让该会话之后所有真实异常都被误判成"用户主动停止"(不报错、也不给恢复入口)
+      stoppingSessions.delete(sessionId)
       isStreaming.value = false
       streamingSessionId.value = null
       streamingSessions.delete(sessionId)
@@ -460,6 +713,14 @@ export const useChatStore = defineStore('chat', () => {
     if (!pendingApproval.value || isStreaming.value) return
 
     const approval = pendingApproval.value
+
+    // 兜底校验: 审批所属会话必须仍在会话列表里。它可能已被删除(或本地列表
+    // 还没同步到它), 此时绝不能发请求 —— 既会打到一个不存在的 session_id,
+    // 下面的 getMessagesOf 还会把已删会话的消息缓存凭空重建, 等于复活该会话。
+    if (!sessions.value.some((s) => s.id === approval.sessionId)) {
+      pendingApproval.value = null
+      return
+    }
     pendingApproval.value = null
 
     // 恢复流写入其所属会话的缓存, 与 sendMessage 相同的切换保护
@@ -473,7 +734,7 @@ export const useChatStore = defineStore('chat', () => {
     }))
 
     // 同 sendMessage: 流式写入的气泡必须是 reactive 对象
-    const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream' })
+    const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream', toolEvents: [] })
     sessionMessages.push(assistantMessage)
     isStreaming.value = true
     streamingSessionId.value = sessionId
@@ -491,13 +752,14 @@ export const useChatStore = defineStore('chat', () => {
       for await (const event of stream) {
         events.push(event)
         // 收到即计算文本增量入缓冲, 由打字机节奏逐字上屏
-        const delta = eventTextDelta(event, received)
+        const delta = eventTextDelta(event, received, assistantMessage)
         received += delta
         typewriter.push(delta)
       }
       // 流结束: 等缓冲全部打完再落定, 保证逐字效果完整收尾
       await typewriter.finish()
       assistantMessage.type = 'text'
+      finalizeToolEvents(assistantMessage)
       interruptedSessions.delete(sessionId)
       if (isApprovalInterrupt(events)) {
         pendingApproval.value = {
@@ -505,13 +767,26 @@ export const useChatStore = defineStore('chat', () => {
           sessionId,
         }
       }
+      // 后端 chatService.approve 在没有待审批中断时一个事件都不下发 (has_interrupt 为假),
+      // 此时不能留一个永远转圈的空气泡
+      dropEmptyAssistantMessage(sessionMessages, assistantMessage, '后端当前没有待审批的中断, 本次操作已忽略')
       await refreshSessions()
     } catch (error) {
       // 失败: 剩余缓冲立即上屏, 错误信息不延迟
       typewriter.flush()
-      assistantMessage.content += (assistantMessage.content ? '\n\n' : '') + `错误: ${error.message}`
-      assistantMessage.type = 'error'
+      finalizeToolEvents(assistantMessage)
+      if (stoppingSessions.has(sessionId)) {
+        // 用户主动停止: 连接被后端取消属预期行为
+        assistantMessage.type = 'text'
+        dropEmptyAssistantMessage(sessionMessages, assistantMessage, null)
+      } else {
+        assistantMessage.content += (assistantMessage.content ? '\n\n' : '') + `错误: ${error.message}`
+        assistantMessage.type = 'error'
+        // 与 sendMessage 一致: 失败后可让用户从检查点续跑, 否则审批中断就再也回不去了
+        interruptedSessions.add(sessionId)
+      }
     } finally {
+      stoppingSessions.delete(sessionId)
       isStreaming.value = false
       streamingSessionId.value = null
       streamingSessions.delete(sessionId)
@@ -533,12 +808,9 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /** 在输入框上方弹出轻提示, 2 秒后自动消失 */
+  /** 空会话轻提示: 统一走 toast store, 不再由 chat store 自持 UI 状态 */
   function showEmptySessionToast() {
-    emptySessionToast.value = true
-    clearTimeout(emptyToastTimer)
-    emptyToastTimer = setTimeout(() => {
-      emptySessionToast.value = false
-    }, 2000)
+    toast.info('当前对话尚未开始')
   }
 
   /**
@@ -625,10 +897,27 @@ export const useChatStore = defineStore('chat', () => {
     sessions.value = sessions.value.filter((s) => s.id !== sessionId)
     messageCache.delete(sessionId)
 
+    // 该会话的全部运行时残留一并清掉。这些都是「按会话 id 挂载」的状态,
+    // 只删 sessions/messageCache 会留下:
+    //  - pendingApproval    → 审批卡片继续显示, 点了就对已删除的会话发 approve
+    //  - interruptedSessions → 「继续生成」横幅指向不存在的会话
+    //  - historyTokens      → 该 id 若被复用, 旧 token 会污染新会话的历史加载
+    if (pendingApproval.value?.sessionId === sessionId) pendingApproval.value = null
+    interruptedSessions.delete(sessionId)
+    historyTokens.delete(sessionId)
+
+    let deleted = true
     try {
       await deleteChat(sessionId)
     } catch (e) {
+      // 后端未生效: 下面的 refreshSessions 可能把该会话捞回来,
+      // 因此 workspaceCache 只在删除成功后才清, 避免丢掉会话级工作目录绑定
+      deleted = false
       console.error('删除会话失败(后端未生效,列表已本地移除)', e)
+    }
+    if (deleted && workspaceCache[sessionId]) {
+      delete workspaceCache[sessionId]
+      saveWorkspaceCache(workspaceCache)
     }
 
     if (currentSessionId.value === sessionId) {
@@ -646,32 +935,64 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function switchModel(config) {
-    try {
-      const res = await chooseModel({ ...modelConfig.value, ...config })
-      Object.assign(modelConfig.value, config)
-      return res
-    } catch (e) {
-      console.error('切换模型失败', e)
-      throw e
+  /* ================= 模型管理 (数据源: 后端数据库) ================= */
+
+  /** 把后端返回的模型信息同步到本地运行时副本 (modelConfig + 持久化生效 id) */
+  function applyModelToLocal(model) {
+    if (!model) return
+    modelConfig.value = {
+      ...modelConfig.value,
+      model: model.model_name || '',
+      base_url: model.base_url || '',
+      api_key: model.api_key || '',
+    }
+    if (model.id != null) {
+      activeModelId.value = model.id
+      try {
+        localStorage.setItem(ACTIVE_MODEL_ID_KEY, String(model.id))
+      } catch (e) {
+        console.error('记录当前模型 id 失败', e)
+      }
     }
   }
 
-  async function restoreModel() {
-    try {
-      return await listModels()
-    } catch (e) {
-      console.error('获取模型列表失败', e)
-      throw e
-    }
+  /** 从后端拉取模型列表 (GET /MiniCode/get_model), 界面数据一律以此为准 */
+  async function refreshModels() {
+    const res = await listModels()
+    models.value = Array.isArray(res?.response) ? res.response : []
+    return models.value
+  }
+
+  /** 按库中 id 切换生效模型 (POST /MiniCode/set_model?id=xxx) */
+  async function activateModel(id) {
+    const res = await setModel(id)
+    applyModelToLocal({ ...models.value.find((m) => m.id === id), ...(res?.response || {}), id })
+    return res
+  }
+
+  /** 新增模型 (POST /MiniCode/add_model): 后端落库并立即生效, 成功后回查列表定位新纪录的 id */
+  async function addNewModel(config) {
+    await addModel({
+      model: config.model,
+      base_url: config.base_url,
+      api_key: config.api_key,
+      is_default: config.is_default ?? true,
+    })
+    await refreshModels()
+    const created = models.value.find(
+      (m) => m.model_name === config.model && m.base_url === config.base_url && m.api_key === config.api_key
+    )
+    applyModelToLocal(created || { model_name: config.model, base_url: config.base_url, api_key: config.api_key })
+    return created || null
   }
 
   /* ================= 停止生成 (POST /MiniCode/stop) ================= */
 
   /**
    * 请求后端停止当前会话的生成。后端会先优雅置停,3 秒未停则强制取消任务;
-   * SSE 连接可能被后端直接掐断,sendMessage 的 catch 里依据 stoppingSessions
-   * 把这种「主动停止」当正常收尾,不标记失败。
+   * SSE 连接可能被后端直接掐断, sendMessage / approve / continueSession / editMessage
+   * 的 catch 里依据 stoppingSessions 把这种「主动停止」当正常收尾,不标记失败。
+   * 该标记只对当前这轮流有效, 由各流的 finally 统一清除。
    */
   async function stopGeneration(sessionId = currentSessionId.value) {
     if (!sessionId) return
@@ -693,10 +1014,15 @@ export const useChatStore = defineStore('chat', () => {
    */
   async function continueSession(sessionId = currentSessionId.value) {
     if (!sessionId || isStreaming.value) return
+    // 与 approve 同样的兜底: 会话已被删除时不能对不存在的 session_id 续跑
+    if (!sessions.value.some((s) => s.id === sessionId)) {
+      interruptedSessions.delete(sessionId)
+      return
+    }
     const sessionMessages = getMessagesOf(sessionId)
     pendingApproval.value = null
 
-    const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream' })
+    const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream', toolEvents: [] })
     sessionMessages.push(assistantMessage)
     isStreaming.value = true
     streamingSessionId.value = sessionId
@@ -708,12 +1034,13 @@ export const useChatStore = defineStore('chat', () => {
     try {
       for await (const event of continueStream(sessionId)) {
         events.push(event)
-        const delta = eventTextDelta(event, received)
+        const delta = eventTextDelta(event, received, assistantMessage)
         received += delta
         typewriter.push(delta)
       }
       await typewriter.finish()
       assistantMessage.type = 'text'
+      finalizeToolEvents(assistantMessage)
       interruptedSessions.delete(sessionId)
       if (isApprovalInterrupt(events)) {
         pendingApproval.value = {
@@ -721,18 +1048,22 @@ export const useChatStore = defineStore('chat', () => {
           sessionId,
         }
       }
+      dropEmptyAssistantMessage(sessionMessages, assistantMessage, '本次恢复没有产生任何内容')
       await refreshSessions()
     } catch (error) {
       typewriter.flush()
+      finalizeToolEvents(assistantMessage)
       if (stoppingSessions.has(sessionId)) {
         stoppingSessions.delete(sessionId)
         assistantMessage.type = 'text'
+        dropEmptyAssistantMessage(sessionMessages, assistantMessage, null)
       } else {
         assistantMessage.content += (assistantMessage.content ? '\n\n' : '') + `错误: ${error.message}`
         assistantMessage.type = 'error'
         interruptedSessions.add(sessionId)
       }
     } finally {
+      stoppingSessions.delete(sessionId)
       isStreaming.value = false
       streamingSessionId.value = null
       streamingSessions.delete(sessionId)
@@ -775,7 +1106,7 @@ export const useChatStore = defineStore('chat', () => {
     const idx = sessionMessages.indexOf(message)
     if (idx !== -1) sessionMessages.splice(idx + 1)
 
-    const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream' })
+    const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream', toolEvents: [] })
     sessionMessages.push(assistantMessage)
     isStreaming.value = true
     streamingSessionId.value = sessionId
@@ -791,12 +1122,13 @@ export const useChatStore = defineStore('chat', () => {
         new_content: content,
       })) {
         events.push(event)
-        const delta = eventTextDelta(event, received)
+        const delta = eventTextDelta(event, received, assistantMessage)
         received += delta
         typewriter.push(delta)
       }
       await typewriter.finish()
       assistantMessage.type = 'text'
+      finalizeToolEvents(assistantMessage)
       interruptedSessions.delete(sessionId)
       if (isApprovalInterrupt(events)) {
         pendingApproval.value = {
@@ -804,13 +1136,23 @@ export const useChatStore = defineStore('chat', () => {
           sessionId,
         }
       }
+      dropEmptyAssistantMessage(sessionMessages, assistantMessage, '本次重新生成没有返回任何内容')
       await refreshSessions()
     } catch (error) {
       typewriter.flush()
-      assistantMessage.content += (assistantMessage.content ? '\n\n' : '') + `错误: ${error.message}`
-      assistantMessage.type = 'error'
-      interruptedSessions.add(sessionId)
+      finalizeToolEvents(assistantMessage)
+      if (stoppingSessions.has(sessionId)) {
+        // 用户主动停止: 不算异常, 保留已经生成的内容
+        stoppingSessions.delete(sessionId)
+        assistantMessage.type = 'text'
+        dropEmptyAssistantMessage(sessionMessages, assistantMessage, null)
+      } else {
+        assistantMessage.content += (assistantMessage.content ? '\n\n' : '') + `错误: ${error.message}`
+        assistantMessage.type = 'error'
+        interruptedSessions.add(sessionId)
+      }
     } finally {
+      stoppingSessions.delete(sessionId)
       isStreaming.value = false
       streamingSessionId.value = null
       streamingSessions.delete(sessionId)
@@ -904,7 +1246,18 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  /** 仅清除当前会话绑定的目录（用于徽章上的"取消绑定"操作） */
+  /**
+   * 后端契约 (service/workplaceService.py: choose_workplace): 会话级工作目录**只能绑定一次**。
+   * 已经绑定的会话再调用 /MiniCode/workplace 会被拒绝
+   * (BizException「已经选定目录，无法更改，请创建新对话」), 因此 UI 只在未绑定时给出选择入口,
+   * 已绑定时按只读展示, 不再暴露必然失败的"更换/解绑"操作。
+   */
+  function canBindWorkspace(sessionId = currentSessionId.value) {
+    const session = sessions.value.find((s) => s.id === sessionId)
+    return !!session && !session.workspacePath
+  }
+
+  /** 仅清除当前会话绑定的目录 (后端不接受对已绑定会话的"解绑", 故 UI 不再暴露此入口, 保留供后续后端支持时使用) */
   async function clearSessionWorkspace(sessionId) {
     return setSessionWorkspace(sessionId, '')
   }
@@ -917,12 +1270,14 @@ export const useChatStore = defineStore('chat', () => {
     isStreaming,
     streamingSessionId,
     pendingApproval,
+    currentStatus,
     modelConfig,
+    models,
+    activeModelId,
     currentMessages,
     currentTitle,
     currentWorkspacePath,
     inputFocusSignal,
-    emptySessionToast,
     searchFocusSignal,
     backendOnline,
     gitReady,
@@ -945,9 +1300,11 @@ export const useChatStore = defineStore('chat', () => {
     createNewChat,
     loadHistory,
     removeSession,
-    switchModel,
-    restoreModel,
+    refreshModels,
+    activateModel,
+    addNewModel,
     setSessionWorkspace,
     clearSessionWorkspace,
+    canBindWorkspace,
   }
 })

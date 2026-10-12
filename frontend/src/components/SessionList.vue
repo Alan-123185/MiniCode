@@ -94,18 +94,6 @@
           </svg>
           切换到此会话
         </button>
-        <button
-          v-if="ctxSession?.workspacePath"
-          class="ctx-item"
-          role="menuitem"
-          @click="ctxUnbindWorkspace"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-            <line x1="3" y1="3" x2="21" y2="21"></line>
-          </svg>
-          解绑工作目录
-        </button>
         <div class="ctx-sep" role="separator"></div>
         <button class="ctx-item danger" role="menuitem" @click="ctxDelete">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -193,15 +181,16 @@ async function selectSession(sessionId) {
 
 /* ---------- 右键菜单 ---------- */
 const contextMenu = ref({ visible: false, x: 0, y: 0, sessionId: null, session: null })
-const ctxSession = computed(() => contextMenu.value.session)
+
+/** 菜单高度随条目数变化 (原来多一项"解绑工作目录", 该项因后端不支持已移除) */
+const CTX_MENU_HEIGHT = 88
 
 function openContextMenu(e, session) {
   const menuWidth = 180
-  const menuHeight = 120
   contextMenu.value = {
     visible: true,
     x: Math.min(e.clientX, window.innerWidth - menuWidth - 8),
-    y: Math.min(e.clientY, window.innerHeight - menuHeight - 8),
+    y: Math.min(e.clientY, window.innerHeight - CTX_MENU_HEIGHT - 8),
     sessionId: session.id,
     session,
   }
@@ -269,17 +258,6 @@ function onConfirmKeydown(e) {
   } else if (e.key === 'Enter') {
     e.preventDefault()
     confirmDeleteSession()
-  }
-}
-
-async function ctxUnbindWorkspace() {
-  const id = contextMenu.value.sessionId
-  closeContextMenu()
-  if (!id) return
-  try {
-    await store.clearSessionWorkspace(id)
-  } catch (e) {
-    console.error('解绑工作目录失败', e)
   }
 }
 

@@ -85,15 +85,14 @@ async def tool_node(state: OverAllState, config: RunnableConfig)->dict:
     async def _invoke(tool, tool_call_dict:dict):
         toolname = tool_call_dict["name"]
         toolargs = tool_call_dict["args"]
-
-        _emit_tool_status(manage_toolstatusEvent(toolstatusEvent(
-            status=settings.tool_try,
-            tool_name=toolname,
-            args=toolargs,
-            result=None,
-            session_id=config.get("configurable", {}).get("thread_id"),
-            user_prompt=state.input,
-        )))
+        # _emit_tool_status(manage_toolstatusEvent(toolstatusEvent(
+        #     status=settings.tool_try,
+        #     tool_name=toolname,
+        #     args=toolargs,
+        #     result=None,
+        #     session_id=config.get("configurable", {}).get("thread_id"),
+        #     user_prompt=state.input,
+        # )))
         async with sem:
             try:
                 result = await tool.ainvoke(toolargs, config=config)
@@ -223,13 +222,13 @@ async def tool_node(state: OverAllState, config: RunnableConfig)->dict:
             tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑
             # 【自定义事件】实时通知前端：调用成功，并带上结果内容
             _emit_tool_status(
-                toolstatusEvent(status=settings.tool_success,
+                manage_toolstatusEvent(toolstatusEvent(status=settings.tool_success,
                                 tool_name=tool_name,
                                 args=tool_args,
                                 result=toolresult,
                                 user_prompt=state.input,
                                 session_id=config.get("configurable", {}).get("thread_id"))
-            )
+            ))
         else:
             step.append(f"use tool:{tool_name} failed")
             if tool_failures.get(tool_name, 0) >= max_retry_time:
@@ -253,8 +252,9 @@ async def tool_node(state: OverAllState, config: RunnableConfig)->dict:
                 info=f"\n[system Info]   {tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况"
                 toolresult_for_llm.error=(toolresult_for_llm.error or "") + info
                 _emit_tool_status(
+                    manage_toolstatusEvent(
                     toolstatusEvent(status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state.input, result=None,session_id=config.get("configurable", {}).get("thread_id"))
-                )
+                ))
                 tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑
             else:
                 tool_failures[tool_name] = tool_failures.get(tool_name, 0) + 1

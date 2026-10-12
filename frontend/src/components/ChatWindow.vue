@@ -85,8 +85,45 @@
           >重试</button>
         </div>
         <template v-else-if="message.role !== 'user'">
+          <!-- 工具调用实时消息: 默认折叠成一行摘要, 点击展开查看每次调用的实时状态/结果 -->
+          <div v-if="message.toolEvents && message.toolEvents.length" class="tool-trace">
+            <button
+              class="tool-trace-toggle"
+              type="button"
+              :aria-expanded="isToolTraceOpen(index) ? 'true' : 'false'"
+              @click="toggleToolTrace(index)"
+            >
+              <span class="tool-trace-caret" :class="{ open: isToolTraceOpen(index) }" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </span>
+              <span v-if="hasRunningTool(message)" class="mini-spinner" aria-hidden="true"></span>
+              <span v-else class="tool-trace-done" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </span>
+              <span class="tool-trace-summary">{{ toolTraceSummary(message) }}</span>
+            </button>
+            <transition name="fade">
+              <ol v-if="isToolTraceOpen(index)" class="tool-trace-list">
+                <li v-for="(ev, i) in message.toolEvents" :key="i" class="tool-trace-item" :class="ev.status">
+                  <span class="tool-trace-icon" aria-hidden="true">
+                    <span v-if="ev.status === 'running'" class="mini-spinner"></span>
+                    <svg v-else-if="ev.status === 'success'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <svg v-else-if="ev.status === 'failed'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <svg v-else xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"></line></svg>
+                  </span>
+                  <span class="tool-trace-label">{{ ev.label }}</span>
+                </li>
+              </ol>
+            </transition>
+          </div>
           <div v-if="message.content" class="message-content md-body" v-html="renderMarkdown(message.content)"></div>
-          <div v-else class="typing-dots"><span></span><span></span><span></span></div>
+          <!-- 正在生成且尚无正文: 展示「当前在干嘛」的轻提示 (非流式), 无状态时退回三点动画 -->
+          <div v-else-if="message.type === 'stream' && store.currentStatus && !message.toolEvents?.length" class="stream-status">
+            <span class="mini-spinner" aria-hidden="true"></span>
+            <span class="stream-status-text">{{ store.currentStatus }}</span>
+          </div>
+          <!-- 三点动画只在"正在生成"时出现: 否则流结束后留下的空气泡会一直转圈 -->
+          <div v-else-if="message.type === 'stream' && !message.toolEvents?.length" class="typing-dots"><span></span><span></span><span></span></div>
         </template>
       </div>
     </div>
@@ -120,12 +157,12 @@
       </div>
     </transition>
 
-    <div v-if="store.pendingApproval" class="approval-card">
+    <div v-if="activeApproval" class="approval-card">
       <div class="approval-title">
         <span class="approval-icon" aria-hidden="true">⚠</span>
         需要你的确认
       </div>
-      <div class="approval-message">{{ store.pendingApproval.message }}</div>
+      <div class="approval-message">{{ activeApproval.message }}</div>
       <div class="approval-actions">
         <button :disabled="store.isStreaming" @click="store.approve('yes')">批准</button>
         <button :disabled="store.isStreaming" class="reject" @click="store.approve('no')">拒绝</button>
@@ -143,6 +180,42 @@ import MessageInput from './MessageInput.vue'
 
 const store = useChatStore()
 const messageList = ref(null)
+
+/* ---------- 工具调用折叠面板 ----------
+ * 每个 assistant 消息的 toolEvents (来自 store) 折叠展示: 默认只占一行摘要。
+ * 流式进行中自动展开 (让用户看到实时进度), 结束后沿用用户最后一次的手动选择;
+ * 未手动操作过的消息在流结束后自动收起, 保持界面清爽。 */
+const toolTraceManual = ref({}) // index -> boolean (用户手动展开/收起的选择)
+const toolTraceAutoOpen = ref(true) // 流式期间默认展开
+
+function isToolTraceOpen(index) {
+  if (index in toolTraceManual.value) return toolTraceManual.value[index]
+  // 尚未手动操作: 流式输出期间展开, 结束后收起
+  return store.isStreaming && toolTraceAutoOpen.value
+}
+
+function toggleToolTrace(index) {
+  toolTraceManual.value = { ...toolTraceManual.value, [index]: !isToolTraceOpen(index) }
+}
+
+// 该消息是否仍有"进行中"的工具调用
+function hasRunningTool(message) {
+  return (message.toolEvents || []).some((ev) => ev.status === 'running')
+}
+
+// 折叠面板的一行摘要: 进行中显示最新动作, 结束后显示成功/失败计数
+function toolTraceSummary(message) {
+  const list = message.toolEvents || []
+  const running = list.filter((ev) => ev.status === 'running').length
+  if (running > 0) {
+    const last = [...list].reverse().find((ev) => ev.status === 'running')
+    return last ? last.label : `正在调用工具… (${running})`
+  }
+  const failed = list.filter((ev) => ev.status === 'failed' || ev.status === 'refused' || ev.status === 'stopped').length
+  const total = list.length
+  if (failed > 0) return `已调用 ${total} 个工具 · ${failed} 个未成功`
+  return `已调用 ${total} 个工具`
+}
 
 const suggestions = [
   '你都能帮我做什么？',
@@ -259,6 +332,17 @@ async function saveEdit(message) {
 /* ---------- 中断恢复横幅 ---------- */
 const dismissedResume = ref(false)
 
+/**
+ * 只展示属于当前会话的审批卡片。
+ * pendingApproval 是全局单值, 直接 v-if 它会让别的会话(含已删除会话)遗留的
+ * 审批显示在当前界面上; store.loadHistory 切换时会清, 但删除会话等路径
+ * 不一定经过它, 所以这里按 sessionId 再兜一层。
+ */
+const activeApproval = computed(
+  () =>
+    store.pendingApproval?.sessionId === store.currentSessionId ? store.pendingApproval : null
+)
+
 const showResumeBanner = computed(
   () =>
     !store.isStreaming &&
@@ -277,6 +361,8 @@ watch(
   () => {
     dismissedResume.value = false
     cancelEdit()
+    // 折叠面板的手动选择是按消息 index 记录的, 换会话后 index 语义变了, 需清空
+    toolTraceManual.value = {}
   }
 )
 
@@ -670,6 +756,38 @@ watch(
 .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
 .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
 
+/* ---------- 生成中「当前在干嘛」轻提示 (非流式) ---------- */
+.stream-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.stream-status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 旋转小 spinner: 与顶栏「生成中…」一致的低调风格 */
+.mini-spinner {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid var(--accent-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ---------- 乐观发送状态标记 ---------- */
 /* 发送中: 角色行尾部的小标记 */
 .sending-tag {
@@ -834,6 +952,126 @@ watch(
   color: var(--accent);
   background: var(--accent-light);
   border-color: var(--accent-border);
+}
+
+/* ---------- 工具调用折叠窗 (独立卡片容器 + 等宽字体, 与正文 sans 形成层次) ---------- */
+.tool-trace {
+  margin: 0 0 var(--space-2);
+  max-width: 100%;
+  font-family: var(--font-mono);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.tool-trace-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+
+.tool-trace-toggle:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.tool-trace-caret {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-tertiary);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.tool-trace-caret.open {
+  transform: rotate(90deg);
+}
+
+.tool-trace-toggle .mini-spinner {
+  width: 11px;
+  height: 11px;
+  border-width: 1.5px;
+}
+
+.tool-trace-done {
+  display: inline-flex;
+  flex: none;
+  color: var(--success);
+}
+
+.tool-trace-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 展开后的工具调用列表: 与标题栏用分隔线隔开, 保持等宽字体 */
+.tool-trace-list {
+  margin: 0;
+  padding: var(--space-2) 10px var(--space-2) 10px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.tool-trace-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.tool-trace-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 18px;
+}
+
+.tool-trace-item .mini-spinner {
+  width: 11px;
+  height: 11px;
+  border-width: 1.5px;
+}
+
+.tool-trace-item.success .tool-trace-icon {
+  color: var(--success);
+}
+
+.tool-trace-item.failed .tool-trace-icon {
+  color: var(--error);
+}
+
+.tool-trace-item.refused .tool-trace-icon {
+  color: var(--warning, var(--text-tertiary));
+}
+
+.tool-trace-item.stopped .tool-trace-icon {
+  color: var(--text-tertiary);
+}
+
+.tool-trace-label {
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* ---------- 审批卡片 ---------- */
