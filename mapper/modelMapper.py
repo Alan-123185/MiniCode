@@ -69,8 +69,9 @@ class modelMapper:
         return model_dict
 
 
-    def query_model(self,id:int) -> dict:
-        return self.db.fetch_one("select * from model where id = ?", (id,))
+
+    def query_model(self,id:int) -> ModelSetRequest:
+        return ModelSetRequest.model_validate(self.db.fetch_one("select * from model where id = ?", (id,)))
 
 
     def add_settings(self,settingsrequest:settingsRequest) -> None:

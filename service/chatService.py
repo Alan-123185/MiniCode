@@ -1,6 +1,5 @@
 import asyncio
 import uuid
-
 from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
@@ -57,16 +56,23 @@ class ChatService:
         task = asyncio.current_task()
         self.running_tasks[session_id] = task
         try:
-            async for result in self._stream_graph(
-                    session_id=session_id,
-                    config=config,
-                    input_or_command=Command(resume=decision_request.decision),
-                    record_operations=True,
-            ):
-                yield result
+            snapshot = await self.graph.aget_state(config)
+            has_interrupt = any(
+                task.interrupts
+                for task in snapshot.tasks
+            )
+            if has_interrupt:
+                async for result in self._stream_graph(
+                        session_id=session_id,
+                        config=config,
+                        input_or_command=Command(resume=decision_request.decision),
+                        record_operations=True,
+                ):
+                    yield result
         finally:
             if self.running_tasks.get(session_id) is task:
                 self.running_tasks.pop(session_id, None)
+
 
     async def _continue_chat(self, config: RunnableConfig) -> AsyncGenerator[InterruptResult, None]:
         session_id = config["configurable"]["thread_id"]
@@ -84,6 +90,8 @@ class ChatService:
         finally:
             if self.running_tasks.get(session_id) is task:
                 self.running_tasks.pop(session_id, None)
+
+
 
     async def _stream_graph(
             self,
@@ -249,7 +257,7 @@ class ChatService:
 
 
     async def refresh_chat(self,session_id: str) -> AsyncGenerator[InterruptResult, None]:
-        """从最近一个未产生异常的检查点开始执行图，用户异常恢复"""
+        """异常恢复 从最近一个未产生异常的检查点开始执行图，用户异常恢复"""
         config = create_chat_config(thread_id=session_id)
         self.stop_flags[session_id] = asyncio.Event()
         history_list = [h async for h in self.graph.aget_state_history(config)]  # 新的在前
