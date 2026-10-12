@@ -34,11 +34,47 @@
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
         </button>
+        <!-- 用户消息: 编辑重发 (时间旅行, POST /MiniCode/editMessage) -->
+        <button
+          v-if="message.role === 'user' && !store.isStreaming && editingIndex !== index"
+          class="msg-edit"
+          title="编辑并重新生成"
+          @click="startEdit(message, index)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+          </svg>
+        </button>
         <div class="message-role">
           {{ message.role === 'user' ? '你' : 'AI' }}
           <span v-if="message.status === 'sending'" class="sending-tag">发送中…</span>
         </div>
-        <pre v-if="message.role === 'user'" class="message-content">{{ message.content }}</pre>
+        <!-- 编辑态: textarea 内联编辑, 保存后从该消息重新生成 -->
+        <div v-if="message.role === 'user' && editingIndex === index" class="msg-editor">
+          <textarea
+            ref="editorTa"
+            v-model="editingText"
+            class="msg-editor-input"
+            rows="3"
+            aria-label="编辑消息内容"
+            @keydown.escape.prevent="cancelEdit"
+            @keydown.enter.exact.meta.prevent="saveEdit(message)"
+            @keydown.enter.exact.ctrl.prevent="saveEdit(message)"
+          ></textarea>
+          <div class="msg-editor-actions">
+            <button
+              class="msg-editor-save"
+              :disabled="!editingText.trim() || editing"
+              :title="'保存修改并从这条消息重新生成 (Ctrl+Enter)'"
+              @click="saveEdit(message)"
+            >
+              {{ editing ? '重新生成中…' : '保存并重新生成' }}
+            </button>
+            <button class="msg-editor-cancel" title="取消编辑 (Esc)" @click="cancelEdit">取消</button>
+            <span class="msg-editor-hint">修改会从这条消息开始覆盖其后的对话</span>
+          </div>
+        </div>
+        <pre v-else-if="message.role === 'user'" class="message-content">{{ message.content }}</pre>
         <div v-if="message.role === 'user' && message.status === 'failed'" class="send-failed">
           <span class="send-failed-text">发送失败{{ message.error ? `: ${message.error}` : '' }}</span>
           <button
@@ -69,6 +105,21 @@
       </button>
     </transition>
 
+    <!-- 中断恢复横幅: 该会话上次生成异常中断时出现, 调用 /MiniCode/continue 从检查点续跑 -->
+    <transition name="fade">
+      <div v-if="showResumeBanner" class="resume-card">
+        <span class="resume-icon" aria-hidden="true">⟲</span>
+        <span class="resume-text">上次生成因异常中断, 可从最近的检查点继续</span>
+        <button
+          class="resume-btn"
+          :disabled="store.isStreaming"
+          title="从后端最近的安全检查点继续执行"
+          @click="store.continueSession()"
+        >继续生成</button>
+        <button class="resume-dismiss" title="忽略" @click="dismissResume">×</button>
+      </div>
+    </transition>
+
     <div v-if="store.pendingApproval" class="approval-card">
       <div class="approval-title">
         <span class="approval-icon" aria-hidden="true">⚠</span>
@@ -85,7 +136,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { marked } from 'marked'
 import { useChatStore } from '../stores/chat'
 import MessageInput from './MessageInput.vue'
@@ -163,6 +214,71 @@ async function copyMessage(message, e) {
 function quickAsk(text) {
   store.sendMessage(text)
 }
+
+/* ---------- 编辑重发 (时间旅行, POST /MiniCode/editMessage) ---------- */
+const editingIndex = ref(-1)
+const editingText = ref('')
+const editing = ref(false)
+const editorTa = ref(null)
+
+function startEdit(message, index) {
+  if (store.isStreaming) return
+  editingIndex.value = index
+  editingText.value = message.content
+  nextTick(() => {
+    const ta = Array.isArray(editorTa.value) ? editorTa.value[0] : editorTa.value
+    ta?.focus()
+  })
+}
+
+function cancelEdit() {
+  editingIndex.value = -1
+  editingText.value = ''
+}
+
+async function saveEdit(message) {
+  if (editing.value || !editingText.value.trim()) return
+  editing.value = true
+  try {
+    await store.editMessage(message, editingText.value)
+    cancelEdit()
+  } catch (e) {
+    // 定位后端消息失败等: 保留编辑态让用户可重试, 错误进气泡
+    console.error('编辑重发失败', e)
+    const list = store.currentMessages
+    list.push({
+      role: 'assistant',
+      content: `编辑重发失败: ${e.message}`,
+      type: 'error',
+    })
+  } finally {
+    editing.value = false
+  }
+}
+
+/* ---------- 中断恢复横幅 ---------- */
+const dismissedResume = ref(false)
+
+const showResumeBanner = computed(
+  () =>
+    !store.isStreaming &&
+    !dismissedResume.value &&
+    store.currentSessionId != null &&
+    store.interruptedSessions.has(store.currentSessionId)
+)
+
+function dismissResume() {
+  dismissedResume.value = true
+}
+
+// 切换会话时重置「忽略」状态, 每个会话各自决定是否再提示
+watch(
+  () => store.currentSessionId,
+  () => {
+    dismissedResume.value = false
+    cancelEdit()
+  }
+)
 
 /* ---------- 滚动: 底部跟随 + 回到底部按钮 ---------- */
 const stickToBottom = ref(true)
@@ -363,6 +479,169 @@ watch(
   border-color: var(--success);
   opacity: 1;
   pointer-events: auto;
+}
+
+/* 编辑按钮: 与复制按钮同款, 排在其下方 */
+.msg-edit {
+  position: absolute;
+  top: 30px;
+  padding: 3px 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  box-shadow: var(--shadow-xs);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity var(--dur-fast) ease, background var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+
+.message.user .msg-edit {
+  left: -30px;
+}
+
+.message:hover .msg-edit,
+.msg-edit:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.msg-edit:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-light);
+  border-color: var(--accent-border);
+  box-shadow: none;
+}
+
+/* ---------- 内联编辑器 (时间旅行) ---------- */
+.msg-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 280px;
+}
+
+.msg-editor-input {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-xs);
+  resize: vertical;
+}
+
+.msg-editor-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.msg-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.msg-editor-save {
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--accent);
+  border-radius: var(--radius-xs);
+}
+
+.msg-editor-save:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.msg-editor-save:disabled {
+  cursor: not-allowed;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+}
+
+.msg-editor-cancel {
+  padding: 5px 12px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+}
+
+.msg-editor-cancel:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.msg-editor-hint {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+/* ---------- 中断恢复横幅 ---------- */
+.resume-card {
+  margin: 0 var(--space-5) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  color: var(--warning);
+  background: var(--warning-light, var(--bg-secondary));
+  border: 1px solid var(--warning, var(--border-color));
+  border-radius: var(--radius-md);
+  animation: fadeUp 0.3s var(--ease-out) both;
+}
+
+.resume-icon {
+  font-size: 15px;
+}
+
+.resume-text {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.resume-btn {
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--accent);
+  border-radius: var(--radius-xs);
+}
+
+.resume-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.resume-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.resume-dismiss {
+  padding: 0 6px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: none;
+}
+
+.resume-dismiss:hover {
+  color: var(--text-primary);
 }
 
 /* 流式输出时的闪烁光标 */

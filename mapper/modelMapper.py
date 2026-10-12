@@ -1,6 +1,6 @@
 from config.data import settings
 from exceptions import BizException
-from requestcommon.ModelRequest import ModelChooseRequest, ModelUpdateRequest
+from requestcommon.ModelRequest import ModelUpdateRequest, ModelSetRequest, ModelGetRequest
 from requestcommon.settingsRequest import settingsRequest, Settings
 
 
@@ -9,7 +9,7 @@ class modelMapper:
     def __init__(self,db):
         self.db=db
 
-    def add_model(self, model:ModelChooseRequest) -> None:
+    def add_model(self, model:ModelSetRequest) -> None:
         try:
             self.db.conn.execute("BEGIN TRANSACTION")
             model_dict = self.db.fetch_one("SELECT * FROM model WHERE model_name = ? AND api_key = ? AND base_url = ?",
@@ -88,9 +88,9 @@ class modelMapper:
         sts = Settings.model_validate_json(settings_json)
         return sts
 
-    def reload_all_models(self) -> list[ModelChooseRequest]:
+    def reload_all_models(self) -> list[ModelGetRequest]:
         model_dicts = self.db.fetch_all("select * from model")
-        models = [ModelChooseRequest.model_validate(model_dict) for model_dict in model_dicts]
+        models = [ModelGetRequest.model_validate(model_dict) for model_dict in model_dicts]
         return models
 
 

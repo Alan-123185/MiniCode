@@ -7,7 +7,8 @@ from mapper.database import  DataBase
 from mapper.sessionMapper import sessionMapper
 from mappercommon.Session import Session
 from prompt.llm_prompt import LLM_PROMPT
-from requestcommon.ModelRequest import ModelChooseRequest
+from requestcommon.ModelRequest import ModelSetRequest
+
 
 def create_chat_config(thread_id: str):
     return  {
@@ -18,7 +19,7 @@ def create_chat_config(thread_id: str):
             }
         }
 
-def create_model(input_config:ModelChooseRequest):
+def create_model(input_config:ModelSetRequest):
     return ChatOpenAI(
         base_url=input_config.base_url,
         api_key=input_config.api_key,

@@ -41,6 +41,8 @@ async function request(path, options = {}) {
 /**
  * 以 async generator 形式消费后端 SSE。
  *
+ * body 可省略 (如 /MiniCode/continue、/MiniCode/stop 这类纯 query 参数接口)。
+ *
  * 用「队列 + 唤醒器」而非单个 resolveNext: 事件随时可能到达, 消费者可能
  * 正在 yield、正在处理上一个事件、或尚未开始等待, 单个 resolveNext 槽位会
  * 在这些时机里丢事件或永久挂起。
@@ -80,7 +82,7 @@ export async function* stream(endpoint, body) {
   fetchEventSource(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     async onopen(response) {
       if (!response.ok) {
         throw new Error(`SSE 连接失败: ${response.status}`)
@@ -128,8 +130,23 @@ export function approveStream(body) {
   return stream('/MiniCode/approve', body)
 }
 
+/** 会话异常中断恢复: POST /MiniCode/continue?session_id=xxx, SSE 返回 (query 参数, routers/chatRouter.py) */
+export function continueStream(sessionId) {
+  return stream(`/MiniCode/continue?session_id=${encodeURIComponent(sessionId)}`)
+}
+
+/** 时间旅行: 编辑某条历史消息并重新生成, SSE 返回 (routers/chatRouter.py /MiniCode/editMessage) */
+export function editMessageStream(body) {
+  return stream('/MiniCode/editMessage', body)
+}
+
 export function newChat(body) {
   return request('/MiniCode/new_chat', { method: 'POST', body: JSON.stringify(body) })
+}
+
+/** 停止生成: POST /MiniCode/stop?session_id=xxx (query 参数, 返回普通 Result 非 SSE) */
+export function stopChat(sessionId) {
+  return request(`/MiniCode/stop?session_id=${encodeURIComponent(sessionId)}`, { method: 'POST' })
 }
 
 export function listSessions(userId) {
@@ -148,17 +165,33 @@ export function deleteChat(sessionId) {
 }
 
 export function chooseModel(body) {
-  // 后端 ModelChooseRequest 字段为 model_name (requestcommon/ModelRequest.py), 前端内部叫 model
-  const { model, ...rest } = body || {}
+  // 后端 ModelChooseRequest 字段为 model_name (requestcommon/ModelRequest.py), 前端内部叫 model;
+  // 注意: mapper/modelMapper.add_model 只有 is_default=True 才会落库, 启动恢复依赖它, 因此默认补 true
+  const { model, is_default = true, ...rest } = body || {}
   return request('/MiniCode/model', {
     method: 'POST',
-    body: JSON.stringify({ ...rest, model_name: model }),
+    body: JSON.stringify({ ...rest, model_name: model, is_default }),
   })
 }
 
-export function oldModel() {
-  // 后端实际提供的是 GET /MiniCode/get_model (routers/modelRouter.py), 不存在 /old_model
+/** 已保存的模型列表 (GET /MiniCode/get_model, routers/modelRouter.py) */
+export function listModels() {
   return request('/MiniCode/get_model')
+}
+
+/** 保存生成参数设置 (POST /MiniCode/settings, body: { user_id, settings }) */
+export function saveSettings(body) {
+  return request('/MiniCode/settings', { method: 'POST', body: JSON.stringify(body) })
+}
+
+/** 读取生成参数设置 (GET /MiniCode/get_settings/{user_id}) */
+export function getSettings(userId) {
+  return request(`/MiniCode/get_settings/${encodeURIComponent(userId)}`)
+}
+
+/** Git 环境检测 (GET /MiniCode/checkGit, main.py): 未安装时后端会尝试 winget 安装 */
+export function checkGit() {
+  return request('/MiniCode/checkGit')
 }
 
 export function chooseWorkplace(body) {

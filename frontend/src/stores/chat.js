@@ -3,12 +3,18 @@ import { ref, computed, reactive } from 'vue'
 import {
   chatStream,
   approveStream,
+  continueStream,
+  editMessageStream,
   newChat,
+  stopChat,
   listSessions,
   getHistory,
   deleteChat,
   chooseModel,
-  oldModel,
+  listModels,
+  saveSettings as saveSettingsApi,
+  getSettings,
+  checkGit,
   chooseWorkplace,
 } from '../api'
 
@@ -98,6 +104,16 @@ export const useChatStore = defineStore('chat', () => {
   const searchFocusSignal = ref(0)
   /** 后端连通性 (最近一次会话列表请求结果), 供状态栏指示灯使用 */
   const backendOnline = ref(true)
+  /** 已向后端发出停止请求的会话: 区分「用户主动停止」与真实异常 (停止时连接可能被强制取消) */
+  const stoppingSessions = new Set()
+  /** 上次生成异常中断、可调用 /MiniCode/continue 恢复的会话 (reactive Set 供 UI 响应) */
+  const interruptedSessions = reactive(new Set())
+  /** 生成参数设置 (对应 requestcommon/settingsRequest.py: temperature/theme/think_level), 后端持久化 */
+  const DEFAULT_SETTINGS = { temperature: 0.3, theme: true, think_level: 2 }
+  const appSettings = ref({ ...DEFAULT_SETTINGS })
+  const settingsLoaded = ref(false)
+  /** Git 环境检测结果 (GET /MiniCode/checkGit): null=尚未检测完成 */
+  const gitReady = ref(null)
 
   function getMessagesOf(sessionId) {
     let list = messageCache.get(sessionId)
@@ -188,6 +204,10 @@ export const useChatStore = defineStore('chat', () => {
     }
     // 启动时把用户在设置里「设为默认」的模型配置应用到后端 (未设置/为空则跳过, 不阻塞首屏)
     applyStartupDefaultModel()
+    // 从后端加载生成参数 (温度/主题/思考等级), 失败时静默保持默认
+    loadSettings()
+    // 检测后端 Git 环境 (结果仅影响状态栏指示灯, 不阻塞启动)
+    checkGitStatus()
   }
 
   /** 读取「设为默认」的模型配置并提交后端, 让最终用户重启后无需重新选模型 */
@@ -300,10 +320,33 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  /** 流结束后判断是否为审批中断: 最后一个事件只有 message、没有 response */
+  /**
+   * 把后端审批中断的 message (str(InterruptInfo), 形如
+   * `tool_name='file_edit' tool_args={...} message='I want to use file_edit, do you agree?'`)
+   * 解析成人类可读文本; 解析不出时原样返回。
+   */
+  function formatInterruptMessage(raw) {
+    const text = String(raw ?? '')
+    const tool = text.match(/tool_name='([^']*)'/)?.[1] || ''
+    const marker = "message='"
+    const idx = text.indexOf(marker)
+    let body = text
+    if (idx !== -1) {
+      body = text.slice(idx + marker.length)
+      if (body.endsWith("'")) body = body.slice(0, -1)
+    }
+    return tool ? `【${tool}】${body}` : body
+  }
+
+  /**
+   * 流结束后判断是否为审批中断: 最后一个事件只有 message、没有 response,
+   * 且 message 是 toolNode 里 interrupt() 的固定文案 (含 "do you agree?")。
+   * 停止/编辑失败/恢复失败等 info 事件同样「只有 message」, 不加内容判定会误弹审批卡片。
+   */
   function isApprovalInterrupt(events) {
     const last = events[events.length - 1]
-    return !!last && last.response == null && !!last.message
+    if (!last || last.response != null || !last.message) return false
+    return String(last.message).includes('do you agree?')
   }
 
   async function sendMessage(content) {
@@ -366,9 +409,10 @@ export const useChatStore = defineStore('chat', () => {
       assistantMessage.type = 'text'
       // 成功: 流式接口不回显用户消息, 本地原文即真实消息 → 落定状态并去除 pending 标记
       localMessage.status = 'sent'
+      interruptedSessions.delete(sessionId)
       if (isApprovalInterrupt(events)) {
         pendingApproval.value = {
-          message: events[events.length - 1].message,
+          message: formatInterruptMessage(events[events.length - 1].message),
           sessionId,
         }
       }
@@ -377,10 +421,19 @@ export const useChatStore = defineStore('chat', () => {
     } catch (error) {
       // 失败: 剩余缓冲立即上屏, 错误信息不延迟; 保留消息并标记失败, 由 ChatWindow 展示错误并提供重试入口
       typewriter.flush()
-      localMessage.status = 'failed'
-      localMessage.error = error.message
-      assistantMessage.content += (assistantMessage.content ? '\n\n' : '') + `错误: ${error.message}`
-      assistantMessage.type = 'error'
+      if (stoppingSessions.has(sessionId)) {
+        // 用户主动停止: 连接被后端强制取消属预期行为, 按正常收尾展示已生成内容
+        stoppingSessions.delete(sessionId)
+        assistantMessage.type = 'text'
+        localMessage.status = 'sent'
+      } else {
+        localMessage.status = 'failed'
+        localMessage.error = error.message
+        assistantMessage.content += (assistantMessage.content ? '\n\n' : '') + `错误: ${error.message}`
+        assistantMessage.type = 'error'
+        // 标记会话可恢复: 用户可在 UI 上调用 /MiniCode/continue 从检查点续跑
+        interruptedSessions.add(sessionId)
+      }
     } finally {
       isStreaming.value = false
       streamingSessionId.value = null
@@ -445,9 +498,10 @@ export const useChatStore = defineStore('chat', () => {
       // 流结束: 等缓冲全部打完再落定, 保证逐字效果完整收尾
       await typewriter.finish()
       assistantMessage.type = 'text'
+      interruptedSessions.delete(sessionId)
       if (isApprovalInterrupt(events)) {
         pendingApproval.value = {
-          message: events[events.length - 1].message,
+          message: formatInterruptMessage(events[events.length - 1].message),
           sessionId,
         }
       }
@@ -542,6 +596,8 @@ export const useChatStore = defineStore('chat', () => {
       const res = await getHistory(sessionId)
       list = Array.isArray(res?.response)
         ? res.response.map((item) => ({
+            // 后端 LangGraph 消息 id: 编辑重发 (editMessage) 需要它定位检查点
+            id: item.id || null,
             role: item.type === 'human' ? 'user' : 'assistant',
             content: typeof item.content === 'string' ? item.content : JSON.stringify(item.content),
             type: 'text',
@@ -603,11 +659,208 @@ export const useChatStore = defineStore('chat', () => {
 
   async function restoreModel() {
     try {
-      return await oldModel()
+      return await listModels()
     } catch (e) {
-      console.error('恢复模型失败', e)
+      console.error('获取模型列表失败', e)
       throw e
     }
+  }
+
+  /* ================= 停止生成 (POST /MiniCode/stop) ================= */
+
+  /**
+   * 请求后端停止当前会话的生成。后端会先优雅置停,3 秒未停则强制取消任务;
+   * SSE 连接可能被后端直接掐断,sendMessage 的 catch 里依据 stoppingSessions
+   * 把这种「主动停止」当正常收尾,不标记失败。
+   */
+  async function stopGeneration(sessionId = currentSessionId.value) {
+    if (!sessionId) return
+    stoppingSessions.add(sessionId)
+    try {
+      await stopChat(sessionId)
+    } catch (e) {
+      stoppingSessions.delete(sessionId)
+      console.error('停止生成失败', e)
+      throw e
+    }
+  }
+
+  /* ================= 恢复中断的会话 (POST /MiniCode/continue) ================= */
+
+  /**
+   * 会话因异常中断后, 从后端最近的安全检查点继续执行图 (SSE 流式返回)。
+   * 用于 sendMessage 失败后 (interruptedSessions 标记) 的「继续生成」入口。
+   */
+  async function continueSession(sessionId = currentSessionId.value) {
+    if (!sessionId || isStreaming.value) return
+    const sessionMessages = getMessagesOf(sessionId)
+    pendingApproval.value = null
+
+    const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream' })
+    sessionMessages.push(assistantMessage)
+    isStreaming.value = true
+    streamingSessionId.value = sessionId
+    streamingSessions.add(sessionId)
+
+    const typewriter = createTypewriter(assistantMessage)
+    let received = ''
+    const events = []
+    try {
+      for await (const event of continueStream(sessionId)) {
+        events.push(event)
+        const delta = eventTextDelta(event, received)
+        received += delta
+        typewriter.push(delta)
+      }
+      await typewriter.finish()
+      assistantMessage.type = 'text'
+      interruptedSessions.delete(sessionId)
+      if (isApprovalInterrupt(events)) {
+        pendingApproval.value = {
+          message: formatInterruptMessage(events[events.length - 1].message),
+          sessionId,
+        }
+      }
+      await refreshSessions()
+    } catch (error) {
+      typewriter.flush()
+      if (stoppingSessions.has(sessionId)) {
+        stoppingSessions.delete(sessionId)
+        assistantMessage.type = 'text'
+      } else {
+        assistantMessage.content += (assistantMessage.content ? '\n\n' : '') + `错误: ${error.message}`
+        assistantMessage.type = 'error'
+        interruptedSessions.add(sessionId)
+      }
+    } finally {
+      isStreaming.value = false
+      streamingSessionId.value = null
+      streamingSessions.delete(sessionId)
+    }
+  }
+  /* ================= 编辑重发/时间旅行 (POST /MiniCode/editMessage) ================= */
+
+  /**
+   * 编辑指定用户消息并让后端从该检查点重新生成 (SSE)。
+   * @param message 目标用户消息 (需带后端消息 id; 若无则先拉历史按内容解析)
+   * @param newContent 编辑后的新内容
+   */
+  async function editMessage(message, newContent) {
+    if (isStreaming.value || !currentSessionId.value) return
+    if (!message || message.role !== 'user') return
+    const content = (newContent || '').trim()
+    if (!content) return
+
+    const sessionId = currentSessionId.value
+    const sessionMessages = getMessagesOf(sessionId)
+
+    // 本地乐观消息没有后端 id: 先拉一次历史, 按内容匹配对应的 LangGraph 消息 id
+    let messageId = message.id
+    if (!messageId) {
+      const res = await getHistory(sessionId).catch(() => null)
+      const history = Array.isArray(res?.response) ? res.response : []
+      // 后端只允许编辑「未造成影响」的消息, 匹配时从后往前找同内容的 human 消息
+      const hit = [...history].reverse().find(
+        (h) => h.type === 'human' && (typeof h.content === 'string' ? h.content : '') === message.content
+      )
+      messageId = hit?.id || null
+      if (messageId) message.id = messageId
+    }
+    if (!messageId) {
+      throw new Error('未能定位该消息对应的后端记录, 请刷新会话后重试')
+    }
+
+    message.content = content
+    // 丢弃该消息之后的所有本地消息: 后端会从该检查点重新生成
+    const idx = sessionMessages.indexOf(message)
+    if (idx !== -1) sessionMessages.splice(idx + 1)
+
+    const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream' })
+    sessionMessages.push(assistantMessage)
+    isStreaming.value = true
+    streamingSessionId.value = sessionId
+    streamingSessions.add(sessionId)
+
+    const typewriter = createTypewriter(assistantMessage)
+    let received = ''
+    const events = []
+    try {
+      for await (const event of editMessageStream({
+        session_id: sessionId,
+        message_id: messageId,
+        new_content: content,
+      })) {
+        events.push(event)
+        const delta = eventTextDelta(event, received)
+        received += delta
+        typewriter.push(delta)
+      }
+      await typewriter.finish()
+      assistantMessage.type = 'text'
+      interruptedSessions.delete(sessionId)
+      if (isApprovalInterrupt(events)) {
+        pendingApproval.value = {
+          message: formatInterruptMessage(events[events.length - 1].message),
+          sessionId,
+        }
+      }
+      await refreshSessions()
+    } catch (error) {
+      typewriter.flush()
+      assistantMessage.content += (assistantMessage.content ? '\n\n' : '') + `错误: ${error.message}`
+      assistantMessage.type = 'error'
+      interruptedSessions.add(sessionId)
+    } finally {
+      isStreaming.value = false
+      streamingSessionId.value = null
+      streamingSessions.delete(sessionId)
+    }
+  }
+
+
+  /* ================= 生成参数设置 (POST/GET /MiniCode/settings) ================= */
+
+  /** 从后端拉取生成参数 (temperature/theme/think_level); 首次使用无记录时后端会抛错, 忽略并保持默认 */
+  async function loadSettings() {
+    try {
+      const res = await getSettings(userId.value)
+      if (res?.response && typeof res.response === 'object') {
+        const { temperature, theme, think_level } = res.response
+        appSettings.value = {
+          temperature: typeof temperature === 'number' ? temperature : DEFAULT_SETTINGS.temperature,
+          theme: typeof theme === 'boolean' ? theme : DEFAULT_SETTINGS.theme,
+          think_level: [1, 2, 3].includes(think_level) ? think_level : DEFAULT_SETTINGS.think_level,
+        }
+        settingsLoaded.value = true
+      }
+    } catch (e) {
+      // 后端 reolad_settings 对无记录的用户会抛错 → 用默认值兜底, 不打断启动
+      console.warn('读取生成参数失败, 使用默认值', e)
+    }
+    return appSettings.value
+  }
+
+  /** 保存生成参数到后端 (乐观更新本地; 失败时抛错由 UI 提示) */
+  async function saveSettings(patch) {
+    const next = { ...appSettings.value, ...(patch || {}) }
+    const res = await saveSettingsApi({ user_id: userId.value, settings: next })
+    appSettings.value = next
+    settingsLoaded.value = true
+    return res
+  }
+
+  /* ================= Git 环境检测 (GET /MiniCode/checkGit) ================= */
+
+  /** 检测后端运行环境的 Git 可用性; 未安装时后端会尝试 winget 安装, 结果供状态栏展示 */
+  async function checkGitStatus() {
+    try {
+      const res = await checkGit()
+      gitReady.value = res?.response === true
+    } catch (e) {
+      gitReady.value = false
+      console.error('Git 环境检测失败', e)
+    }
+    return gitReady.value
   }
 
   /** 当前会话绑定的会话级工作目录（切换会话时自动跟随） */
@@ -672,6 +925,10 @@ export const useChatStore = defineStore('chat', () => {
     emptySessionToast,
     searchFocusSignal,
     backendOnline,
+    gitReady,
+    interruptedSessions,
+    appSettings,
+    settingsLoaded,
     isActiveSessionEmpty,
     requestNewChat,
     focusSessionSearch,
@@ -679,6 +936,12 @@ export const useChatStore = defineStore('chat', () => {
     sendMessage,
     retrySend,
     approve,
+    stopGeneration,
+    continueSession,
+    editMessage,
+    loadSettings,
+    saveSettings,
+    checkGitStatus,
     createNewChat,
     loadHistory,
     removeSession,

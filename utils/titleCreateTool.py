@@ -5,7 +5,7 @@ from config.sessionManager import sessionmanager
 from mapper.database import DataBase
 from mapper.sessionMapper import sessionMapper
 from prompt import title_prompt
-from requestcommon.ModelRequest import ModelChooseRequest
+from requestcommon.ModelRequest import ModelSetRequest
 
 
 async def new_title(session_id: str, messages: list[str]) -> None:
@@ -34,7 +34,7 @@ async def new_title(session_id: str, messages: list[str]) -> None:
 #硬编码测试
 if __name__=="__main__":
     from config.dependencies import create_model
-    model=create_model(ModelChooseRequest(
+    model=create_model(ModelSetRequest(
         base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         api_key="sk-ws-H.EXIRYMP.4Lrl.MEUCIQD21KzYKp6qoSCsYlim1IqpE9bsoAVtzY3bNNEJPdg7BQIgddUrdtJnalhHNslpul_yv0cTGrWmMeUXtvcOZ0hYfgo",
         model_name="qwen3.6-plus"

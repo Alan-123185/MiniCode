@@ -15,16 +15,35 @@
         @keydown.enter.exact.prevent="submit"
       ></textarea>
       <button
+        v-if="store.isStreaming"
+        class="send-btn stopping"
+        :disabled="stopping"
+        :title="stopping ? '正在停止…' : '停止生成'"
+        :aria-label="'停止生成'"
+        @click="stopGeneration"
+      >
+        <span v-if="stopping" class="spinner" aria-hidden="true"></span>
+        <svg
+          v-else
+          xmlns="http://www.w3.org/2000/svg"
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+        </svg>
+      </button>
+      <button
+        v-else
         class="send-btn"
-        :class="{ sending: store.isStreaming }"
         :disabled="!canSend"
-        :title="store.isStreaming ? 'AI 正在回复' : '发送 (Enter)'"
+        title="发送 (Enter)"
         aria-label="发送消息"
         @click="submit"
       >
-        <span v-if="store.isStreaming" class="spinner" aria-hidden="true"></span>
         <svg
-          v-else
           xmlns="http://www.w3.org/2000/svg"
           width="16"
           height="16"
@@ -69,6 +88,21 @@ function showError(message) {
 }
 
 const canSend = computed(() => text.value.trim() && !store.isStreaming)
+
+/* ---------- 停止生成 ---------- */
+const stopping = ref(false)
+
+async function stopGeneration() {
+  if (stopping.value) return
+  stopping.value = true
+  try {
+    await store.stopGeneration()
+  } catch (e) {
+    showError(`停止失败: ${e.message}`)
+  } finally {
+    stopping.value = false
+  }
+}
 
 // 「新建对话」被拦截时, store 发出聚焦信号 → 自动聚焦输入框
 watch(
@@ -192,6 +226,19 @@ async function submit() {
 
 .send-btn.sending {
   opacity: 1;
+}
+
+/* 停止按钮: 与发送同尺寸, 语义用错误色区分 (生成中随时可点) */
+.send-btn.stopping {
+  background: var(--error);
+}
+
+.send-btn.stopping:hover:not(:disabled) {
+  background: var(--error-hover);
+}
+
+.send-btn.stopping:active:not(:disabled) {
+  background: var(--error-hover);
 }
 
 .spinner {

@@ -2,7 +2,8 @@
 from config.data import settings
 from config.dependencies import create_model
 from config.modelConfig import model_config
-from requestcommon.ModelRequest import ModelChooseRequest
+from exceptions import BizException
+from requestcommon.ModelRequest import ModelGetRequest, ModelSetRequest
 from requestcommon.settingsRequest import settingsRequest, Settings
 
 
@@ -11,18 +12,31 @@ class modelService:
         self.modelmapper=modelmapper
 
 
-    def choose_model(self,request: ModelChooseRequest ) -> None:
-         model_config["value"] = create_model(
+    def add_model(self,request: ModelSetRequest ) -> None:
+        self.modelmapper.add_model(request)
+        model_config["value"] = create_model(
              request
-         )
-         self.modelmapper.add_model(request)
+        )
+
+    def set_model(self,id:int) -> ModelSetRequest:
+        model=self.modelmapper.query_model(id)
+        if model:
+            model_config["value"] = create_model(
+                model
+            )
+            return model
+        else:
+            raise BizException(message="模型不存在")
 
 
 
 
-    def old_choose_model(self) -> ModelChooseRequest:
+
+
+
+    def old_choose_model(self) -> ModelSetRequest:
         config=self.modelmapper.reload_model_config()
-        model = ModelChooseRequest(base_url=config["base_url"], api_key=config["api_key"],
+        model = ModelSetRequest(base_url=config["base_url"], api_key=config["api_key"],
                                      model_name=config["model_name"], is_default=config["is_default"])
         model_config["value"]=create_model(
            model
@@ -52,6 +66,6 @@ class modelService:
         sts= self.modelmapper.reolad_settings(user_id)
         return sts
 
-    def get_model(self) -> list[ModelChooseRequest]:
+    def get_model(self) -> list[ModelGetRequest]:
         models=self.modelmapper.reload_all_models()
         return models

@@ -5,11 +5,19 @@ from pydantic import BaseModel
 from config.data import settings
 
 
-class ModelChooseRequest(BaseModel):
+class ModelSetRequest(BaseModel):
     base_url: str = settings.DEFAULT_BASE_URL
     api_key: str = settings.DEFAULT_API_KEY
     model_name: str = settings.DEFAULT_MODEL
     is_default: bool = False
+
+
+class ModelGetRequest(BaseModel):
+    id: int
+    base_url:str
+    api_key: str
+    model_name: str
+    is_default: bool
 
 
 class ModelUpdateRequest(BaseModel):

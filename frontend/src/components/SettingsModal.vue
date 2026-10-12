@@ -83,6 +83,58 @@
           </div>
           <p v-if="feedback" :class="['feedback', feedbackType]">{{ feedback }}</p>
         </div>
+
+        <!-- 生成参数: 对应后端 settingsRequest (temperature/theme/think_level), POST /MiniCode/settings 持久化 -->
+        <div class="modal-section">
+          <h4>生成参数</h4>
+
+          <div class="field">
+            <label for="setting-temperature">
+              温度 ({{ appSettings.temperature.toFixed(1) }})
+            </label>
+            <input
+              id="setting-temperature"
+              v-model.number="appSettings.temperature"
+              type="range"
+              min="0"
+              max="2"
+              step="0.1"
+              class="range-input"
+              aria-label="模型温度, 范围 0~2, 越大越随机"
+            />
+            <p class="field-hint">范围 0~2: 越大越发散随机, 越小越稳定确定</p>
+          </div>
+
+          <div class="field">
+            <label>思考等级</label>
+            <div class="level-row" role="radiogroup" aria-label="思考等级">
+              <button
+                v-for="lv in [1, 2, 3]"
+                :key="lv"
+                class="level-btn"
+                role="radio"
+                :aria-checked="appSettings.think_level === lv"
+                :class="{ active: appSettings.think_level === lv }"
+                @click="appSettings.think_level = lv"
+              >
+                {{ levelLabels[lv] }}
+              </button>
+            </div>
+            <p class="field-hint">1 快速响应 · 2 均衡 · 3 深度思考</p>
+          </div>
+
+          <div class="btn-row">
+            <button
+              class="primary-btn"
+              :disabled="savingSettings"
+              title="保存生成参数到后端 (POST /MiniCode/settings)"
+              @click="saveAppSettings"
+            >
+              {{ savingSettings ? '保存中…' : '保存生成参数' }}
+            </button>
+          </div>
+          <p v-if="settingsFeedback" :class="['feedback', settingsFeedbackType]">{{ settingsFeedback }}</p>
+        </div>
       </div>
       <div class="modal-footer">
         <span class="footer-hint"><kbd>Esc</kbd> 关闭 · <kbd>←</kbd><kbd>→</kbd> 切换配置组</span>
@@ -101,6 +153,40 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const store = useChatStore()
+
+/* ================= 生成参数 (后端 settingsRequest: temperature / theme / think_level) ================= */
+
+const appSettings = computed(() => store.appSettings)
+const levelLabels = { 1: '快速', 2: '均衡', 3: '深度' }
+const savingSettings = ref(false)
+const settingsFeedback = ref('')
+const settingsFeedbackType = ref('success')
+let settingsFeedbackTimer = null
+
+function showSettingsFeedback(message, type = 'success') {
+  settingsFeedback.value = message
+  settingsFeedbackType.value = type
+  clearTimeout(settingsFeedbackTimer)
+  settingsFeedbackTimer = setTimeout(() => (settingsFeedback.value = ''), 2600)
+}
+
+/** 保存生成参数到后端 (POST /MiniCode/settings); 首次打开未加载时先拉一次 */
+async function saveAppSettings() {
+  if (savingSettings.value) return
+  savingSettings.value = true
+  try {
+    await store.saveSettings({
+      temperature: Number(appSettings.value.temperature),
+      think_level: Number(appSettings.value.think_level),
+    })
+    showSettingsFeedback('生成参数已保存', 'success')
+  } catch (e) {
+    console.error('保存生成参数失败', e)
+    showSettingsFeedback(`保存失败: ${e.message}`, 'error')
+  } finally {
+    savingSettings.value = false
+  }
+}
 
 /* ================= 5 组模型配置 (选项卡分页) ================= */
 
@@ -515,6 +601,48 @@ function setAsDefault() {
 
 .field input {
   width: 100%;
+}
+
+/* 生成参数: 温度滑条与思考等级分段按钮 */
+.range-input {
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.field-hint {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.level-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.level-btn {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+}
+
+.level-btn:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--bg-hover);
+  background-image: none;
+  box-shadow: none;
+  transform: none;
+}
+
+.level-btn.active {
+  color: var(--accent);
+  background: var(--accent-light);
+  border-color: var(--accent-border);
+  font-weight: 600;
 }
 
 .btn-row {

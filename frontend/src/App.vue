@@ -92,6 +92,16 @@
       </span>
       <span class="status-spacer"></span>
       <transition name="fade">
+        <span
+          v-if="store.gitReady !== null"
+          class="status-item"
+          :title="store.gitReady ? '后端 Git 环境正常' : '后端 Git 未就绪, 相关工具可能不可用'"
+        >
+          <span class="status-dot" :class="store.gitReady ? 'ok' : 'bad'" aria-hidden="true"></span>
+          Git {{ store.gitReady ? '就绪' : '缺失' }}
+        </span>
+      </transition>
+      <transition name="fade">
         <span v-if="store.isStreaming" class="status-item status-streaming">
           <span class="mini-spinner" aria-hidden="true"></span>
           生成中…
@@ -151,6 +161,10 @@ function toggleTheme() {
   isDarkMode.value = !isDarkMode.value
   localStorage.setItem('dark-mode', isDarkMode.value)
   applyTheme(isDarkMode.value)
+  // 同步主题偏好到后端生成参数 (settingsRequest.theme: True=浅色); 后端不可用时静默失败
+  store.saveSettings({ theme: !isDarkMode.value }).catch((e) => {
+    console.warn('同步主题到后端失败', e)
+  })
 }
 
 /* ---------- 运行环境 / 后端地址 (状态栏展示) ---------- */
