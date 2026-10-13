@@ -40,7 +40,7 @@ if __name__=="__main__":
         model_name="DeepSeek"
     ))
     session_id="string"
-    messages=["帮我修复一下ragdemo下的一些bug"]
+    messages=["帮我看看这个项目，也就是你底层的脚手架，我是你的开发者"]
     prompt = title_prompt.TITLE_PROMPT.format(first_message=messages)
     title_message =model.invoke([SystemMessage(content=prompt)], reasoning_effort="none",extra_body={"enable_thinking": False})
     logger.info(f"会话 {session_id} 的标题已更新为: {title_message}")

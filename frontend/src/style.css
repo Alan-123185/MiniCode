@@ -59,6 +59,9 @@
   --code-bg: #161b26;
   --code-fg: #dbe2ee;
   --code-border: rgba(255, 255, 255, 0.08);
+  /* 行内代码: 背景随主题变化, 故文字色需一并切换, 保证在浅/深底上均可读 */
+  --code-inline-fg: #2f66c4;
+  --code-inline-bg: var(--gray-100);
 
   /* ---------- 2. 设计 Token: 排版 ---------- */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
@@ -155,6 +158,8 @@
   --code-bg: #14161d;
   --code-fg: #d5dae4;
   --code-border: rgba(255, 255, 255, 0.06);
+  --code-inline-fg: #8fbdf7;
+  --code-inline-bg: var(--bg-tertiary);
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
@@ -391,8 +396,8 @@ kbd {
   padding: 2px 6px;
   font-family: var(--font-mono);
   font-size: 12.5px;
-  color: var(--code-fg);
-  background: var(--bg-tertiary);
+  color: var(--code-inline-fg);
+  background: var(--code-inline-bg);
   border: 1px solid var(--border-color);
   border-radius: 4px;
 }
