@@ -5,13 +5,15 @@
         ref="ta"
         v-model="text"
         rows="1"
-        :placeholder="store.isStreaming ? 'AI 正在回复…' : '输入消息，Enter 发送'"
+        :placeholder="inputPlaceholder"
         :aria-label="'消息输入框'"
         @input="resize"
         @keydown.enter.exact.prevent="submit"
       ></textarea>
+      <!-- 停止按钮只对「当前会话自己在生成」时出现: 别的会话在后台跑时不能在这里亮,
+           否则用户会以为当前会话在运行, 点了还会把停止请求发到错误的会话上 -->
       <button
-        v-if="store.isStreaming"
+        v-if="store.isCurrentSessionStreaming"
         class="send-btn stopping"
         :disabled="stopping"
         :title="stopping ? '正在停止…' : '停止生成'"
@@ -79,13 +81,28 @@ function onError(message) {
   toast.error(message, 4200)
 }
 
-const canSend = computed(() => text.value.trim() && !store.isStreaming)
+/**
+ * 能否发送: 只看「当前会话」是否在生成。
+ * 并行生成后, 别的会话在后台跑不影响本会话发送 —— 后端按 session_id/thread_id
+ * 完全隔离, 闸门也是按会话的 (sendMessage 里的 isSessionStreaming)。
+ */
+const canSend = computed(() => text.value.trim() && !store.isCurrentSessionStreaming)
+
+/** 输入框占位符: 当前会话在生成 / 别的会话在并行生成 / 空闲, 三种状态说三种话 */
+const inputPlaceholder = computed(() => {
+  if (store.isCurrentSessionStreaming) return 'AI 正在回复…'
+  if (store.hasBackgroundStreaming) {
+    return `另有 ${store.streamingCount} 个会话生成中 · 本会话可直接发消息`
+  }
+  return '输入消息，Enter 发送'
+})
 
 /* ---------- 停止生成 ---------- */
 const stopping = ref(false)
 
 async function stopGeneration() {
-  if (stopping.value) return
+  // 双保险: 当前会话没在生成就不发请求 (store.stopGeneration 内部也会按会话校验)
+  if (stopping.value || !store.isCurrentSessionStreaming) return
   stopping.value = true
   try {
     await store.stopGeneration()

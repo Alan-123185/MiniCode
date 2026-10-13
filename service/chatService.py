@@ -16,6 +16,9 @@ from requestcommon.decisionRequst import decisionRequst
 from typing import AsyncGenerator
 
 
+_running_tasks: dict[str, asyncio.Task] = {}
+_stop_flags: dict[str, asyncio.Event] = {}
+
 class ChatService:
     def __init__(self,graph,chat_config,sessionMapper,fileMapper,operationgroupMapper):
         self.graph=graph
@@ -23,8 +26,8 @@ class ChatService:
         self.sessionMapper = sessionMapper
         self.fileMapper = fileMapper
         self.operationgroupMapper = operationgroupMapper
-        self.running_tasks :dict[str,asyncio.Task]= {}  # 用于跟踪每个会话的运行状态
-        self.stop_flags :dict[str,asyncio.Event]= {}  # 用于标记每个会话是否需要停止运行
+        self.running_tasks = _running_tasks  # 用于跟踪每个会话的运行状态态
+        self.stop_flags =  _stop_flags  # 用于标记每个会话是否需要停止运行
 
 #改为流式的chat
     """

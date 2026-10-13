@@ -36,7 +36,7 @@
         </button>
         <!-- 用户消息: 编辑重发 (时间旅行, POST /MiniCode/editMessage) -->
         <button
-          v-if="message.role === 'user' && !store.isStreaming && editingIndex !== index"
+          v-if="message.role === 'user' && !store.isCurrentSessionStreaming && editingIndex !== index"
           class="msg-edit"
           title="编辑并重新生成"
           @click="startEdit(message, index)"
@@ -79,7 +79,7 @@
           <span class="send-failed-text">发送失败{{ message.error ? `: ${message.error}` : '' }}</span>
           <button
             class="retry-btn"
-            :disabled="store.isStreaming"
+            :disabled="store.isCurrentSessionStreaming"
             title="重新发送这条消息"
             @click="store.retrySend(message)"
           >重试</button>
@@ -149,7 +149,7 @@
         <span class="resume-text">上次生成因异常中断, 可从最近的检查点继续</span>
         <button
           class="resume-btn"
-          :disabled="store.isStreaming"
+          :disabled="store.isCurrentSessionStreaming"
           title="从后端最近的安全检查点继续执行"
           @click="store.continueSession()"
         >继续生成</button>
@@ -164,8 +164,8 @@
       </div>
       <div class="approval-message">{{ activeApproval.message }}</div>
       <div class="approval-actions">
-        <button :disabled="store.isStreaming" @click="store.approve('yes')">批准</button>
-        <button :disabled="store.isStreaming" class="reject" @click="store.approve('no')">拒绝</button>
+        <button :disabled="store.isCurrentSessionStreaming" @click="store.approve('yes')">批准</button>
+        <button :disabled="store.isCurrentSessionStreaming" class="reject" @click="store.approve('no')">拒绝</button>
       </div>
     </div>
     <MessageInput />
@@ -190,8 +190,10 @@ const toolTraceAutoOpen = ref(true) // 流式期间默认展开
 
 function isToolTraceOpen(index) {
   if (index in toolTraceManual.value) return toolTraceManual.value[index]
-  // 尚未手动操作: 流式输出期间展开, 结束后收起
-  return store.isStreaming && toolTraceAutoOpen.value
+  // 尚未手动操作: 「当前会话」流式输出期间展开, 结束后收起。
+  // 必须用 isCurrentSessionStreaming: 用全局 isStreaming 会让别的会话在后台生成时,
+  // 本会话已结束消息的折叠面板也被强行展开。
+  return store.isCurrentSessionStreaming && toolTraceAutoOpen.value
 }
 
 function toggleToolTrace(index) {
@@ -295,7 +297,8 @@ const editing = ref(false)
 const editorTa = ref(null)
 
 function startEdit(message, index) {
-  if (store.isStreaming) return
+  // 只拦"这条会话自己"正在生成的情况; 别的会话并行生成不影响本会话编辑
+  if (store.isCurrentSessionStreaming) return
   editingIndex.value = index
   editingText.value = message.content
   nextTick(() => {
@@ -345,7 +348,7 @@ const activeApproval = computed(
 
 const showResumeBanner = computed(
   () =>
-    !store.isStreaming &&
+    !store.isCurrentSessionStreaming &&
     !dismissedResume.value &&
     store.currentSessionId != null &&
     store.interruptedSessions.has(store.currentSessionId)

@@ -61,9 +61,10 @@
         @contextmenu.prevent="openContextMenu($event, session)"
       >
         <span class="title">{{ session.title }}</span>
-        <!-- 正在生成的会话: 标题尾部三点动画 (仅流式进行中的会话显示) -->
+        <!-- 正在生成的会话: 标题尾部三点动画。并行生成时每条在跑的会话都要显示,
+             所以按集合判定, 而不是只比对"最近启动的那一条" (streamingSessionId) -->
         <span
-          v-if="session.id === store.streamingSessionId"
+          v-if="store.isSessionStreaming(session.id)"
           class="streaming-dots"
           title="AI 正在思考"
           aria-label="AI 正在思考"

@@ -79,9 +79,13 @@
         </span>
       </transition>
       <transition name="fade">
-        <span v-if="store.isStreaming" class="status-item status-streaming">
+        <span
+          v-if="store.isStreaming"
+          class="status-item status-streaming"
+          :title="store.streamingStatusTitle"
+        >
           <span class="mini-spinner" aria-hidden="true"></span>
-          生成中…
+          {{ store.streamingStatusText }}
         </span>
       </transition>
       <span class="status-item">{{ store.sessions.length }} 个会话</span>

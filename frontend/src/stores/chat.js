@@ -92,19 +92,63 @@ export const useChatStore = defineStore('chat', () => {
   const messageCache = new Map()
   /** 每会话历史加载序号: 丢弃并发加载中迟到的旧响应 */
   const historyTokens = new Map()
-  /** 正在流式输出的会话 id 集合 (防止切回时被尚未落库的后端历史覆盖) */
-  const streamingSessions = new Set()
+  /**
+   * 正在流式输出的会话 id 集合 —— 并行生成的唯一事实来源 (single source of truth)。
+   * 必须是 reactive Set: 界面(停止按钮/三点动画/状态栏)靠它订阅"哪几条会话在跑"。
+   * 同时承担两个职责:
+   *  - 防止切回时被尚未落库的后端历史覆盖 (loadHistory 的跳过条件, 见 hasLocalContent)
+   *  - 会话级准入闸门: 同一会话同一时刻只允许一路流 (sendMessage / approve / continue /
+   *    editMessage / retrySend 都靠它判重, 后端同一 thread_id 也只能跑一条)
+   */
+  const streamingSessions = reactive(new Set())
   const EMPTY_MESSAGES = []
-  const isStreaming = ref(false)
-  /** 当前正在流式输出的会话 id (供会话列表在对应会话项旁显示"生成中"三点动画) */
+  /**
+   * 是否有任意会话在生成 —— 由 streamingSessions 派生, 不再手工维护。
+   * 改成 computed 之前它是手工 set 的 ref, 4 处流各自 finally 里置 false,
+   * 并行时先结束的那条会把"还有会话在跑"的事实抹掉, 界面状态直接错乱。
+   */
+  const isStreaming = computed(() => streamingSessions.size > 0)
+  /** 最近启动流式输出的会话 id (仅作提示用途; 并行判定一律看 streamingSessions) */
   const streamingSessionId = ref(null)
-  const pendingApproval = ref(null)
-  /** 当前正在做什么的一句话状态 (如"正在调用 file_edit 工具…"), 仅作轻提示, 不进消息正文 */
-  const currentStatus = ref('')
-  // 流开始/结束都清空进度提示: 开始避免上一轮残留, 结束避免停在工具状态(无最终答案)时残留
-  watch(isStreaming, () => {
-    currentStatus.value = ''
+  /**
+   * 当前会话是否正在流式输出。
+   * 界面(停止按钮/输入框占位符/编辑入口)一律以此为准, 不要用全局 isStreaming ——
+   * isStreaming 只表示"有某个会话在生成", 切到没有任务在跑的会话时它仍为 true。
+   */
+  const isCurrentSessionStreaming = computed(() =>
+    currentSessionId.value != null && streamingSessions.has(currentSessionId.value)
+  )
+  /** 当前会话没有任务, 但有别的会话在后台并行生成 */
+  const hasBackgroundStreaming = computed(
+    () => isStreaming.value && !isCurrentSessionStreaming.value
+  )
+  /** 正在生成中的会话条数 (状态栏并行提示) */
+  const streamingCount = computed(() => streamingSessions.size)
+  /** 正在生成的会话标题列表 (状态栏: 并行时全部列出, 避免用户误以为当前会话在跑) */
+  const streamingSessionTitles = computed(() =>
+    [...streamingSessions].map((id) => sessions.value.find((s) => s.id === id)?.title || '未命名会话')
+  )
+  /** 状态栏一句话: 只有当前会话在跑 → "生成中…"; 并行/后台 → "N 个会话生成中…" */
+  const streamingStatusText = computed(() => {
+    const n = streamingSessions.size
+    if (!n) return ''
+    if (n === 1 && isCurrentSessionStreaming.value) return '生成中…'
+    return `${n} 个会话生成中…`
   })
+  /** 状态栏 title 提示: 点名是哪几条会话在跑 */
+  const streamingStatusTitle = computed(() =>
+    streamingSessions.size ? `正在生成: ${streamingSessionTitles.value.join('、')}` : ''
+  )
+  const pendingApproval = ref(null)
+  /**
+   * 每会话的一句话状态 (如"正在调用 file_edit 工具…"), 仅作轻提示, 不进消息正文。
+   * 并行生成后必须按会话分开存: 单值会让 A 的工具状态串到 B 的界面上。
+   */
+  const sessionStatus = reactive(new Map())
+  /** 当前会话的状态 (界面只展示自己这条会话的) */
+  const currentStatus = computed(() =>
+    currentSessionId.value ? sessionStatus.get(currentSessionId.value) || '' : ''
+  )
   /** 当前生效模型的运行时副本 (model_name/base_url/api_key, 由后端 get_model/set_model 数据回填) */
   const modelConfig = ref({ base_url: '', api_key: '', model: '', extra_params: {} })
   /** 后端模型列表 (GET /MiniCode/get_model → list[ModelGetRequest], 数据源是数据库而非本地存储) */
@@ -122,6 +166,30 @@ export const useChatStore = defineStore('chat', () => {
   const stoppingSessions = new Set()
   /** 上次生成异常中断、可调用 /MiniCode/continue 恢复的会话 (reactive Set 供 UI 响应) */
   const interruptedSessions = reactive(new Set())
+
+  /* ---------- 并行生成: 流式状态的记账助手 ----------
+   * 4 条流 (chat / approve / continue / editMessage) 的起止逻辑完全同构,
+   * 抽成助手避免各处手写 isStreaming/streamingSessionId 的三行赋值 ——
+   * 之前正是这 8 处手写赋值在并行下互相覆盖, 导致状态错乱。 */
+
+  /** 该会话是否已有流在跑 (并行生成下的准入闸门: 只拦同一会话的第二次请求) */
+  function isSessionStreaming(sessionId) {
+    return !!sessionId && streamingSessions.has(sessionId)
+  }
+
+  /** 标记某会话开始流式输出; 顺带清掉它上一轮的残留状态提示 */
+  function beginStream(sessionId) {
+    streamingSessionId.value = sessionId
+    streamingSessions.add(sessionId)
+    sessionStatus.delete(sessionId)
+  }
+
+  /** 标记某会话流式结束。只有"最近启动的那条"结束时才清 streamingSessionId, 别条并发不受影响 */
+  function endStream(sessionId) {
+    streamingSessions.delete(sessionId)
+    sessionStatus.delete(sessionId)
+    if (streamingSessionId.value === sessionId) streamingSessionId.value = null
+  }
   /** 生成参数设置 (对应 requestcommon/settingsRequest.py: temperature/theme/think_level), 后端持久化 */
   const DEFAULT_SETTINGS = { temperature: 0.3, theme: true, think_level: 2 }
   const appSettings = ref({ ...DEFAULT_SETTINGS })
@@ -414,12 +482,18 @@ export const useChatStore = defineStore('chat', () => {
    *  - 最终结果: response 为 agentResult → 取其 answer/content (交打字机逐字上屏)
    *  - 工具调用实时消息 (尝试/结果): 剥离出正文, 折叠进 message.toolEvents, 不刷屏
    *  - 审批中断 (见 isApprovalMessage) / 系统提示 (如"已停止生成。"): 追加到正文
+   *
+   * @param sessionId 该流所属会话 —— 进度提示按会话写, 并行时不会串到别的会话上
    */
-  function eventTextDelta(event, received, assistantMessage) {
+  function eventTextDelta(event, received, assistantMessage, sessionId) {
     if (!event) return ''
+    /** 写"当前在干嘛"的轻提示: 按会话记账, 界面只读自己那条 */
+    function setStatus(text) {
+      if (sessionId) sessionStatus.set(sessionId, text)
+    }
     if (event.response != null) {
       // 最终答案到达: 清掉进度提示, 交给打字机上屏
-      currentStatus.value = ''
+      setStatus('')
       return formatAgentResult(event.response)
     }
     if (event.message) {
@@ -434,7 +508,7 @@ export const useChatStore = defineStore('chat', () => {
         if (!assistantMessage.toolEvents) assistantMessage.toolEvents = []
         applyToolEvent(assistantMessage.toolEvents, info)
         // 同步轻量进度提示 (正文尚未出现时展示"当前在干嘛"), 与折叠列表互不冲突
-        currentStatus.value = info.label
+        setStatus(info.label)
         return ''
       }
       // 兜底: 无法归类、但存在"进行中"的工具记录且不是系统提示时,
@@ -442,7 +516,7 @@ export const useChatStore = defineStore('chat', () => {
       // 回填以避免 diff 泄漏进正文、也避免该条永久转圈。
       if (assistantMessage && assistantMessage.toolEvents?.some((ev) => ev.status === 'running') && !isSystemNotice(text)) {
         applyToolEvent(assistantMessage.toolEvents, { tool: '', phase: 'result', status: 'success', label: text })
-        currentStatus.value = text
+        setStatus(text)
         return ''
       }
       // 其他纯文本 info (已停止生成 / 异常提示等): 追加到正文
@@ -596,7 +670,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function sendMessage(content) {
-    if (!content.trim() || isStreaming.value) return
+    if (!content.trim()) return
 
     // 无会话时先建会话并等待后端注册完成(保证 chat 请求先于会话注册的契约不破坏);
     // 已有会话时这里不等待任何接口, 消息立即上屏
@@ -604,6 +678,10 @@ export const useChatStore = defineStore('chat', () => {
 
     // 锁定发送时刻的会话与其消息数组: 后台流式输出不再受会话切换影响
     const sessionId = currentSessionId.value
+    // 并行生成的准入闸门: 只拦"这条会话自己"的第二次请求。
+    // 别的会话正在并行生成不影响本会话发送 —— 后端 running_tasks/stop_flags 均按
+    // session_id 隔离, 检查点按 thread_id 隔离, 天然支持多会话同时跑。
+    if (isSessionStreaming(sessionId)) return
     const sessionMessages = getMessagesOf(sessionId)
     const contentTrimmed = content.trim()
 
@@ -618,9 +696,7 @@ export const useChatStore = defineStore('chat', () => {
     })
     sessionMessages.push(localMessage)
 
-    isStreaming.value = true
-    streamingSessionId.value = sessionId
-    streamingSessions.add(sessionId)
+    beginStream(sessionId)
 
     // 首句写入本地会话名(后端未命名时兜底)
     const session = sessions.value.find((s) => s.id === sessionId)
@@ -647,7 +723,7 @@ export const useChatStore = defineStore('chat', () => {
       for await (const event of stream) {
         events.push(event)
         // 收到即计算文本增量入缓冲, 由打字机节奏逐字上屏
-        const delta = eventTextDelta(event, received, assistantMessage)
+        const delta = eventTextDelta(event, received, assistantMessage, sessionId)
         received += delta
         typewriter.push(delta)
       }
@@ -688,16 +764,16 @@ export const useChatStore = defineStore('chat', () => {
       // 停止标记只服务于"当前这轮流", 必须在这里清掉:
       // 漏清会让该会话之后所有真实异常都被误判成"用户主动停止"(不报错、也不给恢复入口)
       stoppingSessions.delete(sessionId)
-      isStreaming.value = false
-      streamingSessionId.value = null
-      streamingSessions.delete(sessionId)
+      endStream(sessionId)
     }
   }
 
   /** 重试发送失败的消息: 按原文重发, 并清掉失败气泡与其后本次失败产生的错误提示 */
   async function retrySend(message) {
     if (!message || message.role !== 'user' || message.status !== 'failed') return
-    if (isStreaming.value || !currentSessionId.value) return
+    if (!currentSessionId.value) return
+    // 并行闸门: 只拦"这条会话自己"正在生成的情况
+    if (isSessionStreaming(currentSessionId.value)) return
     const list = getMessagesOf(currentSessionId.value)
     const idx = list.indexOf(message)
     if (idx === -1) return
@@ -710,9 +786,11 @@ export const useChatStore = defineStore('chat', () => {
 
   /** 用户批准/拒绝工具调用，从暂停处恢复 agent */
   async function approve(decision) {
-    if (!pendingApproval.value || isStreaming.value) return
+    if (!pendingApproval.value) return
 
     const approval = pendingApproval.value
+    // 并行闸门: 只拦"这条审批所属会话"自己正在生成的情况
+    if (isSessionStreaming(approval.sessionId)) return
 
     // 兜底校验: 审批所属会话必须仍在会话列表里。它可能已被删除(或本地列表
     // 还没同步到它), 此时绝不能发请求 —— 既会打到一个不存在的 session_id,
@@ -736,9 +814,7 @@ export const useChatStore = defineStore('chat', () => {
     // 同 sendMessage: 流式写入的气泡必须是 reactive 对象
     const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream', toolEvents: [] })
     sessionMessages.push(assistantMessage)
-    isStreaming.value = true
-    streamingSessionId.value = sessionId
-    streamingSessions.add(sessionId)
+    beginStream(sessionId)
 
     // 打字机: 与 sendMessage 相同的逐字上屏; received 记录已收到的全部文本(供分隔符判断)
     const typewriter = createTypewriter(assistantMessage)
@@ -752,7 +828,7 @@ export const useChatStore = defineStore('chat', () => {
       for await (const event of stream) {
         events.push(event)
         // 收到即计算文本增量入缓冲, 由打字机节奏逐字上屏
-        const delta = eventTextDelta(event, received, assistantMessage)
+        const delta = eventTextDelta(event, received, assistantMessage, sessionId)
         received += delta
         typewriter.push(delta)
       }
@@ -787,9 +863,7 @@ export const useChatStore = defineStore('chat', () => {
       }
     } finally {
       stoppingSessions.delete(sessionId)
-      isStreaming.value = false
-      streamingSessionId.value = null
-      streamingSessions.delete(sessionId)
+      endStream(sessionId)
     }
   }
 
@@ -989,13 +1063,24 @@ export const useChatStore = defineStore('chat', () => {
   /* ================= 停止生成 (POST /MiniCode/stop) ================= */
 
   /**
-   * 请求后端停止当前会话的生成。后端会先优雅置停,3 秒未停则强制取消任务;
-   * SSE 连接可能被后端直接掐断, sendMessage / approve / continueSession / editMessage
-   * 的 catch 里依据 stoppingSessions 把这种「主动停止」当正常收尾,不标记失败。
-   * 该标记只对当前这轮流有效, 由各流的 finally 统一清除。
+   * 请求后端停止生成。
+   *
+   * 后端按 session_id 置停 (service/chatService.py stop_chat: 优雅置停 → 3 秒未停则
+   * 强制取消任务), SSE 连接可能被后端直接掐断, sendMessage / approve /
+   * continueSession / editMessage 的 catch 里依据 stoppingSessions 把这种
+   * 「主动停止」当正常收尾, 不标记失败。该标记只对当前这轮流有效, 由各流的 finally 统一清除。
+   *
+   * 语义严格按会话: 只停「传进来的那个会话」, 且它必须真的在跑。
+   *  - 不传参 → 只停当前正在看的会话, 绝不顺手停掉别的会话:
+   *    用户在会话 A 生成期间切到空闲的 B, 若这里默认去打 A, 一次误点就把 A 掐了。
+   *  - 目标会话没在流式输出 → 直接返回: 不发无效请求 (后端会回 code=500「终止失败」),
+   *    也不把它塞进 stoppingSessions —— 否则该会话之后的真实异常会被误判成
+   *    「用户主动停止」而不报错、也不给恢复入口。
    */
   async function stopGeneration(sessionId = currentSessionId.value) {
     if (!sessionId) return
+    // 与并行闸门同一套判定: 该会话没在跑就什么都不做
+    if (!isSessionStreaming(sessionId)) return
     stoppingSessions.add(sessionId)
     try {
       await stopChat(sessionId)
@@ -1013,7 +1098,9 @@ export const useChatStore = defineStore('chat', () => {
    * 用于 sendMessage 失败后 (interruptedSessions 标记) 的「继续生成」入口。
    */
   async function continueSession(sessionId = currentSessionId.value) {
-    if (!sessionId || isStreaming.value) return
+    if (!sessionId) return
+    // 并行闸门: 只拦"这条会话"自己正在生成的情况
+    if (isSessionStreaming(sessionId)) return
     // 与 approve 同样的兜底: 会话已被删除时不能对不存在的 session_id 续跑
     if (!sessions.value.some((s) => s.id === sessionId)) {
       interruptedSessions.delete(sessionId)
@@ -1024,9 +1111,7 @@ export const useChatStore = defineStore('chat', () => {
 
     const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream', toolEvents: [] })
     sessionMessages.push(assistantMessage)
-    isStreaming.value = true
-    streamingSessionId.value = sessionId
-    streamingSessions.add(sessionId)
+    beginStream(sessionId)
 
     const typewriter = createTypewriter(assistantMessage)
     let received = ''
@@ -1034,7 +1119,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       for await (const event of continueStream(sessionId)) {
         events.push(event)
-        const delta = eventTextDelta(event, received, assistantMessage)
+        const delta = eventTextDelta(event, received, assistantMessage, sessionId)
         received += delta
         typewriter.push(delta)
       }
@@ -1064,9 +1149,7 @@ export const useChatStore = defineStore('chat', () => {
       }
     } finally {
       stoppingSessions.delete(sessionId)
-      isStreaming.value = false
-      streamingSessionId.value = null
-      streamingSessions.delete(sessionId)
+      endStream(sessionId)
     }
   }
   /* ================= 编辑重发/时间旅行 (POST /MiniCode/editMessage) ================= */
@@ -1077,7 +1160,9 @@ export const useChatStore = defineStore('chat', () => {
    * @param newContent 编辑后的新内容
    */
   async function editMessage(message, newContent) {
-    if (isStreaming.value || !currentSessionId.value) return
+    if (!currentSessionId.value) return
+    // 并行闸门: 只拦"这条会话"自己正在生成的情况 (编辑会覆盖该会话的历史)
+    if (isSessionStreaming(currentSessionId.value)) return
     if (!message || message.role !== 'user') return
     const content = (newContent || '').trim()
     if (!content) return
@@ -1108,9 +1193,7 @@ export const useChatStore = defineStore('chat', () => {
 
     const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream', toolEvents: [] })
     sessionMessages.push(assistantMessage)
-    isStreaming.value = true
-    streamingSessionId.value = sessionId
-    streamingSessions.add(sessionId)
+    beginStream(sessionId)
 
     const typewriter = createTypewriter(assistantMessage)
     let received = ''
@@ -1122,7 +1205,7 @@ export const useChatStore = defineStore('chat', () => {
         new_content: content,
       })) {
         events.push(event)
-        const delta = eventTextDelta(event, received, assistantMessage)
+        const delta = eventTextDelta(event, received, assistantMessage, sessionId)
         received += delta
         typewriter.push(delta)
       }
@@ -1153,9 +1236,7 @@ export const useChatStore = defineStore('chat', () => {
       }
     } finally {
       stoppingSessions.delete(sessionId)
-      isStreaming.value = false
-      streamingSessionId.value = null
-      streamingSessions.delete(sessionId)
+      endStream(sessionId)
     }
   }
 
@@ -1268,6 +1349,13 @@ export const useChatStore = defineStore('chat', () => {
     sessions,
     messages,
     isStreaming,
+    isCurrentSessionStreaming,
+    hasBackgroundStreaming,
+    isSessionStreaming,
+    streamingCount,
+    streamingSessionTitles,
+    streamingStatusText,
+    streamingStatusTitle,
     streamingSessionId,
     pendingApproval,
     currentStatus,

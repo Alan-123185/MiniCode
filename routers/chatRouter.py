@@ -170,6 +170,6 @@ async def stop_chat(session_id: str, chat_service: ChatService=Depends(get_chat_
     if res:
         return Result(message="已停止对话")
     else:
-        return Result(message="终止失败")
+        return Result(code=500, message="终止失败")
 
 
