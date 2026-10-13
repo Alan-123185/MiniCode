@@ -1,3 +1,5 @@
+import os
+import sys
 from pathlib import Path
 from langchain_core.runnables import RunnableConfig
 from config.dependencies import get_session
@@ -32,3 +34,35 @@ def is_path_safe(abs_path: Path,workplace: Path) -> bool:
     except ValueError:
         return False
 
+
+
+
+def app_root() -> Path:
+    """
+    返回应用根目录。
+    - 打包后（PyInstaller）：exe 所在目录
+    - 开发环境：项目根目录（main.py 所在目录）
+    """
+    if getattr(sys, 'frozen', False):
+        # PyInstaller 打包后，sys.executable 是 exe 的完整路径
+        return Path(sys.executable).resolve().parent
+    else:
+        # 开发环境，以项目根目录为准
+        # 如果 paths.py 在 utils/ 下，parent.parent 就是项目根
+        return Path(__file__).resolve().parent.parent
+
+
+def resource_path(relative: str) -> Path:
+    """基于 app_root 拼资源路径"""
+    return app_root() / relative
+
+
+
+def data_dir() -> Path:
+    """可写数据目录（数据库、日志）"""
+    if os.name == "nt":
+        base = Path(os.environ.get("APPDATA", Path.home())) / "MiniCode"
+    else:
+        base = Path.home() / ".local" / "share" / "MiniCode"
+    base.mkdir(parents=True, exist_ok=True)
+    return base

@@ -1,3 +1,5 @@
+import sys
+
 import log
 from contextlib import asynccontextmanager
 import uvicorn
@@ -46,4 +48,10 @@ async def checkgit():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    is_frozen = getattr(sys, 'frozen', False)
+    uvicorn.run(
+        app,
+        host="127.0.0.1",
+        port=8000,
+        reload=not is_frozen,  # 打包后 False，开发时 True
+    )

@@ -4,11 +4,12 @@ import os
 import string
 from langgraph.checkpoint.memory import MemorySaver, InMemorySaver
 from pydantic_settings import BaseSettings
-from utils.gitInstall import get_exe_dir
+
+from utils.filePathTools import app_root, data_dir
 
 
 
-ENV_FILE = get_exe_dir() / ".env"
+ENV_FILE = app_root() / ".env"
 
 class Settings(BaseSettings):
     model_config = {"env_file": str(ENV_FILE), "env_file_encoding": "utf-8"}
@@ -39,60 +40,31 @@ class Settings(BaseSettings):
     # 默认百度搜索api_key
     baidu_search_api_key: str = ""
     #rg.exe的路径
-    rg_path : ClassVar[Path] = (
-            Path(__file__)
-            .resolve()
-            .parent
-            .parent
-            / "bin"
-            / "rg.exe"
-    )
+    @property
+    def rg_path(self):
+        return app_root() / "bin" / "rg.exe"
+
 
     KEEP_RECENT_COUNT: int = 3  # 最近3条工具调用结果不处理
 
     file_change_tool_list:list=["file_edit","create_file","delete_file"]
 
-    sql_script_path: ClassVar[Path] = (
-            Path(__file__)
-            .resolve()
-            .parent
-            .parent
-            / "init_script.sql"
-    )
-    MXC_path: ClassVar[Path] = (
-            Path(__file__)
-            .resolve()
-            .parent
-            .parent
-            / "bin"
-            / "MXC"
-            / "wxc-exec.exe"
-    )
+    @property
+    def sql_script_path(self) -> Path:
+        return app_root() / "init_script.sql"
 
-    db_path: ClassVar[Path] = (
-            Path(__file__).resolve().parent.parent / "minicodexdatabase.db"
-    )
+    @property
+    def db_path(self) -> Path:
+        return data_dir() / "minicodexdatabase.db"
 
-    node_path:ClassVar[Path] = (
-            Path(__file__)
-            .resolve()
-            .parent
-            .parent
-            / "bin"
-            / "node"
-            / "node.exe"
-    )
+    @property
+    def sql_script_dir(self) -> Path:
+        return app_root() /  "bin" / "node" / "node.exe"
 
-    index_path:ClassVar[Path] = (
-            Path(__file__)
-            .resolve()
-            .parent
-            .parent
-            / "MCP"
-            / "agent_search_mcp"
-            / "dist"
-            / "index.js"
-    )
+    @property
+    def index_path(self) -> Path:
+        return app_root() / "MCP" / "agent_search_mcp" / "dist" / "index.js"
+
 
     # On Windows, automatically detect all existing drive letters (C:\\, D:\\, ...)
     # so the config will include all system drives. On non-Windows platforms

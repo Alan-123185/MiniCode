@@ -19,7 +19,7 @@ from service.modelService import modelService
 from states.InputState import InputState
 from states.OverallState import OverAllState
 from states.outputState import OutputState
-
+from utils.filePathTools import data_dir
 
 # 1. 声明全局变量，初始为 None
 graph = None
@@ -73,7 +73,7 @@ async def initialize_graph():
 
     logger.info(" 正在初始化")
 
-    _db_conn = await aiosqlite.connect("minicodex_checkpointer.db")  # ★ 独立文件，不再和业务库混用
+    _db_conn = await aiosqlite.connect(data_dir() / "minicodex_checkpointer.db")  # ★ 独立文件，不再和业务库混用
 
     checkpointer = AsyncSqliteSaver(_db_conn)
 
@@ -90,7 +90,6 @@ async def initialize_graph():
     finally:
         db.conn.close()  # 确保数据库连接关闭，避免资源泄漏
     logger.info(" LangGraph 和 AsyncSqliteSaver 初始化成功！")
-
 
 # 4. 定义清理函数
 async def close_graph():

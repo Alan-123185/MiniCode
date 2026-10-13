@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from loguru import logger
 from exceptions import BizException
+from utils.filePathTools import app_root
 
 
 def _refresh_process_path():
@@ -92,7 +93,7 @@ def is_git_installed() -> bool:
 
 def check_git() -> bool:
     if is_git_installed():
-        with open(get_exe_dir() / ".env", "a+", encoding="utf-8") as f:
+        with open(app_root() / ".env", "a+", encoding="utf-8") as f:
             f.seek(0)
             content = f.read()
             if "GIT_BASH_PATH" in content:
@@ -157,7 +158,7 @@ def find_git_path() -> str :
 
 
 def create_env(git_path: str) -> bool:
-    path=get_exe_dir() / ".env"
+    path=app_root() / ".env"
     if not path.exists():
         path.write_text("GIT_BASH_PATH=" + git_path, encoding="utf-8")
         return True
@@ -166,9 +167,3 @@ def create_env(git_path: str) -> bool:
 
 
 #打包之后的根目录
-def get_exe_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        # 打包后：exe 所在目录
-        return Path(sys.executable).parent
-    # 开发时：项目目录（按你代码结构调）
-    return Path(__file__).resolve().parent.parent
