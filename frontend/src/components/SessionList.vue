@@ -1,17 +1,31 @@
 <template>
-  <div class="session-list">
+  <div class="session-list" :class="{ collapsed }">
     <div class="session-header">
-      <h3>会话</h3>
-      <button class="new-btn" title="新建对话 (Ctrl+N)" @click="store.requestNewChat()">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-      </button>
+      <h3 v-if="!collapsed">会话</h3>
+      <div class="header-actions">
+        <button
+          class="collapse-btn"
+          :title="collapsed ? '展开侧边栏' : '折叠侧边栏'"
+          :aria-label="collapsed ? '展开侧边栏' : '折叠侧边栏'"
+          :aria-expanded="!collapsed"
+          @click="emit('toggle')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+          </svg>
+        </button>
+        <button class="new-btn" title="新建对话 (Ctrl+N)" @click="store.requestNewChat()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+      </div>
     </div>
 
-    <!-- 会话搜索: 前端过滤标题 (Ctrl+K 聚焦) -->
-    <div class="search-wrap">
+    <!-- 会话搜索: 前端过滤标题 (Ctrl+K 聚焦); 折叠态隐藏 -->
+    <div v-if="!collapsed" class="search-wrap">
       <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="8"></circle>
         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -32,7 +46,7 @@
       >×</button>
     </div>
 
-    <ul role="listbox" aria-label="会话列表" @keydown="onListKeydown">
+    <ul v-if="!collapsed" role="listbox" aria-label="会话列表" @keydown="onListKeydown">
       <li
         v-for="session in filteredSessions"
         :key="session.id"
@@ -66,11 +80,11 @@
     </ul>
 
     <!-- 空状态: 无会话 -->
-    <div v-if="store.sessions.length === 0" class="session-empty">
+    <div v-if="!collapsed && store.sessions.length === 0" class="session-empty">
       暂无会话<br />点上方 <strong>+</strong> 或按 <kbd>Ctrl</kbd>+<kbd>N</kbd> 新建
     </div>
     <!-- 空状态: 搜索无结果 -->
-    <div v-else-if="filteredSessions.length === 0" class="session-empty">
+    <div v-else-if="!collapsed && filteredSessions.length === 0" class="session-empty">
       没有匹配「<strong>{{ keyword }}</strong>」的会话
     </div>
 
@@ -138,6 +152,11 @@
 <script setup>
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useChatStore } from '../stores/chat'
+
+defineProps({
+  collapsed: { type: Boolean, default: false },
+})
+const emit = defineEmits(['toggle'])
 
 const store = useChatStore()
 
@@ -281,6 +300,13 @@ onBeforeUnmount(() => {
   padding: var(--space-3) var(--space-4) var(--space-2);
 }
 
+/* 头部右侧按钮组: 折叠开关 + 新建 */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .session-header h3 {
   margin: 0;
   font-size: 12px;
@@ -288,6 +314,34 @@ onBeforeUnmount(() => {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-tertiary);
+}
+
+/* 折叠态: 标题隐藏后按钮组整体居中, 内边距收窄以适配窄图标栏 */
+.session-list.collapsed .session-header {
+  justify-content: center;
+  padding: var(--space-3) var(--space-1) var(--space-2);
+}
+
+/* 折叠开关按钮: 与新建按钮同款小图标形态 */
+.collapse-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+}
+
+.collapse-btn:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-light);
+  border-color: var(--accent-border);
+  box-shadow: none;
+  transform: none;
 }
 
 /* 新建按钮: 桌面工具栏小图标形态 */

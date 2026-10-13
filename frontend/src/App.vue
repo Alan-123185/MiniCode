@@ -3,7 +3,6 @@
     <!-- 桌面端顶部工具栏: 品牌 + 当前会话 + 工作目录徽章 + 主题/设置 -->
     <header class="titlebar">
       <div class="brand">
-        <span class="brand-logo" aria-hidden="true">✦</span>
         <span class="brand-name">MiniCode</span>
       </div>
 
@@ -14,20 +13,6 @@
       </div>
 
       <div class="titlebar-actions">
-        <!-- 窄屏 (≤768px) 汉堡按钮: 打开侧边栏抽屉 -->
-        <button
-          v-if="isNarrowViewport"
-          class="icon-btn hamburger-btn"
-          title="打开会话列表"
-          aria-label="打开会话列表"
-          @click="drawerOpen = true"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
-        </button>
         <WorkspaceBadge />
         <div class="action-divider" role="separator" aria-orientation="vertical"></div>
         <button
@@ -67,16 +52,8 @@
 
     <!-- 主工作区: 左侧导航 + 内容区 -->
     <div class="app-body">
-      <!-- 窄屏抽屉遮罩: 点击关闭 -->
-      <transition name="fade">
-        <div
-          v-if="drawerOpen && isNarrowViewport"
-          class="drawer-mask"
-          @click="drawerOpen = false"
-        ></div>
-      </transition>
-      <aside class="sidebar" :class="{ 'drawer-open': drawerOpen && isNarrowViewport }">
-        <SessionList />
+      <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+        <SessionList :collapsed="sidebarCollapsed" @toggle="sidebarCollapsed = !sidebarCollapsed" />
       </aside>
       <main class="main">
         <ChatWindow />
@@ -121,7 +98,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import ChatWindow from './components/ChatWindow.vue'
 import SessionList from './components/SessionList.vue'
 import SettingsModal from './components/SettingsModal.vue'
@@ -133,26 +110,8 @@ import { getBase } from './api'
 const store = useChatStore()
 const showSettings = ref(false)
 
-/* ---------- 响应式: 窄屏侧边栏抽屉 ---------- */
-const drawerOpen = ref(false)
-/** 768px 与 CSS 断点 --bp-sidebar-drawer 保持一致 */
-const narrowBreakpoint = 768
-const isNarrowViewport = ref(
-  typeof window !== 'undefined' ? window.innerWidth <= narrowBreakpoint : false
-)
-
-function onViewportResize() {
-  isNarrowViewport.value = window.innerWidth <= narrowBreakpoint
-  if (!isNarrowViewport.value) drawerOpen.value = false
-}
-
-// 选中会话后自动收起抽屉 (与 SessionList 里 li 的点击行为解耦, 通过 store 会话 id 观察)
-watch(
-  () => store.currentSessionId,
-  () => {
-    if (isNarrowViewport.value) drawerOpen.value = false
-  }
-)
+/* ---------- 侧边栏折叠 (手动开关; 不再随窗口缩小自动折叠) ---------- */
+const sidebarCollapsed = ref(false)
 
 /* ---------- 主题 ---------- */
 const isDarkMode = ref(localStorage.getItem('dark-mode') === 'true')
@@ -209,7 +168,6 @@ onMounted(async () => {
   applyTheme(isDarkMode.value)
 
   window.addEventListener('keydown', handleKeydown)
-  window.addEventListener('resize', onViewportResize)
 
   if (window.electronAPI?.onMenuCommand) {
     offMenuCommand = window.electronAPI.onMenuCommand(handleMenuCommand)
@@ -224,7 +182,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
-  window.removeEventListener('resize', onViewportResize)
   if (offMenuCommand) offMenuCommand()
 })
 </script>
@@ -259,19 +216,6 @@ onBeforeUnmount(() => {
   gap: var(--space-2);
   padding-right: var(--space-4);
   border-right: 1px solid var(--border-color);
-}
-
-.brand-logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  font-size: 13px;
-  color: #fff;
-  background: linear-gradient(135deg, var(--accent), var(--accent-active));
-  border-radius: var(--radius-xs);
-  box-shadow: var(--shadow-xs);
 }
 
 .brand-name {
@@ -357,87 +301,10 @@ onBeforeUnmount(() => {
   transition: width var(--dur-base) var(--ease-out);
 }
 
-/* ===== 响应式断点 1: ≤1024px 侧边栏折叠为窄图标栏 (悬停临时展开) ===== */
-@media (max-width: 1024px) {
-  .sidebar {
-    position: relative;
-    z-index: 20;
-  }
-
-  .sidebar:hover {
-    width: 268px;
-    min-width: 268px;
-    box-shadow: var(--shadow-lg);
-  }
-}
-
-/* ===== 响应式断点 2: ≤768px 侧边栏隐藏为抽屉 (汉堡按钮 + 遮罩) ===== */
-@media (max-width: 768px) {
-  .sidebar {
-    position: fixed;
-    top: var(--topbar-height);
-    bottom: var(--statusbar-height);
-    left: 0;
-    z-index: 40;
-    width: min(280px, 84vw);
-    min-width: 0;
-    transform: translateX(-100%);
-    transition: transform var(--dur-base) var(--ease-out);
-  }
-
-  .sidebar:hover {
-    width: min(280px, 84vw);
-    min-width: 0;
-    box-shadow: none;
-  }
-
-  .sidebar.drawer-open {
-    transform: translateX(0);
-    box-shadow: var(--shadow-lg);
-  }
-
-  .main {
-    width: 100%;
-  }
-}
-
-/* 抽屉遮罩: 仅 ≤768px 渲染 (模板 v-if 已控制), CSS 兜底 */
-.drawer-mask {
-  display: none;
-  position: fixed;
-  top: var(--topbar-height);
-  bottom: var(--statusbar-height);
-  left: 0;
-  right: 0;
-  z-index: 30;
-  background: rgba(15, 23, 42, 0.4);
-}
-
-@media (max-width: 768px) {
-  .drawer-mask {
-    display: block;
-  }
-}
-
-/* 遮罩淡入淡出 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity var(--dur-base) ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-/* 窄屏汉堡按钮 (模板 v-if 控制, 默认隐藏兜底) */
-.hamburger-btn {
-  display: none;
-}
-
-@media (max-width: 768px) {
-  .hamburger-btn {
-    display: flex;
-  }
+/* 手动折叠态: 收窄为图标栏 (内容由 SessionList 切换为极简布局; 不再随窗口缩小自动触发) */
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+  min-width: var(--sidebar-collapsed-width);
 }
 
 .main {
