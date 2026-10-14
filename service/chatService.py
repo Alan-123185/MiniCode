@@ -7,6 +7,7 @@ from config.data import settings
 from config.dependencies import create_chat_config
 from config.sessionManager import sessionmanager
 from core.InterruptResult import InterruptResult
+from core.toolStatusEvent import toolstatusEvent, outputEvent, manage_toolstatusEvent
 from exceptions import BizException
 from mappercommon.FileOperation import FileOperation
 from mappercommon.Session import Session
@@ -129,6 +130,8 @@ class ChatService:
                         operation_group_id = self._record_file_operation(
                             chunk, operation_group_id
                         )
+                    if isinstance(chunk,toolstatusEvent):
+                        chunk=manage_toolstatusEvent(chunk)
                     yield InterruptResult(
                         message=chunk, type=settings.interrupt_type_info
                     )
@@ -156,6 +159,7 @@ class ChatService:
                 type=settings.interrupt_type_result,
             )
 
+    #这个地方要求chunk是toolstatusEvent类型
     def _record_file_operation(self, chunk, operation_group_id):
         if chunk.status != settings.tool_success:
             return operation_group_id

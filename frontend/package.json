@@ -8,8 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "vite build && electron .",
-    "electron:build": "vite build && electron-builder",
-    "dist": "vite build && electron-builder"
+    "electron:build": "vite build && electron-builder --win",
+    "dist": "vite build && electron-builder --win"
   },
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",
@@ -23,5 +23,52 @@
     "electron-builder": "^24.13.3",
     "vite": "^5.2.0"
   },
-  "main": "electron/main.cjs"
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.minicode.app",
+    "productName": "MiniCode",
+    "copyright": "Copyright © 2026 MiniCode",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../main.exe",
+        "to": "backend/main.exe"
+      },
+      {
+        "from": "../.env",
+        "to": "backend/.env"
+      },
+      {
+        "from": "../init_script.sql",
+        "to": "backend/init_script.sql"
+      },
+      {
+        "from": "../bin",
+        "to": "backend/bin"
+      },
+      {
+        "from": "../MCP/agent_search_mcp",
+        "to": "backend/MCP/agent_search_mcp"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "MiniCode-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    }
+  }
 }

@@ -6,7 +6,7 @@ from loguru import logger
 from core.InterruptInfo import InterruptInfo, manage_InterruptInfo
 from config.data import settings
 from core.toolResult import toolResult
-from core.toolStatusEvent import toolstatusEvent, manage_toolstatusEvent
+from core.toolStatusEvent import toolstatusEvent, manage_toolstatusEvent, outputEvent
 from mappercommon.summary import Summary
 from service.summaryService import summaryService
 from states.OverallState import OverAllState
@@ -61,13 +61,13 @@ async def tool_node(state: OverAllState, config: RunnableConfig)->dict:
             if decision != "yes":
                 # 【自定义事件】实时通知前端：用户拒绝了
                 _emit_tool_status(
-                    manage_toolstatusEvent(toolstatusEvent(status=settings.tool_refused,
-                                                           tool_name=tool_name,
-                                                           args=tool_args,
-                                                           result=None,
-                                                           user_prompt=state.input,
-                                                           session_id=config.get("configurable", {}).get("thread_id"))
-                ))
+                toolstatusEvent(status=settings.tool_refused,
+                               tool_name=tool_name,
+                               args=tool_args,
+                               result=None,
+                               user_prompt=state.input,
+                               session_id=config.get("configurable", {}).get("thread_id"))
+                )
 
                 forbid_calls.append((tool_call, toolResult(
                   success=False, message=f"用户拒绝了工具调用:{tool_name}，请仔细反思拒绝原因，禁止反复调用！或者终止任务询问详细要求",
@@ -222,13 +222,13 @@ async def tool_node(state: OverAllState, config: RunnableConfig)->dict:
             tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑
             # 【自定义事件】实时通知前端：调用成功，并带上结果内容
             _emit_tool_status(
-                manage_toolstatusEvent(toolstatusEvent(status=settings.tool_success,
+                toolstatusEvent(status=settings.tool_success,
                                 tool_name=tool_name,
                                 args=tool_args,
                                 result=toolresult,
                                 user_prompt=state.input,
                                 session_id=config.get("configurable", {}).get("thread_id"))
-            ))
+            )
         else:
             step.append(f"use tool:{tool_name} failed")
             if tool_failures.get(tool_name, 0) >= max_retry_time:
@@ -252,9 +252,9 @@ async def tool_node(state: OverAllState, config: RunnableConfig)->dict:
                 info=f"\n[system Info]   {tool_name}已经尝试调用{max_retry_time}次，皆未返回正确结果，为防止死循环，已经停止使用，请根据现有信息进行下一步操作，或者如实反馈情况"
                 toolresult_for_llm.error=(toolresult_for_llm.error or "") + info
                 _emit_tool_status(
-                    manage_toolstatusEvent(
-                    toolstatusEvent(status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state.input, result=None,session_id=config.get("configurable", {}).get("thread_id"))
-                ))
+                    toolstatusEvent(
+                    status=settings.tool_failed, tool_name=tool_name, args=None, user_prompt=state.input, result=None,session_id=config.get("configurable", {}).get("thread_id"))
+                )
                 tool_failures[tool_name] = 0  # 重置或保持，看你的业务逻辑
             else:
                 tool_failures[tool_name] = tool_failures.get(tool_name, 0) + 1
@@ -270,7 +270,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig)->dict:
 
 
 
-def _emit_tool_status(event_str:str):
+def _emit_tool_status(event:toolstatusEvent):
     """
     安全地发送工具状态事件。
     使用 try/except 兜底，防止在非图上下文（如单元测试）中调用 get_stream_writer 导致崩溃。
@@ -278,7 +278,7 @@ def _emit_tool_status(event_str:str):
     try:
         writer = get_stream_writer()
         # 直接传递对象，下游 chunk 就是 toolstatusEvent 实例
-        writer(event_str)
+        writer(event)
     except Exception as e:
         logger.warning(f"无法发送工具状态事件: {e}")
 

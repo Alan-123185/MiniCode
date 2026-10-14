@@ -4,10 +4,10 @@ from pydantic import BaseModel
 
 from config.data import settings
 from core.AgentResult import AgentResult
-from core.toolStatusEvent import toolstatusEvent
+from core.toolStatusEvent import toolstatusEvent, outputEvent
 
 
 class InterruptResult(BaseModel):
-    message: toolstatusEvent | str | None = None
+    message: toolstatusEvent | str | None | outputEvent= None
     agentResult: Optional[AgentResult]= None
     type: Literal[settings.interrupt_type_approve, settings.interrupt_type_info,settings.interrupt_type_result]

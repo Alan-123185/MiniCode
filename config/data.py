@@ -58,7 +58,7 @@ class Settings(BaseSettings):
         return data_dir() / "minicodexdatabase.db"
 
     @property
-    def sql_script_dir(self) -> Path:
+    def node_path(self) -> Path:
         return app_root() /  "bin" / "node" / "node.exe"
 
     @property

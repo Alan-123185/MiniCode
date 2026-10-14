@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS settings (
 user_id TEXT NOT NULL PRIMARY KEY,
 settings TEXT NOT NULL
 );
-
+INSERT OR IGNORE INTO settings (user_id, settings) VALUES ('user_local', '{}');
 
 
 CREATE TABLE IF NOT EXISTS summary (

@@ -73,18 +73,11 @@ function saveWorkspaceCache(cache) {
 }
 
 export const useChatStore = defineStore('chat', () => {
-  const userKey = 'minicodex_user_id'
+  // 本地单用户: 固定 ID, 不再按 localStorage/origin 生成 (原逻辑会导致
+  // dev/打包/file:// 各拿一个 ID, 历史会话"凭空消失")。所有请求统一带这个值。
+  const FIXED_USER_ID = 'user_local'
+  const userId = ref(FIXED_USER_ID)
 
-  function getUserId() {
-    let id = localStorage.getItem(userKey)
-    if (!id) {
-      id = `user_${genId()}`
-      localStorage.setItem(userKey, id)
-    }
-    return id
-  }
-
-  const userId = ref(getUserId())
   const toast = useToastStore()
   const currentSessionId = ref(null)
   const sessions = ref([])
@@ -406,6 +399,15 @@ export const useChatStore = defineStore('chat', () => {
    * phase='try' 用于新增一条 running 记录; phase='result' 用于回填最近一条同工具记录。
    */
   function classifyToolEvent(raw) {
+    // 形态 0: 结构化对象 (后端 toolEvent 载荷 {status, message}): 按 status 精确归类, 不猜文案。
+    // status: 1 尝试/running, 0 成功, -1 失败, 2 拒绝 (对应后端 config/data.py)。
+    if (raw && typeof raw === 'object' && 'status' in raw) {
+      const status = Number(raw.status)
+      if (![1, 0, -1, 2].includes(status)) return null
+      const label = String(raw.message ?? '') || formatToolStatus(String(raw))
+      const s = status === 1 ? 'running' : status === 0 ? 'success' : status === -1 ? 'failed' : 'refused'
+      return { tool: raw.tool_name || '', phase: status === 1 ? 'try' : 'result', status: s, label }
+    }
     const text = String(raw ?? '')
     if (!text) return null
 
@@ -495,6 +497,19 @@ export const useChatStore = defineStore('chat', () => {
       // 最终答案到达: 清掉进度提示, 交给打字机上屏
       setStatus('')
       return formatAgentResult(event.response)
+    }
+    // 工具状态事件 (后端下发的结构化载荷 {status, message}): 按 status 精确归类进折叠面板,
+    // 不靠猜中文文案。status: 1 尝试/running, 0 成功, -1 失败, 2 拒绝 (config/data.py)。
+    // 这是"当前会话"工具调用能进折窗的正路 —— 历史会话走 buildHistoryMessages 的结构化
+    // tool_calls, 两条路统一, 不再把工具调用漏进正文变成纯文字。
+    if (event.toolEvent && assistantMessage) {
+      const info = classifyToolEvent(event.toolEvent)
+      if (info) {
+        if (!assistantMessage.toolEvents) assistantMessage.toolEvents = []
+        applyToolEvent(assistantMessage.toolEvents, info)
+        setStatus(info.label)
+        return ''
+      }
     }
     if (event.message) {
       const text = String(event.message)
@@ -824,6 +839,8 @@ export const useChatStore = defineStore('chat', () => {
       const stream = approveStream({
         decision,
         session_id: sessionId,
+        // decisionRequst.user_id 是必填字段, 漏传会被 FastAPI 判 422 (前端表现为 "SSE 连接失败: 422")
+        user_id: userId.value,
       })
       for await (const event of stream) {
         events.push(event)
@@ -925,6 +942,165 @@ export const useChatStore = defineStore('chat', () => {
       console.error('创建会话失败', e)
     }
   }
+  /* ================= 历史消息重建 (后端回传全部 human/ai/tool 消息) ================= */
+
+  /** LangGraph 消息 content 可能是 str 或多模态块数组, 统一转成可渲染文本 */
+  function historyText(content) {
+    if (content == null) return ''
+    if (typeof content === 'string') return content
+    if (Array.isArray(content)) {
+      return content
+        .map((block) => (typeof block === 'string' ? block : block?.text ?? ''))
+        .filter(Boolean)
+        .join('\n')
+    }
+    return JSON.stringify(content)
+  }
+
+  /** 首行摘要: 工具结果往往多行且带 [system Info] 噪音, 折叠面板里只显示第一行 */
+  function firstMeaningfulLine(text, max = 100) {
+    const line = String(text ?? '').split('\n').find((l) => l.trim()) || ''
+    const trimmed = line.trim()
+    return trimmed.length > max ? `${trimmed.slice(0, max)}…` : trimmed
+  }
+
+  /**
+   * 判断一条 ToolMessage 的内容是否表示失败。
+   * toolResult 的 success 标志没有随消息落库 (toolNode 只持久化了 content), ToolMessage.status
+   * 也始终是 langchain 的默认值 "success", 只能按内容特征推断 —— 与 classifyToolEvent 的
+   * 中文短句识别保持同一套关键词。
+   */
+  function looksLikeToolFailure(text) {
+    const t = String(text ?? '')
+    if (!t.trim()) return false
+    return (
+      /失败/.test(t) ||
+      /failed/i.test(t) ||
+      /\[system Info\]/i.test(t) ||
+      /未找到|不存在/.test(t)
+    )
+  }
+
+  /** 把一条 ToolMessage 回填进 assistant.toolEvents (优先按 tool_call_id 精确匹配) */
+  function applyHistoryToolResult(assistant, toolMsg) {
+    const callId = toolMsg?.tool_call_id || null
+    const name = toolMsg?.name || ''
+    const content = historyText(toolMsg?.content)
+    const failed = looksLikeToolFailure(content)
+
+    // 先按 tool_call_id 精确命中"仍在等结果"的那条
+    let target = null
+    if (callId) {
+      for (let i = assistant.toolEvents.length - 1; i >= 0; i--) {
+        const ev = assistant.toolEvents[i]
+        if (ev.id === callId && ev.status === 'running') {
+          target = ev
+          break
+        }
+      }
+    }
+    // 兜底: 退回 applyToolEvent 的同款策略 —— 最近一条仍 running 的同工具记录
+    if (!target) {
+      for (let i = assistant.toolEvents.length - 1; i >= 0; i--) {
+        const ev = assistant.toolEvents[i]
+        if (ev.status === 'running' && (!name || !ev.tool || ev.tool === name)) {
+          target = ev
+          break
+        }
+      }
+    }
+
+    const tool = target?.tool || name
+    const entry = {
+      id: callId,
+      tool,
+      status: failed ? 'failed' : 'success',
+      label: failed
+        ? `${tool || '工具'} 执行失败${content ? `: ${firstMeaningfulLine(content)}` : ''}`
+        : `${tool || '工具'} 执行成功`,
+    }
+    if (target) Object.assign(target, entry)
+    else assistant.toolEvents.push(entry)
+  }
+
+  /**
+   * 把后端历史消息重建成「assistant 气泡 + toolEvents 折叠面板」结构。
+   *
+   * 后端 /MiniCode/history 现在回传全部消息 (service/sessionService.get_history 不再过滤),
+   * 但 LangGraph state 里它们是平铺的:
+   *   Human → AI(tool_calls) → Tool → AI(tool_calls) → Tool → AI(最终答案)
+   * 流式期间的展示模式是「一个 assistant 气泡 + 一个折叠工具面板」, 所以这里按轮次归组:
+   * 同一轮里的所有工具调用折叠进该轮 assistant 消息的 toolEvents, 最终答案作为气泡正文。
+   */
+  function buildHistoryMessages(items) {
+    const list = Array.isArray(items) ? items : []
+    const out = []
+    let assistant = null
+
+    /** 当前轮的 assistant 草稿 (历史以工具消息开头时兜底创建一个) */
+    const ensureAssistant = () => {
+      if (assistant) return assistant
+      assistant = { id: null, role: 'assistant', content: '', type: 'text', toolEvents: [] }
+      out.push(assistant)
+      return assistant
+    }
+
+    for (const item of list) {
+      const type = item?.type
+
+      // 用户消息: 新一轮开始
+      if (type === 'human') {
+        assistant = null
+        out.push({
+          // 后端 LangGraph 消息 id: 编辑重发 (editMessage) 需要它定位检查点
+          id: item?.id || null,
+          role: 'user',
+          content: historyText(item?.content),
+          type: 'text',
+        })
+        continue
+      }
+
+      // 工具结果: 回填该轮里对应的那条工具记录
+      if (type === 'tool') {
+        applyHistoryToolResult(ensureAssistant(), item)
+        continue
+      }
+
+      // AI 消息: 可能是"发起工具调用"的那条, 也可能是最终答案
+      if (type === 'ai') {
+        const target = ensureAssistant()
+        const calls = Array.isArray(item?.tool_calls) ? item.tool_calls : []
+        for (const call of calls) {
+          target.toolEvents.push({
+            id: call?.id || null,
+            tool: call?.name || '',
+            status: 'running',
+            label: `正在调用 ${call?.name || '工具'} 工具…`,
+          })
+        }
+        const text = historyText(item?.content)
+        if (text) target.content = target.content ? `${target.content}\n\n${text}` : text
+        if (item?.id && !target.id) target.id = item.id
+        continue
+      }
+
+      // system 等其他类型: 不属于用户可见对话, 跳过
+    }
+
+    // 丢掉没有正文也没有工具记录的空 assistant 气泡 (与 dropEmptyAssistantMessage 同语义)
+    const result = out.filter((m) => m.role === 'user' || m.content || m.toolEvents?.length)
+    // 历史里不存在"半途而废"的调用: 若某条 try 始终没等到 result, 标记为 stopped,
+    // 否则折叠面板里会永远转圈 (与 finalizeToolEvents 同语义)
+    for (const m of result) {
+      for (const ev of m.toolEvents || []) {
+        if (ev.status === 'running') ev.status = 'stopped'
+      }
+    }
+    return result
+  }
+
+
 
   async function loadHistory(sessionId) {
     currentSessionId.value = sessionId
@@ -932,6 +1108,15 @@ export const useChatStore = defineStore('chat', () => {
     if (pendingApproval.value?.sessionId !== sessionId) pendingApproval.value = null
     // 该会话正在流式输出: 本地实时缓冲是最新的(后端可能尚未落库), 不用历史覆盖
     if (streamingSessions.has(sessionId)) return
+    // 本地已有该会话的完整运行时状态时, 同样不能用后端历史覆盖。
+    // 后端 /MiniCode/history 只回传 HumanMessage 与「不带 tool_calls 的 AIMessage」
+    // (service/sessionService.get_history), 工具调用记录根本不在历史里; 而下面的
+    // splice 是整组替换, 替换出来的消息只有 {id, role, content, type} —— 连
+    // toolEvents 字段都没有, 于是工具调用折叠面板会整体消失, 且再也回不来。
+    // 典型触发路径: 切到别的会话再切回、或点一下侧边栏里「当前正在看的」那个会话项
+    // (selectSession 不判断是否已是当前会话, 直接调 loadHistory)。
+    // 与 init() 里的 hasLocalContent 判断保持一致: 本地有内容 = 运行时状态更全。
+    if (hasLocalContent(sessionId)) return
 
     // 同一会话可能被并发加载(如 init 自动加载 + 用户点选), 只认最后一次请求的结果
     const token = (historyTokens.get(sessionId) || 0) + 1
@@ -940,15 +1125,9 @@ export const useChatStore = defineStore('chat', () => {
     let list
     try {
       const res = await getHistory(sessionId)
-      list = Array.isArray(res?.response)
-        ? res.response.map((item) => ({
-            // 后端 LangGraph 消息 id: 编辑重发 (editMessage) 需要它定位检查点
-            id: item.id || null,
-            role: item.type === 'human' ? 'user' : 'assistant',
-            content: typeof item.content === 'string' ? item.content : JSON.stringify(item.content),
-            type: 'text',
-          }))
-        : []
+      // 后端回传全部消息 (human/ai/tool 平铺), 这里按轮次归组成
+      // 「assistant 气泡 + toolEvents 折叠面板」, 与流式期间的展示模式一致
+      list = buildHistoryMessages(res?.response)
     } catch (e) {
       // 拉取失败: 保留已有内容(可能是刚发出的消息), 绝不能清空 ——
       // 旧实现在这里 messages.value = [] 会把用户刚发的消息抹掉, 界面退回待机页

@@ -2,16 +2,18 @@ import os
 import sys
 from pathlib import Path
 from langchain_core.runnables import RunnableConfig
-from config.dependencies import get_session
+
 
 
 def relativePathToAbsolute(file_path: str,config:RunnableConfig) -> Path:
     """将相对路径转换为基于项目根目录的绝对路径"""
+    from config.dependencies import get_session
     session =get_session(config)
     return Path(session.workplace) / file_path
 
 
 def absolutePathToRelative(file_path: str,config:RunnableConfig) -> Path:
+    from config.dependencies import get_session
     session =get_session(config)
     """将绝对路径转化为基于项目根目录的相对路径"""
     abs_path = Path(file_path).resolve()          # 1. 规范化绝对路径
@@ -60,9 +62,12 @@ def resource_path(relative: str) -> Path:
 
 def data_dir() -> Path:
     """可写数据目录（数据库、日志）"""
-    if os.name == "nt":
-        base = Path(os.environ.get("APPDATA", Path.home())) / "MiniCode"
+    if getattr(sys, 'frozen', False):
+        if os.name == "nt":
+            base = Path(os.environ.get("APPDATA", Path.home())) / "MiniCode"
+        else:
+            base = Path.home() / ".local" / "share" / "MiniCode"
+        base.mkdir(parents=True, exist_ok=True)
     else:
-        base = Path.home() / ".local" / "share" / "MiniCode"
-    base.mkdir(parents=True, exist_ok=True)
+        base = app_root()
     return base

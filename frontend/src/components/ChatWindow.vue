@@ -181,19 +181,21 @@ import MessageInput from './MessageInput.vue'
 const store = useChatStore()
 const messageList = ref(null)
 
-/* ---------- 工具调用折叠面板 ----------
- * 每个 assistant 消息的 toolEvents (来自 store) 折叠展示: 默认只占一行摘要。
- * 流式进行中自动展开 (让用户看到实时进度), 结束后沿用用户最后一次的手动选择;
- * 未手动操作过的消息在流结束后自动收起, 保持界面清爽。 */
+/* ---------- 工具调用折叠面板 (统一折窗) ----------
+ * 每个 assistant 消息的 toolEvents (来自 store) 一律折叠成一行摘要, 点击展开看明细。
+ * 统一成折窗, 让"当前会话"与"历史会话"观感一致, 不再把一长串工具调用摊成列表:
+ *  - 流式进行中 (message.type === 'stream'): 自动展开, 让用户看到实时进度;
+ *  - 流结束后 / 历史消息 (message.type === 'text'): 一律折叠成折窗, 只占一行摘要;
+ *  - 用户手动展开/收起的选择 (toolTraceManual) 始终优先。
+ * 折叠≠丢失: toolEvents 数据始终留在消息对象里 (v-if 只控制列表显隐), 点开即可查看;
+ * 刷新后历史会话由 store.buildHistoryMessages 从后端全量消息重建, 与折叠状态无关。 */
 const toolTraceManual = ref({}) // index -> boolean (用户手动展开/收起的选择)
-const toolTraceAutoOpen = ref(true) // 流式期间默认展开
 
 function isToolTraceOpen(index) {
   if (index in toolTraceManual.value) return toolTraceManual.value[index]
-  // 尚未手动操作: 「当前会话」流式输出期间展开, 结束后收起。
-  // 必须用 isCurrentSessionStreaming: 用全局 isStreaming 会让别的会话在后台生成时,
-  // 本会话已结束消息的折叠面板也被强行展开。
-  return store.isCurrentSessionStreaming && toolTraceAutoOpen.value
+  // 尚未手动操作: 只有"正在流式生成"的那条自动展开, 其余(含历史)一律折叠成折窗
+  const message = store.currentMessages[index]
+  return message?.type === 'stream' && !!message.toolEvents?.length
 }
 
 function toggleToolTrace(index) {
@@ -532,6 +534,31 @@ watch(
     opacity: 0;
   }
 }
+
+/* hover 命中区桥接: 复制/编辑按钮浮在气泡「外侧」(left/right: -30px), 与气泡边缘留有
+ * 空隙。鼠标从气泡移向按钮时会先经过空隙而失去 .message:hover, 按钮立刻隐藏且
+ * pointer-events: none, 于是永远移不上去 (只能停在文本上)。这里给气泡加一条透明
+ * 伪元素, 把 hover 命中区延伸到按钮所在的一侧, 指针即可连续从气泡走到按钮。
+ * 伪元素完全透明且层级低于按钮 (按钮 z-index: 2), 不改变视觉, 也不拦截按钮点击。 */
+.message.user::after,
+.message.assistant::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  /* 覆盖 copy (top: -2) 与 edit (top: 30) 两个按钮的纵向范围 */
+  height: 60px;
+  /* 与按钮的 -30px 偏移同宽, 恰好铺满气泡外侧到按钮的整条通道 */
+  width: 30px;
+}
+
+.message.user::after {
+  left: -30px;
+}
+
+.message.assistant::after {
+  right: -30px;
+}
+
 
 /* 消息复制按钮: hover 浮现于气泡外侧 (桌面鼠标交互) */
 .msg-copy {

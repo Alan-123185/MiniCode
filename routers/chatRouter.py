@@ -7,6 +7,7 @@ from starlette.responses import StreamingResponse
 from config.data import  settings
 from config.dependencies import get_session, create_chat_config
 from core.Result import Result
+from core.toolStatusEvent import outputEvent
 from requestcommon.chatRequest import ChatRequest
 from requestcommon.decisionRequst import decisionRequst
 from requestcommon.editMessageRequest import editMessageRequest
@@ -15,6 +16,22 @@ from service.dependencies import get_chat_service
 from utils.titleCreateTool import new_title
 
 router = APIRouter()
+
+
+def _info_result(interrupt_result):
+    """把"仅提示"类事件 (interrupt_type_info) 转成下发前端的 Result。
+
+    工具状态事件经 service 层已转成 outputEvent (含 status + message), 这里把它
+    拆成结构化载荷: message 放人话文案, toolEvent 放 {status, message}。前端据此
+    精确归类进"工具调用折叠面板" —— 旧实现直接 str(outputEvent) 会得到
+    `status=0 message='读取文件 X'` 这种 repr, 前端正则识别不到, 工具调用就漏进
+    正文变成纯文字 (历史会话走结构化 tool_calls 不受影响, 故只有"当前会话"发丑)。
+    """
+    msg = interrupt_result.message
+    if isinstance(msg, outputEvent):
+        return Result(message=str(msg.message), toolEvent={"status": msg.status, "message": str(msg.message)})
+    return Result(message=str(msg))
+
 
 """
   这是一个测试用的 SSE 接口。
@@ -44,7 +61,7 @@ async def chat_to_agent(chat_request: ChatRequest,background_tasks:BackgroundTas
                             )
                     # 情况三：中间自定义事件
                     else:
-                        result = Result(message=str(interrupt_result.message))
+                        result = _info_result(interrupt_result)
 
                     yield f"data: {json.dumps( jsonable_encoder(result), ensure_ascii=False)}\n\n"
 
@@ -75,7 +92,7 @@ async def approve(decision_request:decisionRequst,chat_service: ChatService=Depe
                 )
 
             else:
-                result = Result(message=str(interrupt_result.message))
+                result = _info_result(interrupt_result)
             yield f"data: {json.dumps(jsonable_encoder(result), ensure_ascii=False)}\n\n"
         except asyncio.CancelledError:
             raise
@@ -117,7 +134,7 @@ async def edit_message(edit_message_request: editMessageRequest, chat_service: C
                         response=interrupt_result.agentResult
                     )
                 else:
-                    result = Result(message=str(interrupt_result.message))
+                    result = _info_result(interrupt_result)
 
                 yield f"data: {json.dumps(jsonable_encoder(result), ensure_ascii=False)}\n\n"
 
@@ -150,7 +167,7 @@ async def continue_chat(session_id: str, chat_service: ChatService=Depends(get_c
                     )
 
                 else:
-                    result = Result(message=str(interrupt_result.message))
+                    result = _info_result(interrupt_result)
                 yield f"data: {json.dumps(jsonable_encoder(result), ensure_ascii=False)}\n\n"
         except asyncio.CancelledError:
             raise

@@ -24,11 +24,7 @@ class sessionService:
         state_values = state.values or {}
         state_model = OverAllState.model_validate(state_values)
         messages = state_model.messages or []
-        res = []
-        for msg in messages:
-            if isinstance(msg, HumanMessage) or (isinstance(msg, AIMessage) and not msg.tool_calls):
-                res.append(msg)
-        return res
+        return messages
 
 
     async def delete_chat(self, session_id: str) -> None:
