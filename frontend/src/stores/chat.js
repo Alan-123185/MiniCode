@@ -13,6 +13,7 @@ import {
   deleteChat,
   addModel,
   setModel,
+  updateModel,
   listModels,
   saveSettings as saveSettingsApi,
   getSettings,
@@ -1239,6 +1240,28 @@ export const useChatStore = defineStore('chat', () => {
     return created || null
   }
 
+  /** 更新模型配置 (POST /MiniCode/update_model): 后端按 id 局部更新落库字段。
+   *  注意: 更新的是「库中记录」, 若改的正是当前生效模型, 需重新激活一次
+   *  (set_model) 才能让后端运行时用新配置重建 LLM 客户端 —— 否则界面切了、
+   *  库里改了, 但运行时仍用旧的 base_url/api_key 发请求。
+   *  is_default 仅在勾选( true )时下发: 后端只在 is_default=true 时把该记录设为库中默认
+   *  (先清其他默认), false 不下发以避免与"当前生效模型"概念混淆。 */
+  async function updateExistingModel(config) {
+    await updateModel({
+      id: config.id,
+      model_name: config.model,
+      base_url: config.base_url,
+      api_key: config.api_key,
+      ...(config.is_default ? { is_default: true } : {}),
+    })
+    await refreshModels()
+    if (config.id === activeModelId.value) {
+      await activateModel(config.id)
+    }
+    const updated = models.value.find((m) => m.id === config.id)
+    return updated || null
+  }
+
   /* ================= 停止生成 (POST /MiniCode/stop) ================= */
 
   /**
@@ -1570,6 +1593,7 @@ export const useChatStore = defineStore('chat', () => {
     refreshModels,
     activateModel,
     addNewModel,
+    updateExistingModel,
     setSessionWorkspace,
     clearSessionWorkspace,
     canBindWorkspace,

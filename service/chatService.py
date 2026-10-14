@@ -232,6 +232,7 @@ class ChatService:
     """
     async def edit_message(self, session_id: str, message_id: str, new_content: str) -> AsyncGenerator[InterruptResult, None]:
         """编辑指定消息的内容"""
+        self.stop_flags[session_id] = asyncio.Event()
         config = create_chat_config(thread_id=session_id)
         history_list = [h async for h in self.graph.aget_state_history(config)]  # 新的在前
         if not history_list:
@@ -263,30 +264,36 @@ class ChatService:
 
 
 
-    async def refresh_chat(self,session_id: str) -> AsyncGenerator[InterruptResult, None]:
-        """异常恢复 从最近一个未产生异常的检查点开始执行图，用户异常恢复"""
+
+    async def refresh_chat(self, session_id: str) -> AsyncGenerator[InterruptResult, None]:
+        """异常恢复：从最新检查点继续执行"""
         config = create_chat_config(thread_id=session_id)
         self.stop_flags[session_id] = asyncio.Event()
-        history_list = [h async for h in self.graph.aget_state_history(config)]  # 新的在前
-        if not history_list:
-            yield InterruptResult(message=f"会话 {session_id} 不存在或未初始化。", type=settings.interrupt_type_info)
-            return
-        #把异常前的检查点作为安全点，继续执行图
-        before_exception = None
-        for snapshot in history_list:
-            if snapshot.next:  # 有下一步说明是正常完成的检查点
-                before_exception = snapshot
-                break
-        if not before_exception:
-            yield InterruptResult(message=f"会话 {session_id} 没有可用的安全检查点，无法恢复。", type=settings.interrupt_type_info)
-            return
-        new_config=before_exception.config
-        new_config.setdefault("configurable", {})
-        new_config["configurable"]["system_prompt"] = config["configurable"]["system_prompt"]
-        async for result in self._continue_chat(config=new_config):
-            yield result
-        return
 
+        snapshot = await self.graph.aget_state(config)  # 只取最新，不遍历历史
+
+        # 会话不存在
+        if not snapshot.values and not snapshot.next:
+            yield InterruptResult(message=f"会话 {session_id} 不存在或未初始化。",
+                                  type=settings.interrupt_type_info)
+            return
+
+        # 1. 已正常结束，没有可恢复的内容
+        if not snapshot.next:
+            yield InterruptResult(message="当前会话已正常结束，无需恢复。",
+                                  type=settings.interrupt_type_info)
+            return
+
+        # 2. 正在等审批：重新展示审批提示，不重跑节点
+        pending = [t for t in snapshot.tasks if t.interrupts]
+        if pending:
+            yield InterruptResult(message=str(pending[0].interrupts[0].value),
+                                  type=settings.interrupt_type_approve)
+            return
+
+        # 3. 中途失败或被停止：从最新检查点继续
+        async for result in self._continue_chat(config=config):
+            yield result
 
 
 

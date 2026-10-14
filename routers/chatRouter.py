@@ -67,10 +67,10 @@ async def chat_to_agent(chat_request: ChatRequest,background_tasks:BackgroundTas
 
             except asyncio.CancelledError:
                 raise
-            # except Exception as e:
-            #     err = Result(message=f"服务异常：{e}")
-            #     logger.exception(f"服务异常：{e}")  # 关键：把 traceback 打进日志
-            #     yield f"data: {json.dumps(jsonable_encoder(err), ensure_ascii=False)}\n\n"
+            except Exception as e:
+                err = Result(message=f"服务异常：{e}")
+                logger.exception(f"服务异常：{e}")  # 关键：把 traceback 打进日志
+                yield f"data: {json.dumps(jsonable_encoder(err), ensure_ascii=False)}\n\n"
 
         return StreamingResponse(
         event_generator(),
@@ -96,10 +96,10 @@ async def approve(decision_request:decisionRequst,chat_service: ChatService=Depe
             yield f"data: {json.dumps(jsonable_encoder(result), ensure_ascii=False)}\n\n"
         except asyncio.CancelledError:
             raise
-        # except Exception as e:
-        #     err = Result(message=f"服务异常：{e}")
-        #     logger.exception(f"服务异常：{e}")  # 关键：把 traceback 打进日志
-        #     yield f"data: {json.dumps(jsonable_encoder(err), ensure_ascii=False)}\n\n"
+        except Exception as e:
+            err = Result(message=f"服务异常：{e}")
+            logger.exception(f"服务异常：{e}")  # 关键：把 traceback 打进日志
+            yield f"data: {json.dumps(jsonable_encoder(err), ensure_ascii=False)}\n\n"
 
 
 
@@ -140,10 +140,10 @@ async def edit_message(edit_message_request: editMessageRequest, chat_service: C
 
         except asyncio.CancelledError:
             raise
-        # except Exception as e:
-        #     err = Result(message=f"服务异常：{e}")
-        #     logger.exception(f"服务异常：{e}")  # 关键：把 traceback 打进日志
-        #     yield f"data: {json.dumps(jsonable_encoder(err), ensure_ascii=False)}\n\n"
+        except Exception as e:
+            err = Result(message=f"服务异常：{e}")
+            logger.exception(f"服务异常：{e}")  # 关键：把 traceback 打进日志
+            yield f"data: {json.dumps(jsonable_encoder(err), ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
             event_generator(),
@@ -171,10 +171,10 @@ async def continue_chat(session_id: str, chat_service: ChatService=Depends(get_c
                 yield f"data: {json.dumps(jsonable_encoder(result), ensure_ascii=False)}\n\n"
         except asyncio.CancelledError:
             raise
-        # except Exception as e:
-        #     err = Result(message=f"服务异常：{e}")
-        #     logger.exception(f"服务异常：{e}")  # 关键：把 traceback 打进日志
-        #     yield f"data: {json.dumps(jsonable_encoder(err), ensure_ascii=False)}\n\n"
+        except Exception as e:
+            err = Result(message=f"服务异常：{e}")
+            logger.exception(f"服务异常：{e}")  # 关键：把 traceback 打进日志
+            yield f"data: {json.dumps(jsonable_encoder(err), ensure_ascii=False)}\n\n"
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream"

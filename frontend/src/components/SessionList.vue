@@ -471,39 +471,9 @@ li.active:hover {
   font-size: 10px;
 }
 
-/* ===== 响应式断点 1: ≤1024px 侧边栏折叠为 56px 窄图标栏 ===== */
-/* 窄栏下只保留 + 按钮和会话列表 (标题文字/搜索框收起), 悬停侧边栏整体展开时恢复 */
-@media (max-width: 1024px) {
-  .session-list {
-    min-width: 0;
-  }
-
-  .session-header h3 {
-    display: none;
-  }
-
-  .session-header {
-    justify-content: center;
-    padding: var(--space-3) var(--space-2) var(--space-2);
-  }
-
-  .search-wrap {
-    display: none;
-  }
-
-  li {
-    justify-content: center;
-    padding: 8px 6px;
-  }
-
-  li .title {
-    display: none;
-  }
-
-  li .delete-btn {
-    display: none;
-  }
-}
+/* 侧边栏宽窄只由父组件传入的 collapsed prop 控制 (App.vue 折叠按钮手动切换),
+   不再随窗口宽度自动折叠: 即使用户把窗口拖到很窄, 侧边栏也保持完整 268px 布局。
+   折叠态下的极简布局由模板内的 v-if="!collapsed" 与下方 .collapsed 规则处理。 */
 
 .title {
   flex: 1;

@@ -202,6 +202,16 @@ export function addModel(body) {
   })
 }
 
+/** 更新模型配置 (POST /MiniCode/update_model, routers/modelRouter.py)。
+ *  body 对应后端 ModelUpdateRequest: { id, base_url, api_key, model_name, is_default };
+ *  除 id 外均为可选, 传哪个字段就更新哪个字段 (mapper/modelMapper.update_model 逐字段判空)。 */
+export function updateModel(body) {
+  return request('/MiniCode/update_model', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 /** 按库中 id 切换当前生效模型 (POST /MiniCode/set_model?id=xxx, id 是 query 参数, response 为 ModelSetRequest) */
 export function setModel(id) {
   return request(`/MiniCode/set_model?id=${encodeURIComponent(id)}`, { method: 'POST' })

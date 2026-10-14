@@ -15,33 +15,46 @@
         <div class="modal-section">
           <h4>模型配置</h4>
 
-          <!-- 已保存的模型: 数据来自后端数据库 (GET /MiniCode/get_model), 点击一行即切换生效模型 (POST /MiniCode/set_model) -->
+          <!-- 已保存的模型: 数据来自后端数据库 (GET /MiniCode/get_model), 点击一行即切换生效模型 (POST /MiniCode/set_model);
+               行尾「编辑」按钮把该配置回填到下方表单, 提交走 POST /MiniCode/update_model -->
           <div class="model-list" role="listbox" aria-label="已保存的模型">
             <p v-if="listLoading" class="list-hint">正在从后端加载模型列表…</p>
             <p v-else-if="!models.length" class="list-hint">后端暂无已保存的模型, 请在下方填写并添加</p>
-            <button
-              v-for="m in models"
-              :key="m.id"
-              class="model-row"
-              role="option"
-              :class="{ active: m.id === activeModelId }"
-              :aria-selected="m.id === activeModelId"
-              :disabled="selectingId !== null"
-              :title="`${m.model_name} · ${m.base_url}`"
-              @click="selectModel(m)"
-            >
-              <span class="model-main">
-                <span class="model-name">{{ m.model_name }}</span>
-                <span class="model-url">{{ m.base_url }}</span>
-              </span>
-              <span v-if="m.is_default" class="model-badge default" title="库中标记为默认模型">默认</span>
-              <span v-if="m.id === activeModelId" class="model-badge in-use">
-                {{ selectingId === m.id ? '切换中…' : '使用中' }}
-              </span>
-            </button>
+            <div v-for="m in models" :key="m.id" class="model-item">
+              <button
+                class="model-row"
+                role="option"
+                :class="{ active: m.id === activeModelId, editing: m.id === editingId }"
+                :aria-selected="m.id === activeModelId"
+                :disabled="selectingId !== null"
+                :title="`${m.model_name} · ${m.base_url}`"
+                @click="selectModel(m)"
+              >
+                <span class="model-main">
+                  <span class="model-name">{{ m.model_name }}</span>
+                  <span class="model-url">{{ m.base_url }}</span>
+                </span>
+                <span v-if="m.is_default" class="model-badge default" title="库中标记为默认模型">默认</span>
+                <span v-if="m.id === activeModelId" class="model-badge in-use">
+                  {{ selectingId === m.id ? '切换中…' : '使用中' }}
+                </span>
+              </button>
+              <button
+                class="icon-btn edit-model-btn"
+                :disabled="selectingId !== null || updating"
+                :title="`编辑「${m.model_name}」的配置 (POST /MiniCode/update_model)`"
+                :aria-label="`编辑 ${m.model_name} 的配置`"
+                @click="startEditModel(m)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <!-- 新增模型表单: 提交到 POST /MiniCode/add_model, 后端落库并立即生效 -->
+          <!-- 模型表单: 默认「新增」, 提交到 POST /MiniCode/add_model 落库并立即生效;
+               点击列表行尾「编辑」进入「更新」模式, 提交到 POST /MiniCode/update_model -->
           <div class="field">
             <label for="model-name">模型名</label>
             <input id="model-name" v-model="form.model" placeholder="模型名, 如 qwen3.6-plus" />
@@ -61,8 +74,18 @@
             />
           </div>
 
+          <!-- 设为默认: 仅编辑模式暴露。后端 update_model 仅在 is_default=true 时把该记录设为
+               库中默认 (先清其他默认), 启动时无生效 id 就以默认模型兜底 (reload_model_config) -->
+          <div v-if="editingId !== null" class="field field-check">
+            <label class="check-label">
+              <input id="model-is-default" v-model="form.is_default" type="checkbox" />
+              <span>设为默认模型 (启动时优先使用此配置)</span>
+            </label>
+          </div>
+
           <div class="btn-row">
             <button
+              v-if="editingId === null"
               class="primary-btn"
               :disabled="adding || listLoading"
               title="新增模型到后端数据库 (POST /MiniCode/add_model), 添加后立即生效"
@@ -71,8 +94,26 @@
               {{ adding ? '添加中…' : '添加模型' }}
             </button>
             <button
+              v-else
+              class="primary-btn"
+              :disabled="updating || listLoading"
+              title="保存对该模型的修改 (POST /MiniCode/update_model)"
+              @click="updateModelFromForm"
+            >
+              {{ updating ? '保存中…' : '保存修改' }}
+            </button>
+            <button
+              v-if="editingId !== null"
               class="ghost-btn"
-              :disabled="listLoading"
+              :disabled="updating"
+              title="放弃修改, 退出编辑模式"
+              @click="cancelEdit"
+            >
+              取消编辑
+            </button>
+            <button
+              class="ghost-btn"
+              :disabled="listLoading || updating"
               title="重新从后端拉取模型列表 (GET /MiniCode/get_model)"
               @click="reloadModels"
             >
@@ -184,16 +225,20 @@ async function saveAppSettings() {
 /** 数据库返回的模型列表 (list[ModelGetRequest]: id/base_url/api_key/model_name/is_default) */
 const models = computed(() => store.models)
 const activeModelId = computed(() => store.activeModelId)
-/** 新增模型表单 (POST /MiniCode/add_model 的 body) */
-const form = reactive({ model: '', base_url: '', api_key: '' })
+/** 新增/编辑模型表单 (add_model / update_model 的 body) */
+const form = reactive({ model: '', base_url: '', api_key: '', is_default: false })
 /** 正在切换生效模型的 id (防重复点击) */
 const selectingId = ref(null)
 /** 正在新增模型 */
 const adding = ref(false)
+/** 正在保存对已存在模型的修改 (编辑模式) */
+const updating = ref(false)
+/** 当前处于编辑模式的模型 id; null 表示「新增」模式 */
+const editingId = ref(null)
 /** 正在拉取模型列表 */
 const listLoading = ref(false)
 
-/* ---------- 列表 / 切换 / 新增 ---------- */
+/* ---------- 列表 / 切换 / 新增 / 编辑 ---------- */
 
 /** 打开或手动刷新时从后端拉取模型列表, 并用当前生效模型回填新增表单 (仅在表单为空时) */
 async function reloadModels() {
@@ -218,7 +263,12 @@ function seedForm() {
     models.value.find((m) => m.is_default) ||
     models.value[0]
   if (cur) {
-    Object.assign(form, { model: cur.model_name, base_url: cur.base_url, api_key: cur.api_key })
+    Object.assign(form, {
+      model: cur.model_name,
+      base_url: cur.base_url,
+      api_key: cur.api_key,
+      is_default: !!cur.is_default,
+    })
   }
 }
 
@@ -258,12 +308,67 @@ async function addModelFromForm() {
   }
 }
 
+/** 进入编辑模式: 把该行模型配置回填到表单, 后续提交走 update_model。
+ *  注意: 回填前先清空表单, 避免上一次新增/编辑残留的字段(尤其是改了模型名的)被带进来。 */
+function startEditModel(m) {
+  if (selectingId.value) return
+  editingId.value = m.id
+  form.model = m.model_name
+  form.base_url = m.base_url
+  form.api_key = m.api_key
+  form.is_default = !!m.is_default
+}
+
+/** 退出编辑模式, 回到「新增」: 清空表单并按当前生效模型重新回填 */
+function cancelEdit() {
+  if (updating.value) return
+  editingId.value = null
+  form.model = ''
+  form.base_url = ''
+  form.api_key = ''
+  form.is_default = false
+  seedForm()
+}
+
+/** 保存对已存在模型的修改: POST /MiniCode/update_model, 后端按 id 局部更新。
+ *  改的是当前生效模型时, store 会自动重新激活一次以重建运行时 LLM 客户端。 */
+async function updateModelFromForm() {
+  if (updating.value) return
+  if (!form.model || !form.base_url || !form.api_key) {
+    toast.error('请完整填写模型名 / Base URL / API Key')
+    return
+  }
+  updating.value = true
+  try {
+    const updated = await store.updateExistingModel({ ...form, id: editingId.value })
+    toast.success(`已更新「${updated?.model_name || form.model}」的配置`)
+    // 保存成功即退出编辑模式并清空表单, 回到「新增」状态
+    editingId.value = null
+    form.model = ''
+    form.base_url = ''
+    form.api_key = ''
+    form.is_default = false
+    seedForm()
+  } catch (e) {
+    console.error('更新模型失败', e)
+    toast.error(`更新失败: ${e.message}`)
+  } finally {
+    updating.value = false
+  }
+}
+
 /* ---------- 打开/关闭 ---------- */
 
 watch(
   () => props.visible,
   async (v) => {
     if (!v) {
+      // 关闭时退出编辑模式并清空表单: 否则下次打开会残留「正在编辑某模型」的状态
+      editingId.value = null
+      form.model = ''
+      form.base_url = ''
+      form.api_key = ''
+      form.is_default = false
       window.removeEventListener('keydown', handleKeydown)
       return
     }
@@ -426,6 +531,40 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
   border-radius: var(--radius-xs);
 }
 
+/* 单行容器: 模型切换行 + 行尾编辑按钮 (二者为兄弟, 避免 button 嵌套 button) */
+.model-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 行尾「编辑」图标按钮: 方正小图标, 与 App.vue 顶栏 icon-btn 同形态 */
+.edit-model-btn {
+  flex: none;
+  width: 30px;
+  height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+}
+
+.edit-model-btn:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-light);
+  border-color: var(--accent-border);
+  box-shadow: none;
+  transform: none;
+}
+
+.edit-model-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
 .model-row {
   display: flex;
   align-items: center;
@@ -450,6 +589,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 .model-row.active {
   background: var(--accent-light);
   border-color: var(--accent-border);
+}
+
+/* 正处于编辑模式的行: 用虚线描边区别于「使用中」的实线高亮 */
+.model-row.editing {
+  border-style: dashed;
+  border-color: var(--accent);
 }
 
 .model-row:focus-visible {
@@ -517,6 +662,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 
 .field input {
   width: 100%;
+}
+
+/* 设为默认: 复选框行 (覆盖 .field 的纵向排列与 .field input 的 100% 宽) */
+.field-check {
+  gap: 0;
+}
+
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.check-label input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 /* 生成参数: 温度滑条与思考等级分段按钮 */

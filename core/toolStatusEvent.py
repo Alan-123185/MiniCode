@@ -48,7 +48,7 @@ def success_return_str(events: toolstatusEvent) -> outputEvent:
     if events.tool_name == "listfiles":
         folder_path= events.args.get("folder_path","")
         return outputEvent(status=events.status, message=f"查看文件夹 {Path(folder_path).name}")
-    if events.tool_name == "edit_file":
+    if events.tool_name == "file_edit":
         # 处理 edit_file 工具的逻辑
         tool_result=events.result
         return outputEvent(status=events.status, message=tool_result.message)
@@ -85,7 +85,7 @@ def failed_return_str(events: toolstatusEvent) -> outputEvent:
         # 处理 listfiles 工具的逻辑
         folder_path= events.args.get("folder_path","")
         return outputEvent(status=events.status, message=f"查看文件夹 {Path(folder_path).name} 失败:\n {events.result.error}")
-    if events.tool_name == "edit_file":
+    if events.tool_name == "file_edit":
         # 处理 edit_file 工具的逻辑
         return outputEvent(status=events.status, message=f"编辑文件失败: {events.result.error}")
     if events.tool_name == "delete_file":
@@ -114,7 +114,7 @@ def failed_return_str(events: toolstatusEvent) -> outputEvent:
 
 
 def refused_return_str(events: toolstatusEvent) -> outputEvent:
-    if events.tool_name == "edit_file":
+    if events.tool_name == "file_edit":
         # 处理 edit_file 工具的逻辑
         file_path = events.args.get("file_path")
         return outputEvent(status=events.status, message=f"拒绝编辑文件 {Path(file_path).name}")

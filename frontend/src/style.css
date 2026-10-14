@@ -103,11 +103,8 @@
   --topbar-height: 48px;
   --statusbar-height: 28px;
   --sidebar-width: 268px;
-  /* 窄屏折叠态侧边栏宽度 (≤1024px 断点) */
+  /* 手动折叠态侧边栏宽度 (App.vue 折叠按钮点击后收窄为图标栏) */
   --sidebar-collapsed-width: 56px;
-  /* 响应式断点 (与 App.vue / SessionList.vue 的媒体查询保持一致) */
-  --bp-sidebar-collapse: 1024px;
-  --bp-sidebar-drawer: 768px;
   /* 页面整体最小可用宽度: 仅低于此值才允许整页横向滚动 */
   --app-min-width: 360px;
 }
@@ -598,14 +595,12 @@ kbd {
   max-width: min(76%, 100%);
 }
 
-/* ===== 断点 1: ≤1024px 侧边栏折叠为窄图标栏 (悬停/点击临时展开) ===== */
-@media (max-width: 1024px) {
-  :root {
-    --sidebar-width: var(--sidebar-collapsed-width);
-  }
-}
+/* 侧边栏宽度不随窗口大小自动变化: 窄窗下始终保持 --sidebar-width (268px),
+   仅由 App.vue 的折叠按钮 (sidebarCollapsed) 手动在 268px <-> 56px 间切换。
+   (.sidebar 上的 min-width: var(--sidebar-width) 保证 flex 布局不会把它压窄,
+    不足空间由 .main 的 min-width: 0 + flex: 1 吸收) */
 
-/* ===== 断点 2: ≤768px 侧边栏隐藏为抽屉 (汉堡按钮 + 遮罩打开) ===== */
+/* ===== 断点: ≤768px 状态栏隐藏快捷键提示 ===== */
 @media (max-width: 768px) {
   .statusbar .kbd-hint {
     display: none;
