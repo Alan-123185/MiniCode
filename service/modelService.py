@@ -3,7 +3,7 @@ from config.data import settings
 from config.dependencies import create_model
 from config.modelConfig import model_config
 from exceptions import BizException
-from requestcommon.ModelRequest import ModelGetRequest, ModelSetRequest
+from requestcommon.ModelRequest import ModelGetRequest, ModelSetRequest, ModelUpdateRequest
 from requestcommon.settingsRequest import settingsRequest, Settings
 
 
@@ -69,3 +69,12 @@ class modelService:
     def get_model(self) -> list[ModelGetRequest]:
         models=self.modelmapper.reload_all_models()
         return models
+
+
+    def delete_model(self,model_id:int) -> bool:
+        self.modelmapper.delete_model(model_id)
+        return True
+
+    def update_model(self,request:ModelUpdateRequest) -> bool:
+        self.modelmapper.update_model(request)
+        return True

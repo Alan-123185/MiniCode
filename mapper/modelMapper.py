@@ -36,8 +36,8 @@ class modelMapper:
             raise BizException(message=f"Failed to add model: {e}")
 
 
-    def delete_model(self,id:int) -> None:
-        self.db.execute("DELETE FROM model WHERE id = ?", (id,))
+    def delete_model(self,model_id:int) -> None:
+        self.db.execute("DELETE FROM model WHERE id = ?", (model_id,))
 
 
 

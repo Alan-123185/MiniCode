@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from fastapi.params import Depends
 from config.modelConfig import model_config
 from core.Result import Result
-from requestcommon.ModelRequest import ModelSetRequest
+from requestcommon.ModelRequest import ModelSetRequest, ModelUpdateRequest
 from requestcommon.settingsRequest import settingsRequest
 from service.dependencies import get_model_service
 from service.modelService import modelService
@@ -55,4 +55,23 @@ async def get_model(model_service:modelService=Depends(get_model_service)):
 async def cur_model():
     return Result(
         response=model_config["value"]
+    )
+
+
+
+@router.post("MiniCode/delete_model")
+async def delete_model(id:int, model_service:modelService=Depends(get_model_service)):
+    model_service.delete_model(id)
+    return Result(
+        message=f"模型已经删除",
+        response=id
+    )
+
+
+@router.post("/MiniCode/update_model")
+async def update_model(request:ModelUpdateRequest, model_service:modelService=Depends(get_model_service)):
+    model=model_service.update_model(request)
+    return Result(
+        message=f"模型配置已更新",
+        response=model
     )
