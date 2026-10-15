@@ -11,12 +11,12 @@ class InterruptInfo(BaseModel):
 def manage_InterruptInfo(interrupt_info: InterruptInfo) -> str:
     if interrupt_info.tool_name == "execute_command":
         command= interrupt_info.tool_args.get("command")
-        command=command.strip()[0:50] + "..." if len(command)>50 else command.strip()
-        return f"我想执行 {command}"
+        # 完整下发命令: 前端审批卡片会用等宽字体代码块展示, 让用户批准前看清要执行什么
+        return f"我想执行 {command.strip()}"
     if interrupt_info.tool_name == "run_code":
         code= interrupt_info.tool_args.get("code")
-        code=code.strip()[0:50] + "..." if len(code)>50 else code.strip()
-        return f"我想运行脚本 {code}"
+        # 完整下发代码: 同上, 用等宽字体代码块展示
+        return f"我想运行脚本 {code.strip()}"
     if interrupt_info.tool_name == "edit_file":
         file_path= interrupt_info.tool_args.get("file_path")
         return f"我想编辑 {Path(file_path).name}"
@@ -30,7 +30,6 @@ def manage_InterruptInfo(interrupt_info: InterruptInfo) -> str:
         return f"我将执行回滚操作"
     else:
         return f"我想执行 {interrupt_info.tool_name}"
-
 
 
 

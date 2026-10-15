@@ -162,7 +162,13 @@
         <span class="approval-icon" aria-hidden="true">⚠</span>
         需要你的确认
       </div>
-      <div class="approval-message">{{ activeApproval.message }}</div>
+      <div class="approval-message">
+        <template v-if="approvalCodeBlock">
+          <span>{{ approvalCodeBlock.prefix }}</span>
+          <pre class="approval-code">{{ approvalCodeBlock.code }}</pre>
+        </template>
+        <template v-else>{{ activeApproval.message }}</template>
+      </div>
       <div class="approval-actions">
         <button :disabled="store.isCurrentSessionStreaming" @click="store.approve('yes')">批准</button>
         <button :disabled="store.isCurrentSessionStreaming" class="reject" @click="store.approve('no')">拒绝</button>
@@ -346,6 +352,23 @@ const dismissedResume = ref(false)
 const activeApproval = computed(() =>
   store.pendingApproval?.sessionId === store.currentSessionId ? store.pendingApproval : null
 )
+
+/**
+ * execute_command / run_code 的审批文案形如「我想执行 <命令>」「我想运行脚本 <代码>」
+ * (后端 core/InterruptInfo.py manage_InterruptInfo, 这两类已完整下发不再截断)。
+ * 拆出命令/代码部分, 用等宽字体的代码块渲染, 与说明文字区分 —— 用户批准前能
+ * 看清到底要执行什么; 其它工具的审批文案保持原来的纯文本渲染, 不受影响。
+ * 后端 else 兜底分支会给没有专属文案的工具发「我想执行 <tool_name>」(如 file_edit),
+ * 这种单词不是真实命令, 不进代码块。
+ */
+const APPROVAL_CODE_RE = /^(我想执行|我想运行脚本)\s+([\s\S]+)$/
+const TOOL_NAME_FALLBACK_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
+const approvalCodeBlock = computed(() => {
+  const msg = activeApproval.value?.message ?? ''
+  const m = msg.match(APPROVAL_CODE_RE)
+  if (!m || TOOL_NAME_FALLBACK_RE.test(m[2].trim())) return null
+  return { prefix: m[1], code: m[2] }
+})
 
 const showResumeBanner = computed(
   () =>
@@ -1146,6 +1169,25 @@ watch(
   font-size: 13.5px;
   line-height: 1.6;
   margin-bottom: var(--space-3);
+}
+
+/* execute_command / run_code: 命令与代码用等宽字体代码块完整展示, 与说明文字区分 */
+.approval-code {
+  display: block;
+  margin: var(--space-2) 0 0;
+  padding: 10px 12px;
+  max-height: 260px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--code-fg);
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-sm);
 }
 
 .approval-actions {

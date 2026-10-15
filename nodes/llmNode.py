@@ -1,10 +1,8 @@
 import uuid
-from langchain_core.runnables import RunnableConfig
 from loguru import logger
 from config.modelConfig import model_config
 from exceptions import BizException
 from states.degradeState import degradeState
-from states.OverallState import OverAllState
 from tools.toolManage import tools
 
 
@@ -22,7 +20,7 @@ async def llm_node(degrade_state:degradeState) -> dict:
         async for chunk in model.bind_tools(tools).astream(input_message):
             response = chunk if response is None else response + chunk
     except Exception as e:
-        logger.error(f"ERROR 生成失败: {e}")
+        logger.exception(f"ERROR 生成失败: {e}")
         raise BizException(message=f"ERROR 生成失败")
 
     # 1. 生成 message_id
