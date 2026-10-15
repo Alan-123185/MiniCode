@@ -61,11 +61,7 @@ class ChatService:
         self.running_tasks[session_id] = task
         try:
             snapshot = await self.graph.aget_state(config)
-            has_interrupt = any(
-                task.interrupts
-                for task in snapshot.tasks
-            )
-            if has_interrupt:
+            if _pending_interrupt(snapshot) :
                 async for result in self._stream_graph(
                         session_id=session_id,
                         config=config,
@@ -144,13 +140,16 @@ class ChatService:
             await stream.aclose()
 
         # ---- 流正常跑完（没被 stop），才检查是否遇到中断 ----
+        # 判定必须用 _pending_interrupt (tasks[].interrupts), 不能用 snapshot.next:
+        # 同一 tool_node 里顺序多次 interrupt() 时, 第二次暂停起 next 已是 () 而中断仍在
+        # (实测见 tests/_probe3_out.txt, 机制说明见 _pending_interrupt 注释)。
+        # 用 next 会把「还有待审批」误判成「正常结束」下发空结果事件 —— 前端收不到
+        # 新审批卡片, 界面表现为图莫名中断且控制台无任何报错。
         snapshot = await self.graph.aget_state(create_chat_config(thread_id=session_id))
-        if snapshot.next:
-            interrupt_message = None
-            if snapshot.tasks and snapshot.tasks[0].interrupts:
-                interrupt_message = snapshot.tasks[0].interrupts[0].value
+        pending = _pending_interrupt(snapshot)
+        if pending is not None:
             yield InterruptResult(
-                message=str(interrupt_message),
+                message=str(pending.value),
                 type=settings.interrupt_type_approve,
             )
         else:
@@ -240,6 +239,7 @@ class ChatService:
             return
         new_snapshot = history_list[0]
         state = new_snapshot.values
+        original_config = new_snapshot.config
         # 查找要重新运行的消息
         index = find_safe_message_index(state["messages"])
         safe_message = state["messages"][index:]
@@ -256,9 +256,15 @@ class ChatService:
                                 k: v for k, v in new_config["configurable"].items()
                                 if k not in run_config["configurable"]  # 保留 checkpoint_ns/checkpoint_id
                             })
-                            async for result in self._continue_chat(config=run_config):
-                                yield result
-                            return
+                            try:
+                                async for result in self._continue_chat(config=run_config):
+                                    yield result
+                                return
+                            except Exception as e:
+                                old = await self.graph.aget_state(original_config)
+                                await self.graph.aupdate_state(original_config, old.values)
+                                yield InterruptResult(message=f"编辑消息时发生错误: {str(e)}", type=settings.interrupt_type_info)
+
         yield InterruptResult(message=f"消息 ID {message_id} 未找到或已被影响，无法编辑。", type=settings.interrupt_type_info)
 
 
@@ -285,9 +291,9 @@ class ChatService:
             return
 
         # 2. 正在等审批：重新展示审批提示，不重跑节点
-        pending = [t for t in snapshot.tasks if t.interrupts]
+        pending = _pending_interrupt(snapshot)
         if pending:
-            yield InterruptResult(message=str(pending[0].interrupts[0].value),
+            yield InterruptResult(message=str(pending.value),
                                   type=settings.interrupt_type_approve)
             return
 
@@ -361,166 +367,20 @@ def generate_summary(user_prompt: str) -> str:
 
 
 
-    # async def chat(self, chat_request: ChatRequest) -> AsyncGenerator[InterruptResult, None]:
-    #     final_result = None
-    #     config: RunnableConfig = create_chat_config(thread_id=chat_request.session_id)
-    #     # 使用 astream 异步流式执行
-    #     async for mode, chunk in self.graph.astream(
-    #             {"input": chat_request.message},
-    #             config=config,
-    #             stream_mode=["updates", "custom"]
-    #     ):
-    #         if mode == "custom":
-    #                 yield InterruptResult(message=chunk,type=settings.interrupt_type_info)
-    #
-    #         elif mode == "updates":
-    #             # 提取最终节点的输出
-    #             if "output_node" in chunk:
-    #                 final_result = chunk["output_node"].get("agentResult")
-    #
-    #     # 流结束后，检查是否处于中断状态
-    #     snapshot = await self.graph.aget_state(config)
-    #     if snapshot.next:
-    #         # ✅ 安全地获取 interrupt 信息
-    #         interrupt_message = None
-    #         if snapshot.tasks and snapshot.tasks[0].interrupts:
-    #             interrupt_message = snapshot.tasks[0].interrupts[0].value
-    #         yield InterruptResult(message=str(interrupt_message),type=settings.interrupt_type_approve)
-    #     else:
-    #         yield InterruptResult(agentResult=final_result,type=settings.interrupt_type_result)
-    #
-    # async def approve(self, decision_request: decisionRequst) -> AsyncGenerator[InterruptResult, None]:
-    #     """用户审批结果，从暂停处恢复图继续执行"""
-    #     config = create_chat_config(thread_id=decision_request.session_id)
-    #     final_result = None
-    #     operation_group_id = None
-    #     async for mode, chunk in self.graph.astream(
-    #             Command(resume=decision_request.decision),
-    #             config=config,
-    #             stream_mode=["updates", "custom"]
-    #     ):
-    #         if mode == "custom":
-    #             if chunk.status == settings.tool_success and chunk.tool_name in settings.file_change_tool_list:
-    #                 if operation_group_id is None:
-    #                     operation_group_id = str(uuid.uuid4())
-    #                     self.operationgroupMapper.add_operation_group(
-    #                         OperationGroup(
-    #                             group_id=operation_group_id,
-    #                             session_id=chunk.session_id,
-    #                             user_prompt=generate_summary(chunk.user_prompt),
-    #                         )
-    #                     )
-    #                 fo=None
-    #                 if chunk.tool_name == "file_edit":
-    #                     fo = FileOperation(
-    #                         group_id=operation_group_id,
-    #                         file_path=chunk.args["file_path"],
-    #                         operation_type="file_edit",
-    #                         old_snippet=chunk.args["old_content"],
-    #                         new_snippet=chunk.args["new_content"]
-    #                     )
-    #                 elif chunk.tool_name == "create_file":
-    #                     fo = FileOperation(
-    #                         group_id=operation_group_id,
-    #                         file_path=chunk.args["file_path"],
-    #                         operation_type="create_file",
-    #                         new_snippet=chunk.args["content"]
-    #                     )
-    #                 elif chunk.tool_name == "delete_file":
-    #                     fo = FileOperation(
-    #                         group_id=operation_group_id,
-    #                         file_path=chunk.args["file_path"],
-    #                         operation_type="delete_file",
-    #                         old_snippet=chunk.result.data
-    #                     )
-    #                 self.fileMapper.add_operation(operation=fo)
-    #             yield InterruptResult(message=chunk, type=settings.interrupt_type_info)
-    #
-    #         elif mode == "updates":
-    #             if "output_node" in chunk:
-    #                 final_result = chunk["output_node"].get("agentResult")
-    #
-    #     # 图跑完，检查是否又遇到了新的中断
-    #     snapshot =await self.graph.aget_state(config)
-    #     if snapshot.next:
-    #         interrupt_message = None
-    #         if snapshot.tasks and snapshot.tasks[0].interrupts:
-    #             interrupt_message = snapshot.tasks[0].interrupts[0].value
-    #         yield InterruptResult(
-    #             message=str(interrupt_message),
-    #             type=settings.interrupt_type_approve
-    #         )
-    #     else:
-    #         yield InterruptResult(
-    #             agentResult=final_result,
-    #             type=settings.interrupt_type_result
-    #         )
-    #
-    #
-    #
-    # async def _continue_chat(self,config:RunnableConfig) -> AsyncGenerator[InterruptResult, None]:
-    #     """继续执行图，直到遇到中断或完成"""
-    #     final_result = None
-    #     operation_group_id = None
-    #     async for mode, chunk in self.graph.astream(
-    #             None,
-    #             config=config,
-    #             stream_mode=["updates", "custom"]
-    #     ):
-    #         if mode == "custom":
-    #             if chunk.status == settings.tool_success and chunk.tool_name in settings.file_change_tool_list:
-    #                 if operation_group_id is None:
-    #                     operation_group_id = str(uuid.uuid4())
-    #                     self.operationgroupMapper.add_operation_group(
-    #                         OperationGroup(
-    #                             group_id=operation_group_id,
-    #                             session_id=chunk.session_id,
-    #                             user_prompt=generate_summary(chunk.user_prompt),
-    #                         )
-    #                     )
-    #                 fo=None
-    #                 if chunk.tool_name == "file_edit":
-    #                     fo = FileOperation(
-    #                         group_id=operation_group_id,
-    #                         file_path=chunk.args["file_path"],
-    #                         operation_type="file_edit",
-    #                         old_snippet=chunk.args["old_content"],
-    #                         new_snippet=chunk.args["new_content"]
-    #                     )
-    #                 elif chunk.tool_name == "create_file":
-    #                     fo = FileOperation(
-    #                         group_id=operation_group_id,
-    #                         file_path=chunk.args["file_path"],
-    #                         operation_type="create_file",
-    #                         new_snippet=chunk.args["content"]
-    #                     )
-    #                 elif chunk.tool_name == "delete_file":
-    #                     fo = FileOperation(
-    #                         group_id=operation_group_id,
-    #                         file_path=chunk.args["file_path"],
-    #                         operation_type="delete_file",
-    #                         old_snippet=chunk.result.data
-    #                     )
-    #                 self.fileMapper.add_operation(operation=fo)
-    #             yield InterruptResult(message=chunk, type=settings.interrupt_type_info)
-    #
-    #         elif mode == "updates":
-    #             if "output_node" in chunk:
-    #                 final_result = chunk["output_node"].get("agentResult")
-    #
-    #     # 图跑完，检查是否又遇到了新的中断
-    #     snapshot = await self.graph.aget_state(create_chat_config(thread_id=config["configurable"]["thread_id"]))
-    #     if snapshot.next:
-    #         interrupt_message = None
-    #         if snapshot.tasks and snapshot.tasks[0].interrupts:
-    #             interrupt_message = snapshot.tasks[0].interrupts[0].value
-    #         yield InterruptResult(
-    #             message=str(interrupt_message),
-    #             type=settings.interrupt_type_approve
-    #         )
-    #     else:
-    #         yield InterruptResult(
-    #             agentResult=final_result,
-    #             type=settings.interrupt_type_result
-    #         )
-    #
+"""
+10.15 修复一个 bug：LangGraph 1.2.11 下只有「第一次」中断会让 next 非空; 用户批准后图恢复、
+"""
+def _pending_interrupt(snapshot):
+    """取最新检查点上挂着的审批中断, 没有则返回 None。
+
+    判定必须以 snapshot.tasks[].interrupts 为准, 不能用 snapshot.next:
+    langgraph 1.2.11 下只有「第一次」中断会让 next 非空; 用户批准后图恢复、
+    同一 tool_node 里下一次 interrupt() 再次暂停时, next 已经是 () 而中断仍在
+    (approve() 的 has_interrupt 一直用的就是 interrupts)。
+    旧实现用 next 判定, 会把这种状态当成「正常结束」发一个空结果事件 ——
+    前端收不到审批事件, 审批卡片消失并弹出「没有待审批的中断」的误导提示, 会话卡死。
+    """
+    for task in snapshot.tasks:
+        if task.interrupts:
+            return task.interrupts[0]
+    return None

@@ -71,6 +71,14 @@
         >
           <span class="dot"></span><span class="dot"></span><span class="dot"></span>
         </span>
+        <!-- 挂着待审批中断的会话: 标题尾部「待批准」徽标。
+             审批卡片只在该会话自己的界面上, 误切走后靠它一眼找回 -->
+        <span
+          v-if="store.hasPendingApproval(session.id)"
+          class="approval-badge"
+          title="等待你的批准, 点击进入该会话处理"
+          aria-label="等待你的批准"
+        >待批准</span>
         <button
           class="delete-btn"
           title="删除会话"
@@ -498,6 +506,18 @@ li.active:hover {
   border-radius: 50%;
   background: var(--accent);
   animation: typingBounce 1.2s infinite;
+}
+
+/* 待批准的会话: 标题尾部小徽标 (审批卡片跟随所属会话, 切走后靠它找回) */
+.approval-badge {
+  flex: none;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: var(--radius-xs);
+  color: var(--warning);
+  background: var(--warning-light);
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
 }
 
 .delete-btn {

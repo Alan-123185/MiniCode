@@ -133,7 +133,20 @@ export const useChatStore = defineStore('chat', () => {
   const streamingStatusTitle = computed(() =>
     streamingSessions.size ? `正在生成: ${streamingSessionTitles.value.join('、')}` : ''
   )
-  const pendingApproval = ref(null)
+  /**
+   * 每会话的待审批中断: 按会话 id 挂载 (与 streamingSessions / sessionStatus /
+   * interruptedSessions 同构, 是本仓库并行生成的既定模式)。
+   * 旧版是全局单值 ref, 切到别的会话时 loadHistory 会把它当"残留"清掉 ——
+   * 切走即销毁, 切回来批准按钮就没了; 而后端中断状态一直都在
+   * (LangGraph checkpointer 按 thread_id 保存, chatService.approve 还会查
+   * snapshot.tasks 的 interrupts), 纯属前端状态被误清。现在审批跟随所属会话,
+   * 切走再切回不丢, 也允许几条会话同时挂着待批准。
+   */
+  const pendingApprovals = reactive(new Map())
+  /** 当前会话的待审批中断 (界面只展示自己这条会话的) */
+  const pendingApproval = computed(() =>
+    currentSessionId.value != null ? pendingApprovals.get(currentSessionId.value) || null : null
+  )
   /**
    * 每会话的一句话状态 (如"正在调用 file_edit 工具…"), 仅作轻提示, 不进消息正文。
    * 并行生成后必须按会话分开存: 单值会让 A 的工具状态串到 B 的界面上。
@@ -169,6 +182,11 @@ export const useChatStore = defineStore('chat', () => {
   /** 该会话是否已有流在跑 (并行生成下的准入闸门: 只拦同一会话的第二次请求) */
   function isSessionStreaming(sessionId) {
     return !!sessionId && streamingSessions.has(sessionId)
+  }
+
+  /** 该会话是否挂着待审批的中断 (侧边栏「待批准」徽标用, 与 isSessionStreaming 同构) */
+  function hasPendingApproval(sessionId) {
+    return !!sessionId && pendingApprovals.has(sessionId)
   }
 
   /** 标记某会话开始流式输出; 顺带清掉它上一轮的残留状态提示 */
@@ -751,10 +769,10 @@ export const useChatStore = defineStore('chat', () => {
       localMessage.status = 'sent'
       interruptedSessions.delete(sessionId)
       if (isApprovalInterrupt(events)) {
-        pendingApproval.value = {
+        pendingApprovals.set(sessionId, {
           message: formatInterruptMessage(events[events.length - 1].message),
           sessionId,
-        }
+        })
       }
       dropEmptyAssistantMessage(sessionMessages, assistantMessage, '本次生成没有返回任何内容')
       // 后端会生成会话名,流结束后刷新一次
@@ -802,6 +820,8 @@ export const useChatStore = defineStore('chat', () => {
 
   /** 用户批准/拒绝工具调用，从暂停处恢复 agent */
   async function approve(decision) {
+    // pendingApproval 是会话级 computed: 只会拿到"当前正在看的这条会话"的审批,
+    // 与审批卡片的显示条件天然一致
     if (!pendingApproval.value) return
 
     const approval = pendingApproval.value
@@ -812,10 +832,11 @@ export const useChatStore = defineStore('chat', () => {
     // 还没同步到它), 此时绝不能发请求 —— 既会打到一个不存在的 session_id,
     // 下面的 getMessagesOf 还会把已删会话的消息缓存凭空重建, 等于复活该会话。
     if (!sessions.value.some((s) => s.id === approval.sessionId)) {
-      pendingApproval.value = null
+      pendingApprovals.delete(approval.sessionId)
       return
     }
-    pendingApproval.value = null
+    // 会话级审批: 只清"这条会话"的待批准项, 别条会话挂着的审批不受影响
+    pendingApprovals.delete(approval.sessionId)
 
     // 恢复流写入其所属会话的缓存, 与 sendMessage 相同的切换保护
     const sessionId = approval.sessionId
@@ -856,10 +877,10 @@ export const useChatStore = defineStore('chat', () => {
       finalizeToolEvents(assistantMessage)
       interruptedSessions.delete(sessionId)
       if (isApprovalInterrupt(events)) {
-        pendingApproval.value = {
+        pendingApprovals.set(sessionId, {
           message: formatInterruptMessage(events[events.length - 1].message),
           sessionId,
-        }
+        })
       }
       // 后端 chatService.approve 在没有待审批中断时一个事件都不下发 (has_interrupt 为假),
       // 此时不能留一个永远转圈的空气泡
@@ -928,7 +949,9 @@ export const useChatStore = defineStore('chat', () => {
     const sessionId = genSessionId()
     currentSessionId.value = sessionId
     messages.value = []
-    pendingApproval.value = null
+    // 会话级审批不再全局清空: 只兜底清掉新 id 自身的残留 (uuid 理论上不会撞),
+    // 别条会话挂着的待批准项必须保留 —— 旧版这里的全局置 null 会把别人的批准按钮抹掉
+    pendingApprovals.delete(sessionId)
     sessions.value.unshift({
       id: sessionId,
       title: '新会话',
@@ -1105,8 +1128,9 @@ export const useChatStore = defineStore('chat', () => {
 
   async function loadHistory(sessionId) {
     currentSessionId.value = sessionId
-    // 审批卡片跟随其所属会话: 切走再切回不丢
-    if (pendingApproval.value?.sessionId !== sessionId) pendingApproval.value = null
+    // 审批按会话挂在 pendingApprovals 里, 切换会话时**一律不清**。
+    // 旧版在这里把"不属于目标会话"的审批当残留清掉: 从待批准的会话切走即销毁,
+    // 切回来批准按钮就没了 (后端中断其实一直都在) —— 这正是那个 bug 的根源。
     // 该会话正在流式输出: 本地实时缓冲是最新的(后端可能尚未落库), 不用历史覆盖
     if (streamingSessions.has(sessionId)) return
     // 本地已有该会话的完整运行时状态时, 同样不能用后端历史覆盖。
@@ -1153,10 +1177,10 @@ export const useChatStore = defineStore('chat', () => {
 
     // 该会话的全部运行时残留一并清掉。这些都是「按会话 id 挂载」的状态,
     // 只删 sessions/messageCache 会留下:
-    //  - pendingApproval    → 审批卡片继续显示, 点了就对已删除的会话发 approve
+    //  - pendingApprovals   → 审批卡片继续显示, 点了就对已删除的会话发 approve
     //  - interruptedSessions → 「继续生成」横幅指向不存在的会话
     //  - historyTokens      → 该 id 若被复用, 旧 token 会污染新会话的历史加载
-    if (pendingApproval.value?.sessionId === sessionId) pendingApproval.value = null
+    pendingApprovals.delete(sessionId)
     interruptedSessions.delete(sessionId)
     historyTokens.delete(sessionId)
 
@@ -1181,7 +1205,8 @@ export const useChatStore = defineStore('chat', () => {
         // 删空了就留空, 不再自动新建
         currentSessionId.value = null
         messages.value = []
-        pendingApproval.value = null
+        // 该会话的待批准项已在上面随 sessionId 清过, currentSessionId 置 null 后
+        // pendingApproval computed 自然为空, 无需再清全局状态
       }
     } else {
       // 刷新成功则以后端为准; 刷新失败则保留本地乐观结果
@@ -1309,7 +1334,9 @@ export const useChatStore = defineStore('chat', () => {
       return
     }
     const sessionMessages = getMessagesOf(sessionId)
-    pendingApproval.value = null
+    // 续跑前先撤掉这条会话的待批准项; 若后端其实仍在等审批, refresh_chat 会
+    // 重新下发审批中断, 下面的成功分支会再次挂上
+    pendingApprovals.delete(sessionId)
 
     const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream', toolEvents: [] })
     sessionMessages.push(assistantMessage)
@@ -1330,10 +1357,10 @@ export const useChatStore = defineStore('chat', () => {
       finalizeToolEvents(assistantMessage)
       interruptedSessions.delete(sessionId)
       if (isApprovalInterrupt(events)) {
-        pendingApproval.value = {
+        pendingApprovals.set(sessionId, {
           message: formatInterruptMessage(events[events.length - 1].message),
           sessionId,
-        }
+        })
       }
       dropEmptyAssistantMessage(sessionMessages, assistantMessage, '本次恢复没有产生任何内容')
       await refreshSessions()
@@ -1416,10 +1443,10 @@ export const useChatStore = defineStore('chat', () => {
       finalizeToolEvents(assistantMessage)
       interruptedSessions.delete(sessionId)
       if (isApprovalInterrupt(events)) {
-        pendingApproval.value = {
+        pendingApprovals.set(sessionId, {
           message: formatInterruptMessage(events[events.length - 1].message),
           sessionId,
-        }
+        })
       }
       dropEmptyAssistantMessage(sessionMessages, assistantMessage, '本次重新生成没有返回任何内容')
       await refreshSessions()
@@ -1554,6 +1581,7 @@ export const useChatStore = defineStore('chat', () => {
     isCurrentSessionStreaming,
     hasBackgroundStreaming,
     isSessionStreaming,
+    hasPendingApproval,
     streamingCount,
     streamingSessionTitles,
     streamingStatusText,

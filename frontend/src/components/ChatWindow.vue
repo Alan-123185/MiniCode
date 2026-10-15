@@ -338,14 +338,13 @@ async function saveEdit(message) {
 const dismissedResume = ref(false)
 
 /**
- * 只展示属于当前会话的审批卡片。
- * pendingApproval 是全局单值, 直接 v-if 它会让别的会话(含已删除会话)遗留的
- * 审批显示在当前界面上; store.loadHistory 切换时会清, 但删除会话等路径
- * 不一定经过它, 所以这里按 sessionId 再兜一层。
+ * 当前会话的审批卡片 (批准/拒绝按钮所在的卡片)。
+ * store.pendingApproval 已改为「按会话挂载」的 computed (pendingApprovals Map 按
+ * sessionId 存), 只会返回属于当前会话的审批 —— 切走再切回不丢, 也不会把别的
+ * 会话(含已删除会话)的审批显示到当前界面上; 这里按 sessionId 再兜一层防御。
  */
-const activeApproval = computed(
-  () =>
-    store.pendingApproval?.sessionId === store.currentSessionId ? store.pendingApproval : null
+const activeApproval = computed(() =>
+  store.pendingApproval?.sessionId === store.currentSessionId ? store.pendingApproval : null
 )
 
 const showResumeBanner = computed(
