@@ -498,6 +498,26 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * 审批落定时, 把折窗里那条 pending (等待批准) 的记录就地更新成 approved / refused,
+   * 不再单开一条「[操作已批准] …」独立气泡 —— 审批全过程收进同一个折窗, 观感更统一。
+   * 从后往前找最近一条带 pending 的 toolEvents 记录 (即本次被批准的那次调用)。
+   */
+  function markApprovalDecision(sessionMessages, decision) {
+    const approved = decision === 'yes'
+    for (let i = sessionMessages.length - 1; i >= 0; i--) {
+      const events = sessionMessages[i]?.toolEvents
+      if (!events) continue
+      for (let j = events.length - 1; j >= 0; j--) {
+        if (events[j].status === 'pending') {
+          events[j].status = approved ? 'approved' : 'refused'
+          events[j].label = `[操作${approved ? '已批准' : '已拒绝'}] ${events[j].label}`
+          return
+        }
+      }
+    }
+  }
+
+  /**
    * 计算单个 SSE 事件对 assistant 消息贡献的文本增量。
    * 后端 Result 结构: { code, message, response }
    *  - 最终结果: response 为 agentResult → 取其 answer/content (交打字机逐字上屏)
@@ -532,9 +552,15 @@ export const useChatStore = defineStore('chat', () => {
     }
     if (event.message) {
       const text = String(event.message)
-      // 审批中断: 交审批卡片, 文本仍按原逻辑进正文 (兼容既有行为)
+      // 审批中断: 写进 toolEvents 折窗 (pending 等待批准), 不再塞进正文气泡 ——
+      // 正文保持干净, 底部审批卡片仍是批准/拒绝的操作入口 (含等宽代码块展示完整命令/代码)
       if (isApprovalMessage(text)) {
-        return (received ? '\n\n' : '') + text
+        if (assistantMessage) {
+          if (!assistantMessage.toolEvents) assistantMessage.toolEvents = []
+          assistantMessage.toolEvents.push({ tool: '', status: 'pending', label: text })
+          setStatus('等待批准…')
+        }
+        return ''
       }
       // 工具调用实时消息: 折叠进 toolEvents, 不进正文、不走打字机
       const info = classifyToolEvent(text)
@@ -842,11 +868,8 @@ export const useChatStore = defineStore('chat', () => {
     const sessionId = approval.sessionId
     const sessionMessages = getMessagesOf(sessionId)
 
-    sessionMessages.push(reactive({
-      role: 'assistant',
-      content: `[操作${decision === 'yes' ? '已批准' : '已拒绝'}] ${approval.message}`,
-      type: 'approval',
-    }))
+    // 审批结果不再单开一条独立气泡, 而是就地更新折窗里那条 pending 记录 (见 markApprovalDecision)
+    markApprovalDecision(sessionMessages, decision)
 
     // 同 sendMessage: 流式写入的气泡必须是 reactive 对象
     const assistantMessage = reactive({ role: 'assistant', content: '', type: 'stream', toolEvents: [] })

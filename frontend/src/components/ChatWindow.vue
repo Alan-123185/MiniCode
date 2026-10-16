@@ -108,6 +108,8 @@
                   <span class="tool-trace-icon" aria-hidden="true">
                     <span v-if="ev.status === 'running'" class="mini-spinner"></span>
                     <svg v-else-if="ev.status === 'success'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <svg v-else-if="ev.status === 'approved'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <svg v-else-if="ev.status === 'pending'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                     <svg v-else-if="ev.status === 'failed'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     <svg v-else xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"></line></svg>
                   </span>
@@ -213,9 +215,12 @@ function hasRunningTool(message) {
   return (message.toolEvents || []).some((ev) => ev.status === 'running')
 }
 
-// 折叠面板的一行摘要: 进行中显示最新动作, 结束后显示成功/失败计数
+// 折叠面板的一行摘要: 待批准 > 进行中 > 成功/失败计数
 function toolTraceSummary(message) {
   const list = message.toolEvents || []
+  // 有待批准项时优先提示, 让用户一眼看到"卡在等确认"这一步
+  const pending = list.filter((ev) => ev.status === 'pending').length
+  if (pending > 0) return `等待批准… (${pending})`
   const running = list.filter((ev) => ev.status === 'running').length
   if (running > 0) {
     const last = [...list].reverse().find((ev) => ev.status === 'running')
@@ -1129,6 +1134,14 @@ watch(
 
 .tool-trace-item.stopped .tool-trace-icon {
   color: var(--text-tertiary);
+}
+
+.tool-trace-item.pending .tool-trace-icon {
+  color: var(--warning, var(--text-tertiary));
+}
+
+.tool-trace-item.approved .tool-trace-icon {
+  color: var(--success);
 }
 
 .tool-trace-label {
