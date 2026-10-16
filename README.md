@@ -128,22 +128,6 @@ DEFAULT_MODEL    = "your-model-name"
 baidu_search_url     = ""
 baidu_search_api_key = ""
 
-# ---- Docker 沙箱（可选）----
-SANDBOX_ENABLED        = False          # True 时 execute_command 在容器内执行
-SANDBOX_IMAGE          = "minicode-sandbox:latest"
-SANDBOX_MEM_LIMIT      = "1g"
-SANDBOX_CPU_COUNT      = 2.0
-SANDBOX_NETWORK_ENABLED = True
-SANDBOX_IDLE_TTL_MINUTES = 120
-```
-
-启用沙箱需先构建镜像：
-
-```bash
-docker build -f Dockerfile.sandbox -t minicode-sandbox:latest .
-```
-
----
 
 ## 🛠️ 内置工具
 
