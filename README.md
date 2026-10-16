@@ -127,7 +127,7 @@ DEFAULT_MODEL    = "your-model-name"
 # ---- 联网搜索（可选）----
 baidu_search_url     = ""
 baidu_search_api_key = ""
-
+```
 
 ## 🛠️ 内置工具
 
