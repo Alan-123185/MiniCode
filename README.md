@@ -80,7 +80,6 @@ MiniCode/
 | Python | ≥ 3.11 |
 | Node.js | ≥ 18（前端 & MCP） |
 | Git for Windows | 必需（`execute_command` 依赖 Git Bash） |
-| Docker | 可选（启用沙箱时需要） |
 
 ### 1. 后端
 
