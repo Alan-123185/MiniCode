@@ -1,5 +1,4 @@
-
-SUMMERIZE_PROMPT: str="""
+SUMMERIZE_PROMPT: str = """
 # Role
 你是一个资深的软件架构师和上下文压缩专家。你的任务是将一段冗长的“AI 代码助手与用户的对话历史”压缩成一份高密度、结构化的【工程状态摘要】。
 

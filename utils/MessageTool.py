@@ -7,7 +7,7 @@ from config.data import settings
 from langchain_core.messages import BaseMessage
 
 
-#一个简陋的滑动窗口函数，维持最大长度上文
+# 一个简陋的滑动窗口函数，维持最大长度上文
 def trim_message(messages: list[BaseMessage]) -> int:
     limit = settings.LLM_MAX_UP_MESSAGE_TOKEN
     if context_tokens(messages) < limit:
@@ -24,11 +24,9 @@ def trim_message(messages: list[BaseMessage]) -> int:
     return 0
 
 
-
-
-
 # 中日韩字符及全角标点
 _CJK = re.compile(r"[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]")
+
 
 def _estimate(text) -> int:
     """粗略估算：中日韩约 1.5 token/字，其余约 3.5 字符/token"""
@@ -40,6 +38,7 @@ def _estimate(text) -> int:
         return len(text) // 2
     cjk = len(_CJK.findall(text))
     return int(cjk * 1.5 + (len(text) - cjk) / 3.5) + 1
+
 
 def _message_tokens(msg: BaseMessage) -> int:
     """单条消息的 token：AIMessage 优先用真实 output_tokens，其余估算"""
@@ -56,15 +55,14 @@ def _message_tokens(msg: BaseMessage) -> int:
         total += _estimate(content)
     elif isinstance(content, list):
         for block in content:
-            total += _estimate(
-                json.dumps(block, ensure_ascii=False) if isinstance(block, dict) else block
-            )
+            total += _estimate(json.dumps(block, ensure_ascii=False) if isinstance(block, dict) else block)
     else:
         total += _estimate(content)
 
     for tc in getattr(msg, "tool_calls", None) or []:
         total += _estimate(json.dumps(tc, ensure_ascii=False))
     return total
+
 
 def context_tokens(messages: list[BaseMessage]) -> int:
     """
@@ -78,9 +76,8 @@ def context_tokens(messages: list[BaseMessage]) -> int:
         if isinstance(m, AIMessage) and um:
             base = (um.get("input_tokens") or 0) + (um.get("output_tokens") or 0)
             if base > 0:
-                return base + sum(_message_tokens(x) for x in messages[i + 1:])
+                return base + sum(_message_tokens(x) for x in messages[i + 1 :])
     return sum(_message_tokens(x) for x in messages)
-
 
 
 def count_tokens(messages: str | list[BaseMessage], model: str | None = None) -> int:

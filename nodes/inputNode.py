@@ -10,7 +10,7 @@ def input_node(state: InputState) -> OverAllState:
     result = {
         "messages": [HumanMessage(content=state.input)],
         "steps": [f"analyze user question: {state.input}......"],
-        "input": state.input
+        "input": state.input,
     }
     logger.info(f"输入内容: {state.input}")
     return result

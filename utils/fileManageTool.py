@@ -1,6 +1,7 @@
 import re
 from tree_sitter_analyzer.models import AnalysisResult
 
+
 def build_folded_source(result: AnalysisResult, source: str) -> str:
     """把源码压成骨架：保留 imports/变量/类头/签名/docstring，折叠函数体。"""
 
@@ -22,16 +23,16 @@ def build_folded_source(result: AnalysisResult, source: str) -> str:
     total = len(lines)
 
     # 1. 收集所有要折叠的函数体区间 [body_start, body_end]
-    folds = []          # (body_start, body_end, elem)
+    folds = []  # (body_start, body_end, elem)
     for elem in result.elements or []:
         if elem.element_type not in ("function", "method"):
             continue
         raw = elem.raw_text or ""
-        sig_len = _signature_line_count(raw)          # 签名占几行
+        sig_len = _signature_line_count(raw)  # 签名占几行
         sig_end_line = elem.start_line + sig_len - 1
         body_start = sig_end_line + 1
         body_end = elem.end_line
-        if body_end >= body_start:                    # 空 body 不折
+        if body_end >= body_start:  # 空 body 不折
             folds.append((body_start, body_end, elem))
 
     fold_by_start = {f[0]: f for f in folds}
@@ -47,8 +48,7 @@ def build_folded_source(result: AnalysisResult, source: str) -> str:
                 doc = elem.docstring.strip().splitlines()[0][:120]
                 out.append(f'{indent}"""{doc}"""')
             out.append(
-                f"{indent}... # Implementation hidden (lines {body_start}-{body_end}), "
-                f"use readfile with range to view"
+                f"{indent}... # Implementation hidden (lines {body_start}-{body_end}), use readfile with range to view"
             )
             i = body_end + 1
         else:
@@ -56,5 +56,3 @@ def build_folded_source(result: AnalysisResult, source: str) -> str:
             i += 1
 
     return _collapse_blank_lines("\n".join(out))
-
-

@@ -4,8 +4,8 @@ from config.data import settings
 import re
 
 
+_CHAIN_SPLIT = re.compile(r"&&|\|\||\||;|&|\n|>>|>|<")  # 拆链式命令
 
-_CHAIN_SPLIT = re.compile(r"&&|\|\||\||;|&|\n|>>|>|<")   # 拆链式命令
 
 def is_command_safe(command: str, stdin_input: str | None = None) -> bool:
     """
@@ -13,7 +13,7 @@ def is_command_safe(command: str, stdin_input: str | None = None) -> bool:
     防绕过关键：按 && || | ; & 换行拆成多段，每一段都必须命中，
     'git status && del xxx' 会因第二段不匹配而照常弹确认。
     """
-    if stdin_input is not None:      # 带交互输入的不放行
+    if stdin_input is not None:  # 带交互输入的不放行
         return False
     patterns = [re.compile(p, re.IGNORECASE) for p in settings.SAFE_COMMAND_WHITELIST]
     segments = [s.strip() for s in _CHAIN_SPLIT.split(command) if s.strip()]
@@ -27,18 +27,12 @@ def is_command_safe(command: str, stdin_input: str | None = None) -> bool:
 # 假设你的 settings 已经定义
 # from your_config import settings
 
-_ERROR_RE = re.compile(
-    r"(?i)(?<![\w])(traceback|exception|error|failed|failure|fatal|panic|abort)(?![\w])"
-)
+_ERROR_RE = re.compile(r"(?i)(?<![\w])(traceback|exception|error|failed|failure|fatal|panic|abort)(?![\w])")
 
-_ERROR_NEG_RE = re.compile(
-    r"(?i)(\bno\s+errors?\b|\berrors?\s*[:=]\s*0\b|\b0\s+errors?\b|\bfailed\s*[:=]\s*0\b)"
-)
+_ERROR_NEG_RE = re.compile(r"(?i)(\bno\s+errors?\b|\berrors?\s*[:=]\s*0\b|\b0\s+errors?\b|\bfailed\s*[:=]\s*0\b)")
 
 # 【新增】用于排除 pytest 的假阳性状态行，例如 "test_a.py::test_b FAILED"
-_PYTEST_STATUS_RE = re.compile(
-    r"(?i)^\s*(FAILED|ERROR)\s+\S+::\S+|^\s*\S+::\S+\s+(FAILED|ERROR)\b"
-)
+_PYTEST_STATUS_RE = re.compile(r"(?i)^\s*(FAILED|ERROR)\s+\S+::\S+|^\s*\S+::\S+\s+(FAILED|ERROR)\b")
 
 
 def _extract_pytest_block(lines: list[str], start: int, end: int, max_lines: int = 40) -> Optional[str]:
@@ -77,19 +71,19 @@ def _extract_pytest_block(lines: list[str], start: int, end: int, max_lines: int
             break
 
     if summary_start != -1:
-        block = lines[summary_start:min(end, summary_start + 20)]
+        block = lines[summary_start : min(end, summary_start + 20)]
         return "[pytest summary]\n" + "\n".join(block)
 
     return None
 
 
 def _extract_error_block(
-        lines: list[str],
-        start: int,
-        end: int,
-        max_errors: int = 5,
-        context: int = 3,  # 【优化】从 2 改为 3，Python traceback 通常需要 3 行才能看懂
-        max_block_lines: int = 40,
+    lines: list[str],
+    start: int,
+    end: int,
+    max_errors: int = 5,
+    context: int = 3,  # 【优化】从 2 改为 3，Python traceback 通常需要 3 行才能看懂
+    max_block_lines: int = 40,
 ) -> str:
     """通用错误块提取（作为 pytest 特判的兜底）"""
     idxs = []
@@ -120,7 +114,7 @@ def _extract_error_block(
             a = prev = i
     blocks.append((a, prev))
 
-    chunks = ["\n".join(lines[a:b + 1]) for a, b in blocks]
+    chunks = ["\n".join(lines[a : b + 1]) for a, b in blocks]
     joined = "\n...\n".join(chunks)
 
     jl = joined.splitlines()
@@ -166,7 +160,9 @@ def truncate_output(text: str) -> str:
     if error_block:
         parts.append(error_block)
 
-    parts.append(f"\n... [system Info]中间省略 {omitted} 行日志，调用get_original_content_by_tool_call_id查看原始内容\n")
+    parts.append(
+        f"\n... [system Info]中间省略 {omitted} 行日志，调用get_original_content_by_tool_call_id查看原始内容\n"
+    )
     parts.append("\n".join(tail_lines))
 
     truncated = "\n".join(parts)
@@ -181,9 +177,9 @@ def truncate_output(text: str) -> str:
     return truncated
 
 
-
-
 """按字节智能解码：优先UTF-8（程序输出），失败回退GBK（cmd自身错误消息），双双失败才replace"""
+
+
 def smart_decode(b: bytes) -> str:
     if not b:
         return ""
@@ -193,4 +189,3 @@ def smart_decode(b: bytes) -> str:
         except UnicodeDecodeError:
             continue
     return b.decode("utf-8", errors="replace")
-

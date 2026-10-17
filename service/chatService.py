@@ -20,33 +20,35 @@ from typing import AsyncGenerator
 _running_tasks: dict[str, asyncio.Task] = {}
 _stop_flags: dict[str, asyncio.Event] = {}
 
+
 class ChatService:
-    def __init__(self,graph,chat_config,sessionMapper,fileMapper,operationgroupMapper):
-        self.graph=graph
-        self.config=chat_config
+    def __init__(self, graph, chat_config, sessionMapper, fileMapper, operationgroupMapper):
+        self.graph = graph
+        self.config = chat_config
         self.sessionMapper = sessionMapper
         self.fileMapper = fileMapper
         self.operationgroupMapper = operationgroupMapper
         self.running_tasks = _running_tasks  # 用于跟踪每个会话的运行状态态
-        self.stop_flags =  _stop_flags  # 用于标记每个会话是否需要停止运行
+        self.stop_flags = _stop_flags  # 用于标记每个会话是否需要停止运行
 
-#改为流式的chat
+    # 改为流式的chat
     """
     前端传入会话ID，后端直接从数据库拿取信息
     """
+
     async def chat(self, chat_request: ChatRequest) -> AsyncGenerator[InterruptResult, None]:
         session_id = chat_request.session_id
         # 新的一轮用户交互，重置停止信号（覆盖上一次的 stop）
         self.stop_flags[session_id] = asyncio.Event()
         config = create_chat_config(thread_id=session_id)
-        task=asyncio.current_task()
+        task = asyncio.current_task()
         self.running_tasks[session_id] = task
         try:
             async for result in self._stream_graph(
-                    session_id=session_id,
-                    config=config,
-                    input_or_command={"input": chat_request.message},
-                    record_operations=False,
+                session_id=session_id,
+                config=config,
+                input_or_command={"input": chat_request.message},
+                record_operations=False,
             ):
                 yield result
         finally:
@@ -61,18 +63,17 @@ class ChatService:
         self.running_tasks[session_id] = task
         try:
             snapshot = await self.graph.aget_state(config)
-            if _pending_interrupt(snapshot) :
+            if _pending_interrupt(snapshot):
                 async for result in self._stream_graph(
-                        session_id=session_id,
-                        config=config,
-                        input_or_command=Command(resume=decision_request.decision),
-                        record_operations=True,
+                    session_id=session_id,
+                    config=config,
+                    input_or_command=Command(resume=decision_request.decision),
+                    record_operations=True,
                 ):
                     yield result
         finally:
             if self.running_tasks.get(session_id) is task:
                 self.running_tasks.pop(session_id, None)
-
 
     async def _continue_chat(self, config: RunnableConfig) -> AsyncGenerator[InterruptResult, None]:
         session_id = config["configurable"]["thread_id"]
@@ -81,24 +82,22 @@ class ChatService:
         self.running_tasks[session_id] = task
         try:
             async for result in self._stream_graph(
-                    session_id=session_id,
-                    config=config,
-                    input_or_command=None,
-                    record_operations=True,
+                session_id=session_id,
+                config=config,
+                input_or_command=None,
+                record_operations=True,
             ):
                 yield result
         finally:
             if self.running_tasks.get(session_id) is task:
                 self.running_tasks.pop(session_id, None)
 
-
-
     async def _stream_graph(
-            self,
-            session_id: str,
-            config: RunnableConfig,
-            input_or_command,  # dict / Command / None
-            record_operations: bool,  # chat 传 False，approve/_continue_chat 传 True
+        self,
+        session_id: str,
+        config: RunnableConfig,
+        input_or_command,  # dict / Command / None
+        record_operations: bool,  # chat 传 False，approve/_continue_chat 传 True
     ) -> AsyncGenerator[InterruptResult, None]:
         """统一的流式执行：停止检查 + 文件操作记录 + 结果汇总"""
         final_result = None
@@ -123,14 +122,10 @@ class ChatService:
 
                 if mode == "custom":
                     if record_operations:
-                        operation_group_id = self._record_file_operation(
-                            chunk, operation_group_id
-                        )
-                    if isinstance(chunk,toolstatusEvent):
-                        chunk=manage_toolstatusEvent(chunk)
-                    yield InterruptResult(
-                        message=chunk, type=settings.interrupt_type_info
-                    )
+                        operation_group_id = self._record_file_operation(chunk, operation_group_id)
+                    if isinstance(chunk, toolstatusEvent):
+                        chunk = manage_toolstatusEvent(chunk)
+                    yield InterruptResult(message=chunk, type=settings.interrupt_type_info)
 
                 elif mode == "updates":
                     if "output_node" in chunk:
@@ -158,7 +153,7 @@ class ChatService:
                 type=settings.interrupt_type_result,
             )
 
-    #这个地方要求chunk是toolstatusEvent类型
+    # 这个地方要求chunk是toolstatusEvent类型
     def _record_file_operation(self, chunk, operation_group_id):
         if chunk.status != settings.tool_success:
             return operation_group_id
@@ -203,24 +198,14 @@ class ChatService:
         self.fileMapper.add_operation(operation=fo)
         return operation_group_id
 
-
-
-
-
-
-
-
     def new_chat(self, chat_request: ChatRequest) -> None:
         """创建新会话：更新数据库 + 初始化 LangGraph 状态"""
         session_id = chat_request.session_id
         stop_event = asyncio.Event()
         self.stop_flags[session_id] = stop_event
-        new_session=Session(session_id=chat_request.session_id, user_id=chat_request.user_id)
-        self.sessionMapper.add_session(
-            new_session
-        )
+        new_session = Session(session_id=chat_request.session_id, user_id=chat_request.user_id)
+        self.sessionMapper.add_session(new_session)
         sessionmanager.add_session(session_id=new_session.session_id, session=new_session)
-
 
     """
     9.19
@@ -229,7 +214,10 @@ class ChatService:
     只允许更改最远一次未造成任何影响的及其之前的消息
     
     """
-    async def edit_message(self, session_id: str, message_id: str, new_content: str) -> AsyncGenerator[InterruptResult, None]:
+
+    async def edit_message(
+        self, session_id: str, message_id: str, new_content: str
+    ) -> AsyncGenerator[InterruptResult, None]:
         """编辑指定消息的内容"""
         self.stop_flags[session_id] = asyncio.Event()
         config = create_chat_config(thread_id=session_id)
@@ -250,12 +238,17 @@ class ChatService:
                 else:
                     for history in history_list:
                         if history and history.values["messages"][-1].id == message_id:
-                            new_config = await self.graph.aupdate_state(history.config, {"messages": HumanMessage(content=new_content, id=message_id)})
+                            new_config = await self.graph.aupdate_state(
+                                history.config, {"messages": HumanMessage(content=new_content, id=message_id)}
+                            )
                             run_config = create_chat_config(thread_id=session_id)
-                            run_config["configurable"].update({
-                                k: v for k, v in new_config["configurable"].items()
-                                if k not in run_config["configurable"]  # 保留 checkpoint_ns/checkpoint_id
-                            })
+                            run_config["configurable"].update(
+                                {
+                                    k: v
+                                    for k, v in new_config["configurable"].items()
+                                    if k not in run_config["configurable"]  # 保留 checkpoint_ns/checkpoint_id
+                                }
+                            )
                             try:
                                 async for result in self._continue_chat(config=run_config):
                                     yield result
@@ -263,13 +256,13 @@ class ChatService:
                             except Exception as e:
                                 old = await self.graph.aget_state(original_config)
                                 await self.graph.aupdate_state(original_config, old.values)
-                                yield InterruptResult(message=f"编辑消息时发生错误: {str(e)}", type=settings.interrupt_type_info)
+                                yield InterruptResult(
+                                    message=f"编辑消息时发生错误: {str(e)}", type=settings.interrupt_type_info
+                                )
 
-        yield InterruptResult(message=f"消息 ID {message_id} 未找到或已被影响，无法编辑。", type=settings.interrupt_type_info)
-
-
-
-
+        yield InterruptResult(
+            message=f"消息 ID {message_id} 未找到或已被影响，无法编辑。", type=settings.interrupt_type_info
+        )
 
     async def refresh_chat(self, session_id: str) -> AsyncGenerator[InterruptResult, None]:
         """异常恢复：从最新检查点继续执行"""
@@ -280,29 +273,23 @@ class ChatService:
 
         # 会话不存在
         if not snapshot.values and not snapshot.next:
-            yield InterruptResult(message=f"会话 {session_id} 不存在或未初始化。",
-                                  type=settings.interrupt_type_info)
+            yield InterruptResult(message=f"会话 {session_id} 不存在或未初始化。", type=settings.interrupt_type_info)
             return
 
         # 1. 已正常结束，没有可恢复的内容
         if not snapshot.next:
-            yield InterruptResult(message="当前会话已正常结束，无需恢复。",
-                                  type=settings.interrupt_type_info)
+            yield InterruptResult(message="当前会话已正常结束，无需恢复。", type=settings.interrupt_type_info)
             return
 
         # 2. 正在等审批：重新展示审批提示，不重跑节点
         pending = _pending_interrupt(snapshot)
         if pending:
-            yield InterruptResult(message=str(pending.value),
-                                  type=settings.interrupt_type_approve)
+            yield InterruptResult(message=str(pending.value), type=settings.interrupt_type_approve)
             return
 
         # 3. 中途失败或被停止：从最新检查点继续
         async for result in self._continue_chat(config=config):
             yield result
-
-
-
 
     async def stop_chat(self, session_id: str, timeout: float = 3) -> bool:
         stop_event = self.stop_flags.get(session_id)
@@ -328,32 +315,25 @@ class ChatService:
         return True
 
 
-
-
-
-
 def find_safe_message_index(messages: list[BaseMessage]) -> int:
     """
     查找最远一次未造成任何影响的消息索引。
     只有「实际执行过」（存在对应 ToolMessage 回复）的危险工具调用才算影响；
     被 interrupt 拦下、未执行的工具请求不算。
     """
-    influence_function_list = ["file_edit", "execute_command", "delete_file",
-                               "create_file", "undo_operationgroup"]
+    influence_function_list = ["file_edit", "execute_command", "delete_file", "create_file", "undo_operationgroup"]
     # 先收集所有有 ToolMessage 回复的 tool_call_id = 真正执行过的调用
     executed_ids = {m.tool_call_id for m in messages if isinstance(m, ToolMessage)}
     for i in range(len(messages) - 1, -1, -1):
         msg = messages[i]
         if isinstance(msg, AIMessage) and any(
-                tc["name"] in influence_function_list and tc["id"] in executed_ids
-                for tc in (msg.tool_calls or [])):
+            tc["name"] in influence_function_list and tc["id"] in executed_ids for tc in (msg.tool_calls or [])
+        ):
             return i + 1
     return 0
 
 
-
-
-#一个简陋的用户提示词压缩函数
+# 一个简陋的用户提示词压缩函数
 def generate_summary(user_prompt: str) -> str:
     """提取或截断用户的 Prompt，只保留核心语义用于 UI 展示  这一版不够严谨，到时候需要更改"""
     # 1. 去除首尾空白
@@ -366,10 +346,11 @@ def generate_summary(user_prompt: str) -> str:
     return prompt
 
 
-
 """
 10.15 修复一个 bug：LangGraph 1.2.11 下只有「第一次」中断会让 next 非空; 用户批准后图恢复、
 """
+
+
 def _pending_interrupt(snapshot):
     """取最新检查点上挂着的审批中断, 没有则返回 None。
 

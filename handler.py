@@ -16,23 +16,14 @@ def register_exception_handlers(app: FastAPI):
     async def biz_exception_handler(request: Request, exc: BizException):
         return JSONResponse(
             status_code=exc.code if exc.code < 500 else 500,
-            content={
-                "code": exc.code,
-                "message": exc.message,
-                "data": None
-            }
+            content={"code": exc.code, "message": exc.message, "data": None},
         )
 
     # 2. HTTP 异常（如 FastAPI 内置的 HTTPException）
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "code": exc.status_code,
-                "message": str(exc.detail),
-                "data": None
-            }
+            status_code=exc.status_code, content={"code": exc.status_code, "message": str(exc.detail), "data": None}
         )
 
     # 3. 参数校验异常（Pydantic 校验失败）
@@ -40,27 +31,10 @@ def register_exception_handlers(app: FastAPI):
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         errors = []
         for error in exc.errors():
-            errors.append({
-                "field": ".".join(str(loc) for loc in error["loc"]),
-                "message": error["msg"]
-            })
-        return JSONResponse(
-            status_code=422,
-            content={
-                "code": 422,
-                "message": "参数校验失败",
-                "data": errors
-            }
-        )
+            errors.append({"field": ".".join(str(loc) for loc in error["loc"]), "message": error["msg"]})
+        return JSONResponse(status_code=422, content={"code": 422, "message": "参数校验失败", "data": errors})
 
     # 4. 未知异常（兜底）
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
-        return JSONResponse(
-            status_code=500,
-            content={
-                "code": 500,
-                "message": "服务器异常",
-                "data": None
-            }
-        )
+        return JSONResponse(status_code=500, content={"code": 500, "message": "服务器异常", "data": None})

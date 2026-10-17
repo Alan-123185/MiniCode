@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-logger.remove()   # 去掉 loguru 默认的 stderr 输出，避免重复
+logger.remove()  # 去掉 loguru 默认的 stderr 输出，避免重复
 
 # 控制台输出
 logger.add(

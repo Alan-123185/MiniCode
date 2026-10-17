@@ -8,23 +8,20 @@ from prompt.subAgent.search_agent_prompt import SEARCH_AGENT_PROMPT
 from tools.file_read import code_outline, readfile, listfiles
 from tools.file_search import search_code_by_keyword, search_file_by_keyword
 
-tools_for_sub =[
-        readfile,
-        listfiles,
-        search_code_by_keyword,
-        search_file_by_keyword,
-        code_outline
-    ]
+tools_for_sub = [readfile, listfiles, search_code_by_keyword, search_file_by_keyword, code_outline]
 """子代理工具定义。
 
 该模块提供一个只读的代码探索型子代理，用于在主代理无法直接深挖代码时，
 执行搜索、定位和依赖分析等任务，并将结果以工具调用的形式返回。
 """
+
+
 class searchSubAgentTask(BaseModel):
     """子代理任务参数模型。
     该模型定义了探索型子代理所需的最小输入信息，包括任务目标、背景信息、
     关注范围、约束条件以及期望输出，以便在 LangChain 工具调用中进行参数校验。
     """
+
     mission: str = Field(..., description="子代理的目标或任务描述")
     background: str | None = Field(None, description="子代理所需要的上下文信息，可选")
     scope: list[str] | None = Field(None, description="子代理应该重点关注的领域或方面，可选")
@@ -34,7 +31,7 @@ class searchSubAgentTask(BaseModel):
 
 @tool(args_schema=searchSubAgentTask)
 async def search_sub_agent(
-    config:RunnableConfig,
+    config: RunnableConfig,
     mission: str,
     background: str | None = None,
     scope: list[str] | None = None,
@@ -56,31 +53,22 @@ async def search_sub_agent(
     """
 
     # 这里可以添加子代理的处理逻辑
-    sub_agent=create_agent(
+    sub_agent = create_agent(
         model=model_config["value"],
         tools=tools_for_sub,
-        system_prompt="你是代码探索子代理，为主代理工作，仅执行只读操作，负责搜索、定位与依赖分析。不得修改代码，不得输出搜索过程，不得编造路径、行号或符号。"
+        system_prompt="你是代码探索子代理，为主代理工作，仅执行只读操作，负责搜索、定位与依赖分析。不得修改代码，不得输出搜索过程，不得编造路径、行号或符号。",
     )
-    user_msg=SEARCH_AGENT_PROMPT.format(
+    user_msg = SEARCH_AGENT_PROMPT.format(
         mission=mission,
         background=background or "无",
         scope=", ".join(scope) if scope else "无",
         constraints=", ".join(constraints) if constraints else "无",
-        expected_output=expected_output or "无"
+        expected_output=expected_output or "无",
     )
-    result=await sub_agent.ainvoke(
-        {
-            "messages": [{"role": "user", "content": user_msg}]
-        },
-        config=config
-    )
+    result = await sub_agent.ainvoke({"messages": [{"role": "user", "content": user_msg}]}, config=config)
     return toolResult(
         success=True,
         message="子代理 search_sub_agent 执行成功",
         content=result["messages"][-1].content,
-        tool_name="search_sub_agent"
+        tool_name="search_sub_agent",
     )
-
-
-
-

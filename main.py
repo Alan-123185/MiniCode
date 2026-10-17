@@ -15,20 +15,22 @@ from routers.modelRouter import router as model_router
 from routers.chatRouter import router as chat_router
 from utils.gitInstall import check_git
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_tables()
     #  启动时：初始化 LangGraph 和异步数据库
-    await initialize_graph()
-    await init_tools()  # ★ 确保工具列表初始化
+    app.state.graph,app.state.db_conn=await initialize_graph()
 
+    await init_tools()  # ★ 确保工具列表初始化
 
     yield  # 🏃 保持应用运行，处理请求
 
     # 🛑 关闭时：清理资源
-    await close_graph()
+    await close_graph(app)
 
-   # ← 就缺这一行
+
+# ← 就缺这一行
 # 将 lifespan 绑定到 FastAPI
 app = FastAPI(lifespan=lifespan)
 
@@ -41,14 +43,14 @@ app.include_router(session_router)
 the first version, a basical chat robot with some easy tools  2026.8.13
 """
 
+
 @app.get("/MiniCode/checkGit")
 async def checkgit():
     return Result(response=check_git())
 
 
-
 if __name__ == "__main__":
-    is_frozen = getattr(sys, 'frozen', False)
+    is_frozen = getattr(sys, "frozen", False)
 
     if is_frozen:
         uvicorn.run(app, host="127.0.0.1", port=8000, reload=False)

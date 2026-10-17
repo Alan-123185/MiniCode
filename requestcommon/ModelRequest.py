@@ -14,7 +14,7 @@ class ModelSetRequest(BaseModel):
 
 class ModelGetRequest(BaseModel):
     id: int
-    base_url:str
+    base_url: str
     api_key: str
     model_name: str
     is_default: bool

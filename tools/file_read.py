@@ -15,21 +15,33 @@ from utils.filePathTools import relativePathToAbsolute
 from tree_sitter_analyzer.core.analysis_engine import UnifiedAnalysisEngine, AnalysisRequest
 
 
-
 # ===== 忽略规则：只屏蔽结构性噪音 =====
 
 # 依赖 / 包管理目录（这些才是真正的噪音）
-_IGNORED_DIR_NAMES = frozenset({
-    # 前端 / JS
-    "node_modules", "bower_components", "jspm_packages",
-    # PHP / Ruby / iOS / Java
-    "vendor", "pods", "carthage",
-    # Python
-    "site-packages", "eggs", "dist-info", "egg-info",
-    ".venv", "venv", "virtualenv", "env",
-    # Java / Kotlin / Android
-    ".gradle", ".mvn",
-})
+_IGNORED_DIR_NAMES = frozenset(
+    {
+        # 前端 / JS
+        "node_modules",
+        "bower_components",
+        "jspm_packages",
+        # PHP / Ruby / iOS / Java
+        "vendor",
+        "pods",
+        "carthage",
+        # Python
+        "site-packages",
+        "eggs",
+        "dist-info",
+        "egg-info",
+        ".venv",
+        "venv",
+        "virtualenv",
+        "env",
+        # Java / Kotlin / Android
+        ".gradle",
+        ".mvn",
+    }
+)
 
 _IGNORED_DIR_SUFFIXES = (
     ".egg-info",
@@ -37,49 +49,83 @@ _IGNORED_DIR_SUFFIXES = (
 )
 
 # 构建产物 / 缓存目录
-_IGNORED_BUILD_DIR_NAMES = frozenset({
-    "dist", "build", "target", "out", "obj",
-    "coverage", "htmlcov", "deriveddata",
-    "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
-    ".tox", ".cache", ".next", ".nuxt", ".parcel-cache",
-    ".sass-cache", ".turbo", ".eslintcache",
-})
+_IGNORED_BUILD_DIR_NAMES = frozenset(
+    {
+        "dist",
+        "build",
+        "target",
+        "out",
+        "obj",
+        "coverage",
+        "htmlcov",
+        "deriveddata",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".tox",
+        ".cache",
+        ".next",
+        ".nuxt",
+        ".parcel-cache",
+        ".sass-cache",
+        ".turbo",
+        ".eslintcache",
+    }
+)
 
 # IDE / 编辑器目录（纯噪音）
-_IGNORED_IDE_DIR_NAMES = frozenset({
-    ".idea", ".vscode", ".settings", ".metadata",
-})
+_IGNORED_IDE_DIR_NAMES = frozenset(
+    {
+        ".idea",
+        ".vscode",
+        ".settings",
+        ".metadata",
+    }
+)
 
 # 编译产物文件后缀（没有阅读价值）
 _IGNORED_COMPILED_SUFFIXES = (
-    ".pyc", ".pyo", ".pyd",
-    ".class", ".jar", ".war",
-    ".o", ".a", ".obj", ".lib",
-    ".so", ".dll", ".dylib", ".exe",
+    ".pyc",
+    ".pyo",
+    ".pyd",
+    ".class",
+    ".jar",
+    ".war",
+    ".o",
+    ".a",
+    ".obj",
+    ".lib",
+    ".so",
+    ".dll",
+    ".dylib",
+    ".exe",
 )
 
 # 编辑器 / 系统临时文件（不屏蔽目录，只屏蔽这类具体文件）
-_IGNORED_JUNK_FILE_NAMES = frozenset({
-    ".ds_store", "thumbs.db", "desktop.ini",
-})
-
-_IGNORED_JUNK_FILE_SUFFIXES = (
-    ".swp", ".swo", ".swn",  # vim 交换文件
-    ".bak", ".orig",         # 编辑器备份
+_IGNORED_JUNK_FILE_NAMES = frozenset(
+    {
+        ".ds_store",
+        "thumbs.db",
+        "desktop.ini",
+    }
 )
 
-
-
-
+_IGNORED_JUNK_FILE_SUFFIXES = (
+    ".swp",
+    ".swo",
+    ".swn",  # vim 交换文件
+    ".bak",
+    ".orig",  # 编辑器备份
+)
 
 
 @tool
 def readfile(
-    config: RunnableConfig ,
+    config: RunnableConfig,
     file_path: str,
     start_line: int | None = None,
     end_line: int | None = None,
-
 ) -> toolResult:
     """
     读取单个文本文件的内容，返回原始文件内容（不含行号前缀）。
@@ -94,19 +140,14 @@ def readfile(
     :return: 返回一个工具调用结果类
     """
     try:
-        target_path =relativePathToAbsolute(file_path,config)
+        target_path = relativePathToAbsolute(file_path, config)
     except Exception as e:
         return toolResult(
             success=False,
             content="",
             error=f"处理文件路径时出错: {compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
             tool_name="readfile",
-            data={
-                "config": config,
-                "file_path": file_path,
-                "start_line": start_line,
-                "end_line": end_line
-            }
+            data={"config": config, "file_path": file_path, "start_line": start_line, "end_line": end_line},
         )
 
     # 先检查文件是否存在且是普通文件
@@ -116,12 +157,7 @@ def readfile(
             content="",
             error=f"文件不存在: {target_path}",
             tool_name="readfile",
-            data={
-                "config": config,
-                "file_path": file_path,
-                "start_line": start_line,
-                "end_line": end_line
-            }
+            data={"config": config, "file_path": file_path, "start_line": start_line, "end_line": end_line},
         )
     if not target_path.is_file():
         return toolResult(
@@ -129,12 +165,7 @@ def readfile(
             content="",
             error=f"路径指向的不是一个普通文件: {target_path}",
             tool_name="readfile",
-            data={
-                "config": config,
-                "file_path": file_path,
-                "start_line": start_line,
-                "end_line": end_line
-            }
+            data={"config": config, "file_path": file_path, "start_line": start_line, "end_line": end_line},
         )
 
     # 尝试用多种常见编码读取，避免因编码问题崩溃
@@ -143,13 +174,13 @@ def readfile(
     used_encoding = None
     for enc in encodings_to_try:
         try:
-            with open(target_path, 'r', encoding=enc) as f:
+            with open(target_path, "r", encoding=enc) as f:
                 raw_content = f.read()
                 used_encoding = enc
                 break
         except PermissionError:
             return toolResult(success=False, error=f"没有权限读取文件: {target_path}", tool_name="readfile")
-        except (UnicodeDecodeError, LookupError):
+        except UnicodeDecodeError, LookupError:
             continue  # 只有编码问题才换下一个
         except Exception as e:
             return toolResult(success=False, error=f"读取文件出错: {e}", tool_name="readfile")
@@ -162,21 +193,18 @@ def readfile(
             content="",
             error=f"无法用常见编码读取文件（{', '.join(encodings_to_try)}），文件可能是二进制或编码不兼容",
             tool_name="readfile",
-            data={
-                "config": config,
-                "file_path": file_path,
-                "start_line": start_line,
-                "end_line": end_line
-            }
+            data={"config": config, "file_path": file_path, "start_line": start_line, "end_line": end_line},
         )
 
     lines = raw_content.splitlines()
     total_lines = len(lines)
     if len(raw_content) > settings.READ_FILE_MAX_COUNT and start_line is None and end_line is None:
-        #返回折叠后的源码骨架，避免一次性返回过大内容
+        # 返回折叠后的源码骨架，避免一次性返回过大内容
         try:
-            project_path=Path(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace).resolve()
-            engine=UnifiedAnalysisEngine(project_root=str(project_path))
+            project_path = Path(
+                sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace
+            ).resolve()
+            engine = UnifiedAnalysisEngine(project_root=str(project_path))
             request = AnalysisRequest(file_path=str(target_path))
             result = engine.analyze_sync(request)
         except UnsupportedLanguageError as e:
@@ -184,28 +212,15 @@ def readfile(
                 success=False,
                 error=f"不支持的语言类型: {compress_error(str(e))}。请检查文件类型或跳过此步骤",
                 tool_name="readfile",
-                data={
-                    "config": config,
-                    "file_path": file_path,
-                    "start_line": start_line,
-                    "end_line": end_line
-                }
-
+                data={"config": config, "file_path": file_path, "start_line": start_line, "end_line": end_line},
             )
         return toolResult(
             success=True,
             message=f"文件 {file_path} 内容过大，仅返回折叠后的源码骨架",
             content=build_folded_source(result, raw_content),
             tool_name="readfile",
-            data={
-                "config": config,
-                "file_path": file_path,
-                "start_line": start_line,
-                "end_line": end_line
-            }
-
+            data={"config": config, "file_path": file_path, "start_line": start_line, "end_line": end_line},
         )
-
 
     # ---------- 解析可选的行范围参数 ----------
     if start_line is None and end_line is None:
@@ -221,13 +236,7 @@ def readfile(
                 content="",
                 error=f"start_line/end_line 必须从 1 开始计数，收到: start_line={start_line}, end_line={end_line}",
                 tool_name="readfile",
-                data={
-                    "config": config,
-                    "file_path": file_path,
-                    "start_line": start_line,
-                    "end_line": end_line
-                }
-
+                data={"config": config, "file_path": file_path, "start_line": start_line, "end_line": end_line},
             )
         if start_line is not None and end_line is not None and start_line > end_line:
             return toolResult(
@@ -235,12 +244,7 @@ def readfile(
                 content="",
                 error=f"start_line({start_line}) 不能大于 end_line({end_line})，文件共 {total_lines} 行",
                 tool_name="readfile",
-                data={
-                    "config": config,
-                    "file_path": file_path,
-                    "start_line": start_line,
-                    "end_line": end_line
-                }
+                data={"config": config, "file_path": file_path, "start_line": start_line, "end_line": end_line},
             )
         if start_line is not None and start_line > total_lines:
             return toolResult(
@@ -248,12 +252,7 @@ def readfile(
                 content="",
                 error=f"start_line({start_line}) 超出文件总行数({total_lines})，请检查行号后重试",
                 tool_name="readfile",
-                data={
-                    "config": config,
-                    "file_path": file_path,
-                    "start_line": start_line,
-                    "end_line": end_line
-                }
+                data={"config": config, "file_path": file_path, "start_line": start_line, "end_line": end_line},
             )
 
         # 归一化为 0-based 左闭右开区间；end_line 超出总行数时宽容截断到文件末尾
@@ -269,20 +268,13 @@ def readfile(
         message=f"读取文件{file_path}的结果({range_desc}),使用编码: {used_encoding}",
         content=content,
         tool_name="readfile",
-        data={
-            "config": config,
-            "file_path": file_path,
-            "start_line": start_line,
-            "end_line": end_line
-        }
+        data={"config": config, "file_path": file_path, "start_line": start_line, "end_line": end_line},
     )
 
 
-
 class ListFilesInput(BaseModel):
-    folder_path:str=Field(default=".",description="文件夹相对路径，默认'.'表示工作区根目录")
-    depth:int=Field(default=1, ge=1, description="递归深度，默认为 1；1 表示仅显示当前目录下一层")
-
+    folder_path: str = Field(default=".", description="文件夹相对路径，默认'.'表示工作区根目录")
+    depth: int = Field(default=1, ge=1, description="递归深度，默认为 1；1 表示仅显示当前目录下一层")
 
 
 def _is_ignored_entry(entry) -> bool:
@@ -342,38 +334,23 @@ def listfiles(config: RunnableConfig, folder_path: str = ".", depth: int = 1) ->
         return toolResult(
             success=False,
             error=f"处理文件路径时出错: {compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
-            tool_name="listfiles"
+            tool_name="listfiles",
         )
 
     if not target_path.exists():
-        return toolResult(
-            success=False,
-            error=f"目录不存在: {target_path}",
-            tool_name="listfiles"
-        )
+        return toolResult(success=False, error=f"目录不存在: {target_path}", tool_name="listfiles")
 
     if not target_path.is_dir():
-        return toolResult(
-            success=False,
-            error=f"路径不是目录: {target_path}",
-            tool_name="listfiles"
-        )
+        return toolResult(success=False, error=f"路径不是目录: {target_path}", tool_name="listfiles")
 
     try:
         if depth < 1:
-            return toolResult(
-                success=False,
-                error=f"depth 必须大于等于 1，收到: {depth}",
-                tool_name="listfiles"
-            )
+            return toolResult(success=False, error=f"depth 必须大于等于 1，收到: {depth}", tool_name="listfiles")
 
         def build_tree(current_path, current_depth: int, prefix: str = "") -> list[str]:
             lines: list[str] = []
 
-            entries = [
-                e for e in current_path.iterdir()
-                if not _is_ignored_entry(e)
-            ]
+            entries = [e for e in current_path.iterdir() if not _is_ignored_entry(e)]
             entries.sort(key=lambda e: (not e.is_dir(), e.name.lower()))
 
             for index, entry in enumerate(entries):
@@ -399,21 +376,17 @@ def listfiles(config: RunnableConfig, folder_path: str = ".", depth: int = 1) ->
             success=True,
             message=f"浏览目录{folder_path}下的目录树结构（depth={depth}）",
             content=content,
-            tool_name="listfiles"
+            tool_name="listfiles",
         )
 
     except PermissionError:
-        return toolResult(
-            success=False,
-            error=f"没有权限读取目录: {target_path}",
-            tool_name="listfiles"
-        )
+        return toolResult(success=False, error=f"没有权限读取目录: {target_path}", tool_name="listfiles")
 
     except Exception as e:
         return toolResult(
             success=False,
             error=f"命令执行失败：{compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
-            tool_name="listfiles"
+            tool_name="listfiles",
         )
 
 
@@ -435,48 +408,34 @@ async def code_outline(file_path: str, config: RunnableConfig) -> toolResult:
         return toolResult(
             success=False,
             error=f"处理文件路径时出错: {compress_error(str(e))}。请检查参数或跳过此步骤，建议如实告知用户",
-            tool_name="code_outline"
+            tool_name="code_outline",
         )
 
     if not target_path.exists():
-        return toolResult(
-            success=False,
-            error=f"文件不存在: {target_path}",
-            tool_name="code_outline"
-        )
+        return toolResult(success=False, error=f"文件不存在: {target_path}", tool_name="code_outline")
 
     if not target_path.is_file():
-        return toolResult(
-            success=False,
-            error=f"路径指向的不是一个普通文件: {target_path}",
-            tool_name="code_outline"
-        )
+        return toolResult(success=False, error=f"路径指向的不是一个普通文件: {target_path}", tool_name="code_outline")
     rel = os.path.relpath(target_path)
     request = AnalysisRequest(file_path=rel)
-    engine=UnifiedAnalysisEngine(project_root=str(Path(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace).resolve()))
+    engine = UnifiedAnalysisEngine(
+        project_root=str(
+            Path(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace).resolve()
+        )
+    )
     try:
         result = engine.analyze_sync(request)
     except UnsupportedLanguageError as e:
         return toolResult(
             success=False,
             error=f"不支持的语言类型: {compress_error(str(e))}。请检查文件类型或跳过此步骤",
-            tool_name="code_outline"
+            tool_name="code_outline",
         )
     if not result.success:
-        return toolResult(
-            success=False,
-            error=f"代码分析失败: {result.error}",
-            tool_name="code_outline"
-        )
-    outline=_build_outline(result)
+        return toolResult(success=False, error=f"代码分析失败: {result.error}", tool_name="code_outline")
+    outline = _build_outline(result)
 
-    return toolResult(
-        success=True,
-        message=f"生成文件 {file_path} 的大纲",
-        content=outline,
-        tool_name="code_outline"
-    )
-
+    return toolResult(success=True, message=f"生成文件 {file_path} 的大纲", content=outline, tool_name="code_outline")
 
 
 def _build_outline(result: AnalysisResult) -> str:
@@ -498,18 +457,18 @@ def _build_outline(result: AnalysisResult) -> str:
                 "type": elem.element_type,
                 "start_line": elem.start_line,
                 "end_line": elem.end_line,
-                    "signature": elem.raw_text.split("\n")[0].lstrip(),  # 取第一行作为签名，内容锚定
+                "signature": elem.raw_text.split("\n")[0].lstrip(),  # 取第一行作为签名，内容锚定
             }
             if elem.docstring:
                 func["doc"] = elem.docstring[:200]
             # 以下字段需要确认 Function 对象是否有，先安全获取
-            if hasattr(elem, 'parameters') and elem.parameters:
+            if hasattr(elem, "parameters") and elem.parameters:
                 func["parameters"] = elem.parameters
-            if hasattr(elem, 'return_type') and elem.return_type:
+            if hasattr(elem, "return_type") and elem.return_type:
                 func["return_type"] = elem.return_type
-            if hasattr(elem, 'is_async') and elem.is_async:
+            if hasattr(elem, "is_async") and elem.is_async:
                 func["is_async"] = True
-            if hasattr(elem, 'parent_class') and elem.parent_class:
+            if hasattr(elem, "parent_class") and elem.parent_class:
                 func["parent_class"] = elem.parent_class
             outline["functions"].append(func)
         elif elem.element_type == "class":
@@ -523,28 +482,28 @@ def _build_outline(result: AnalysisResult) -> str:
             }
             if elem.docstring:
                 cls["doc"] = elem.docstring[:200]
-            if  hasattr(elem, 'class_type') and elem.class_type:  # class/interface/struct
+            if hasattr(elem, "class_type") and elem.class_type:  # class/interface/struct
                 cls["kind"] = elem.class_type
-            if hasattr(elem,"interfaces") and elem.interfaces:
+            if hasattr(elem, "interfaces") and elem.interfaces:
                 cls["interfaces"] = elem.interfaces
-            if hasattr(elem, 'superclass') and elem.superclass:
+            if hasattr(elem, "superclass") and elem.superclass:
                 cls["extends"] = elem.superclass
-            if hasattr(elem, 'extends_class') and elem.extends_class:
+            if hasattr(elem, "extends_class") and elem.extends_class:
                 cls["extends"] = elem.extends_class
-            if hasattr(elem,"methods"):
+            if hasattr(elem, "methods"):
                 cls["methods"] = elem.methods
             outline["classes"].append(cls)
         elif elem.element_type == "variable":
-            fields={
+            fields = {
                 "name": elem.name,
                 "element_type": elem.element_type,
                 "start_line": elem.start_line,
                 "end_line": elem.end_line,
                 "signature": elem.raw_text.split("\n")[0].lstrip(),  # 取第一行作为签名，内容锚定
             }
-            if hasattr(elem, 'variable_type') and elem.variable_type:
+            if hasattr(elem, "variable_type") and elem.variable_type:
                 fields["type"] = elem.variable_type
-            if hasattr(elem, 'is_constant') and elem.is_constant:
+            if hasattr(elem, "is_constant") and elem.is_constant:
                 fields["is_constant"] = elem.is_constant
             outline["variables"].append(fields)
         elif elem.element_type == "import":
@@ -555,14 +514,12 @@ def _build_outline(result: AnalysisResult) -> str:
                 "end_line": elem.end_line,
                 "signature": elem.raw_text.split("\n")[0].lstrip(),  # 取第一行作为签名，内容锚定
             }
-            if hasattr(elem,"alias") and elem.alias:
+            if hasattr(elem, "alias") and elem.alias:
                 imports["alias"] = elem.alias
-            if hasattr(elem, 'module_name') and elem.module_name:
+            if hasattr(elem, "module_name") and elem.module_name:
                 imports["module"] = elem.module_name
-            if hasattr(elem, 'imported_names') and elem.imported_names:
+            if hasattr(elem, "imported_names") and elem.imported_names:
                 imports["import_names"] = elem.imported_names
             outline["imports"].append(imports)
 
     return dict_to_text(outline)
-
-

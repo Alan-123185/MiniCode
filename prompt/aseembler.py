@@ -11,10 +11,11 @@ from states.OverallState import OverAllState
 from utils.dictToText import dict_to_text
 
 
-
 """
 文首静态提示词组装
 """
+
+
 def build_static_system_prompt() -> str:
     parts = [
         Intro_pro,
@@ -28,10 +29,13 @@ def build_static_system_prompt() -> str:
     ]
     return "\n\n".join(parts)
 
+
 """
 创建并返回一个摘要历史作为动态提示词 包含当前的摘要状态信息。
 """
-def build_history_summary_prompt(state:OverAllState) -> str:
+
+
+def build_history_summary_prompt(state: OverAllState) -> str:
     body = dict_to_text(state.summary_state.model_dump()).strip()
     if not body:
         return ""

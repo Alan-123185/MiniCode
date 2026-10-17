@@ -12,25 +12,27 @@ def _refresh_process_path():
     """读取注册表，强制刷新当前 Python 进程的 PATH 环境变量"""
     try:
         import winreg
+
         # 读取 System 的 PATH
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
-                            r'SYSTEM\CurrentControlSet\Control\Session Manager\Environment') as key:
-            sys_path, _ = winreg.QueryValueEx(key, 'Path')
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+        ) as key:
+            sys_path, _ = winreg.QueryValueEx(key, "Path")
         # 读取 User 的 PATH
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Environment') as key:
-            user_path, _ = winreg.QueryValueEx(key, 'Path')
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment") as key:
+            user_path, _ = winreg.QueryValueEx(key, "Path")
 
         # 更新当前进程的环境变量
-        os.environ['PATH'] = os.path.expandvars(f"{sys_path};{user_path}")
+        os.environ["PATH"] = os.path.expandvars(f"{sys_path};{user_path}")
     except Exception as e:
         logger.warning(f"刷新环境变量失败，尝试拼接默认 Git 路径: {e}")
         # 保底方案：手动硬编码常见的 Git 安装路径
         default_paths = [
             r"C:\Program Files\Git\cmd",
             r"C:\Program Files (x86)\Git\cmd",
-            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Git\cmd")
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Git\cmd"),
         ]
-        os.environ['PATH'] += ";" + ";".join(default_paths)
+        os.environ["PATH"] += ";" + ";".join(default_paths)
 
 
 def install_git_by_winget() -> bool:
@@ -43,16 +45,19 @@ def install_git_by_winget() -> bool:
         # 2. 执行静默安装
         result = subprocess.run(
             [
-                "winget", "install",
-                "--id", "Git.Git",
+                "winget",
+                "install",
+                "--id",
+                "Git.Git",
                 "-e",
-                "--source", "winget",
+                "--source",
+                "winget",
                 "--silent",
                 "--accept-source-agreements",
-                "--accept-package-agreements"
+                "--accept-package-agreements",
             ],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
         )
 
         if result.returncode != 0:
@@ -65,9 +70,7 @@ def install_git_by_winget() -> bool:
         # 4. 再次校验 git 是否已就绪
         git_executable = shutil.which("git") or "git"
         verify_result = subprocess.run(
-            [git_executable, "--version"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            [git_executable, "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
         return verify_result.returncode == 0
 
@@ -80,11 +83,7 @@ def is_git_installed() -> bool:
     """检查系统是否已安装 Git"""
     try:
         git_executable = shutil.which("git") or "git"
-        result = subprocess.run(
-            [git_executable, "--version"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
+        result = subprocess.run([git_executable, "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return result.returncode == 0
     except Exception as e:
         logger.error(f"检查 Git 安装状态时发生异常: {e}")
@@ -114,11 +113,7 @@ def check_git() -> bool:
         return True
 
 
-
-
-
-
-def find_git_path() -> str :
+def find_git_path() -> str:
     """查找 Git Bash 的 bash.exe（优先 PATH，其次常见安装目录）"""
 
     def _find_bash_from_git() -> str | None:
@@ -135,7 +130,7 @@ def find_git_path() -> str :
             return which_bash
         return None
 
-    git_path= _find_bash_from_git()
+    git_path = _find_bash_from_git()
     if git_path:
         return git_path
     # 2. 常见安装路径
@@ -155,15 +150,12 @@ def find_git_path() -> str :
     raise BizException(message="未找到可用的 Git Bash , 请手动配置.env")
 
 
-
-
 def create_env(git_path: str) -> bool:
-    path=app_root() / ".env"
+    path = app_root() / ".env"
     if not path.exists():
         path.write_text("GIT_BASH_PATH=" + git_path, encoding="utf-8")
         return True
     return False
 
 
-
-#打包之后的根目录
+# 打包之后的根目录

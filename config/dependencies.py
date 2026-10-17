@@ -1,9 +1,11 @@
+from fastapi import Request
+
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from config.data import settings
 from config.sessionManager import sessionmanager
 from exceptions import BizException
-from mapper.database import  DataBase
+from mapper.database import DataBase
 from mapper.sessionMapper import sessionMapper
 from mappercommon.Session import Session
 from prompt.llm_prompt import LLM_PROMPT
@@ -11,15 +13,13 @@ from requestcommon.ModelRequest import ModelSetRequest
 
 
 def create_chat_config(thread_id: str):
-    return  {
-           # "recursion_limit": settings.DEFAULT_RECURSION_LIMIT,
-            "configurable": {
-                "system_prompt":LLM_PROMPT,
-                "thread_id": thread_id
-            }
-        }
+    return {
+        # "recursion_limit": settings.DEFAULT_RECURSION_LIMIT,
+        "configurable": {"system_prompt": LLM_PROMPT, "thread_id": thread_id}
+    }
 
-def create_model(input_config:ModelSetRequest):
+
+def create_model(input_config: ModelSetRequest):
     return ChatOpenAI(
         base_url=input_config.base_url,
         api_key=input_config.api_key,
@@ -27,43 +27,38 @@ def create_model(input_config:ModelSetRequest):
         streaming=settings.DEFAULT_STREAMING_MODEL,
         stream_usage=True,  # 关键：请求流式响应中附带用量信息
         temperature=settings.DEFAULT_TEMPERATURE,
-        extra_body={
-            "enable_thinking": True
-        }
+        extra_body={"enable_thinking": True},
     )
 
 
-def create_no_streaming_model(model:ChatOpenAI):
+def create_no_streaming_model(model: ChatOpenAI):
     return ChatOpenAI(
         base_url=model.openai_api_base,
         api_key=model.openai_api_key,
         model=model.model_name,
         streaming=False,
-        extra_body={
-            "enable_thinking": False
-        }
+        extra_body={"enable_thinking": False},
     )
 
 
-
-def get_session(config:RunnableConfig)-> Session:
-    session_id=config.get("configurable", {}).get("thread_id")
-    res=sessionmanager.get_session(session_id)
+def get_session(config: RunnableConfig) -> Session:
+    session_id = config.get("configurable", {}).get("thread_id")
+    res = sessionmanager.get_session(session_id)
     if not res:
         db = DataBase()
         sessionmapper = sessionMapper(db)
         try:
-            res=sessionmapper.query_session_by_session_id(session_id)
+            res = sessionmapper.query_session_by_session_id(session_id)
         finally:
             db.conn.close()
         if not res:
             raise BizException(message="此会话不存在")
-        result=Session(
+        result = Session(
             session_id=res["id"],
             session_name=res["name"],
             workplace=res["workplace"],
             user_id=res["user_id"],
-            create_time=res["created_at"]
+            create_time=res["created_at"],
         )
         sessionmanager.add_session(session_id, result)
         return result
@@ -87,5 +82,5 @@ def get_db():
         db.conn.close()
 
 
-
-
+def get_graph(request:Request):
+    return request.app.state.graph

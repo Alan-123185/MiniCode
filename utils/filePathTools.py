@@ -4,19 +4,20 @@ from pathlib import Path
 from langchain_core.runnables import RunnableConfig
 
 
-
-def relativePathToAbsolute(file_path: str,config:RunnableConfig) -> Path:
+def relativePathToAbsolute(file_path: str, config: RunnableConfig) -> Path:
     """将相对路径转换为基于项目根目录的绝对路径"""
     from config.dependencies import get_session
-    session =get_session(config)
+
+    session = get_session(config)
     return Path(session.workplace) / file_path
 
 
-def absolutePathToRelative(file_path: str,config:RunnableConfig) -> Path:
+def absolutePathToRelative(file_path: str, config: RunnableConfig) -> Path:
     from config.dependencies import get_session
-    session =get_session(config)
+
+    session = get_session(config)
     """将绝对路径转化为基于项目根目录的相对路径"""
-    abs_path = Path(file_path).resolve()          # 1. 规范化绝对路径
+    abs_path = Path(file_path).resolve()  # 1. 规范化绝对路径
     root_path = Path(session.workplace).resolve()  # 2. 规范化根目录
     try:
         # 3. 计算相对路径（核心）
@@ -27,8 +28,7 @@ def absolutePathToRelative(file_path: str,config:RunnableConfig) -> Path:
         return abs_path
 
 
-
-def is_path_safe(abs_path: Path,workplace: Path) -> bool:
+def is_path_safe(abs_path: Path, workplace: Path) -> bool:
     """检查路径是否安全，即是否在项目根目录下"""
     try:
         abs_path.relative_to(workplace)
@@ -37,15 +37,13 @@ def is_path_safe(abs_path: Path,workplace: Path) -> bool:
         return False
 
 
-
-
 def app_root() -> Path:
     """
     返回应用根目录。
     - 打包后（PyInstaller）：exe 所在目录
     - 开发环境：项目根目录（main.py 所在目录）
     """
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # PyInstaller 打包后，sys.executable 是 exe 的完整路径
         return Path(sys.executable).resolve().parent
     else:
@@ -59,10 +57,9 @@ def resource_path(relative: str) -> Path:
     return app_root() / relative
 
 
-
 def data_dir() -> Path:
     """可写数据目录（数据库、日志）"""
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         if os.name == "nt":
             base = Path(os.environ.get("APPDATA", Path.home())) / "MiniCode"
         else:

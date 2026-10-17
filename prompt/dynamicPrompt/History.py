@@ -1,4 +1,4 @@
-history_Summary_pro:str="""
+history_Summary_pro: str = """
 本次会话是从之前一段超出上下文的对话继续而来的。
 以下摘要覆盖了对话较早的部分。
 摘要：

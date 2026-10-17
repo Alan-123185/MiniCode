@@ -28,7 +28,6 @@ class FileOperationMapper:
         """Fetch a single file operation by id."""
         return self.db.fetch_one("SELECT * FROM file_operations WHERE id = ?", (op_id,))
 
-
     def list_operations_by_group(self, group_id: str) -> List[dict]:
         """List all file operations for a group."""
         return self.db.fetch_all(
@@ -36,22 +35,19 @@ class FileOperationMapper:
             (group_id,),
         )
 
-
     def delete_operation(self, op_id: int) -> int:
         """Delete a file operation by id."""
         return self.db.execute("DELETE FROM file_operations WHERE id = ?", (op_id,))
 
-
     def query_operatons_by_session(self, session_id: str) -> List[dict]:
         """Query all file operations for a session."""
-        return self.db.fetch_all("SELECT * FROM file_operations WHERE group_id in  (SELECT id FROM operation_groups WHERE session_id = ?)", (session_id,))
+        return self.db.fetch_all(
+            "SELECT * FROM file_operations WHERE group_id in  (SELECT id FROM operation_groups WHERE session_id = ?)",
+            (session_id,),
+        )
 
     def delete_operation_by_session(self, session_id: str) -> None:
-        self.db.execute("DELETE FROM file_operations WHERE group_id in (select id from operation_groups where session_id=?)", (session_id,))
-
-
-
-
-
-
-
+        self.db.execute(
+            "DELETE FROM file_operations WHERE group_id in (select id from operation_groups where session_id=?)",
+            (session_id,),
+        )

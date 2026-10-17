@@ -28,8 +28,5 @@ class OverAllState(BaseModel):  # 注意这里继承 BaseModel
     tool_call_count: Annotated[dict[str, int], merge_dicts] = {}
 
     # 摘要与窗口（只保留一份消息，不再冗余）
-    summary_state :  summaryState = Field(default_factory=summaryState)
+    summary_state: summaryState = Field(default_factory=summaryState)
     last_summary_pos: int = 0  # 游标，用默认覆盖即可
-
-
-

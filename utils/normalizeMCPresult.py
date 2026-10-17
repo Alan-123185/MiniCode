@@ -60,8 +60,4 @@ def normalize_MCP_result(result: Any, tool_name: str) -> toolResult:
         result_lines.append(line)
     text = "\n".join(result_lines)
 
-    return toolResult(
-        success=True,
-        content=text,
-        tool_name=tool_name
-    )
+    return toolResult(success=True, content=text, tool_name=tool_name)
