@@ -163,6 +163,7 @@ baidu_search_api_key = ""
 | `/MiniCode/continue` | POST | 从最近检查点恢复中断的会话，SSE |
 | `/MiniCode/editMessage` | POST | 编辑历史消息并从该检查点重新生成，SSE |
 | `/MiniCode/stop` | POST | 停止指定会话的生成 |
+| `/MiniCode/mode` | POST | 切换会话工作模式（`mode`: `work`/`plan`/`free_fly`，存 LangGraph 检查点） |
 | `/MiniCode/new_chat` | POST | 新建会话 |
 | `/MiniCode/sessions` | GET | 获取用户会话列表 |
 | `/MiniCode/history` | GET | 获取会话历史消息 |

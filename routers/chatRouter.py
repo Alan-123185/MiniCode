@@ -183,8 +183,5 @@ async def stop_chat(session_id: str, chat_service: ChatService = Depends(get_cha
 
 @router.post("/MiniCode/mode")
 async def update_mode(session_id: str, mode: Literal["free_fly","work","plan"], chat_service: ChatService = Depends(get_chat_service)) -> Result[str]:
-    res = await chat_service.update_mode(session_id, mode)
-    if res:
-        return Result(message=f"已切换模式为 {mode}")
-    else:
-        return Result(code=500, message="模式切换失败")
+    await chat_service.update_mode(session_id, mode)
+    return Result(message=f"已切换模式为 {mode}")

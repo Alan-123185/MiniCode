@@ -171,6 +171,24 @@ export function stopChat(sessionId) {
   return request(`/MiniCode/stop?session_id=${encodeURIComponent(sessionId)}`, { method: 'POST' })
 }
 
+/**
+ * 切换会话工作模式: POST /MiniCode/mode?session_id=xxx&mode=xxx (query 参数, 无 body)。
+ * 后端: routers/chatRouter.py update_mode + service/chatService.py update_mode,
+ *  mode 取值对应 mode/modeRegistry.py 注册表: 'work' | 'plan' | 'free_fly'。
+ * 成功返回 Result(code=200, message="已切换模式为 xxx")。
+ * 注意:
+ *  - 模式持久化在 LangGraph checkpointer (按 thread_id/会话隔离), 覆盖该会话后续所有对话;
+ *  - 后端没有读取当前模式的接口, 每会话模式由前端自行缓存 (stores/chat.js sessionModes);
+ *  - 新会话尚未产生检查点时后端抛 BizException「会话 xxx 不存在或未初始化」,
+ *    由 store 转成本地暂存 + 首轮流式结束后补同步 (setSessionMode → endStream)。
+ */
+export function updateMode(sessionId, mode) {
+  return request(
+    `/MiniCode/mode?session_id=${encodeURIComponent(sessionId)}&mode=${encodeURIComponent(mode)}`,
+    { method: 'POST' }
+  )
+}
+
 export function listSessions(userId) {
   // 后端: GET /MiniCode/sessions?user_id=xxx (query 参数, routers/sessionRouter.py)
   return request(`/MiniCode/sessions?user_id=${encodeURIComponent(userId)}`)

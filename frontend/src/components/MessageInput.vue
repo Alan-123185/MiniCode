@@ -57,9 +57,10 @@
         </svg>
       </button>
     </div>
-    <!-- 底部操作区: 左侧为会话级工作目录选择按钮, 右侧为快捷键提示 -->
+    <!-- 底部操作区: 左侧为会话级工作目录选择 + 会话模式选择, 右侧为快捷键提示 -->
     <div class="input-footer">
       <WorkspacePicker :path="store.currentWorkspacePath" @error="onError" />
+      <ModeSelector :mode="store.currentMode" @error="onError" />
       <span class="hint"><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span>
     </div>
   </div>
@@ -70,6 +71,7 @@ import { ref, computed, nextTick, watch } from 'vue'
 import { useChatStore } from '../stores/chat'
 import { useToastStore } from '../stores/toast'
 import WorkspacePicker from './WorkspacePicker.vue'
+import ModeSelector from './ModeSelector.vue'
 
 const store = useChatStore()
 const toast = useToastStore()

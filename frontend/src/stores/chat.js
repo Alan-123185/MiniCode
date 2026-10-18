@@ -8,6 +8,7 @@ import {
   editMessageStream,
   newChat,
   stopChat,
+  updateMode,
   listSessions,
   getHistory,
   deleteChat,
@@ -51,6 +52,39 @@ function normalizeSession(row, workspaceCache = {}) {
 
 /** 会话级工作目录的本地缓存（仅前端持久化，后端字段缺失时兜底） */
 const SESSION_WORKSPACE_KEY = 'minicodex_session_workspaces'
+
+/** 会话级工作模式的本地缓存键 (后端模式存 LangGraph 检查点, 且没有读取接口, 前端自行记忆) */
+const SESSION_MODES_KEY = 'minicodex_session_modes'
+
+/**
+ * 后端支持的会话模式 (routers/chatRouter.py /MiniCode/mode 的 Literal 取值, 与
+ * mode/modeRegistry.py 注册表一一对应), id 必须与后端完全一致。
+ * 文案按各模式在后端的实际行为写:
+ *  - work     工作模式: 绑定全部工具 (mode/workMode.py), 危险工具调用走审批 (nodes/toolNode.py)
+ *  - plan     规划模式: 仅只读工具集 (mode/planMode.py plan_tools), 不改文件不执行命令
+ *  - free_fly 自由飞行: 全部工具且跳过审批 (nodes/toolNode.py: mode == "free_fly" 直接放行)
+ */
+export const MODE_OPTIONS = [
+  { id: 'work', label: '工作', title: '工作模式(默认): 使用全部工具, 改文件/执行命令前需你确认' },
+  { id: 'plan', label: '规划', title: '规划模式: 只用只读工具分析与规划, 不修改任何文件' },
+  { id: 'free_fly', label: '自由', title: '自由飞行: 跳过危险操作确认直接执行, 仅限低风险任务' },
+]
+
+function loadModeCache() {
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_MODES_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function saveModeCache(cache) {
+  try {
+    localStorage.setItem(SESSION_MODES_KEY, JSON.stringify(cache))
+  } catch (e) {
+    console.error('保存会话模式缓存失败', e)
+  }
+}
 
 /** 旧版「5 组模型配置」的本地存储键 (已废弃, 仅用于启动时一次性迁移到后端数据库) */
 const LEGACY_MODEL_PROFILES_KEY = 'minicodex_model_profiles'
@@ -163,6 +197,19 @@ export const useChatStore = defineStore('chat', () => {
   /** 当前生效模型在库中的 id: 持久化到本地, 供重启后按 id 调 set_model 恢复后端运行时配置 */
   const activeModelId = ref(Number(localStorage.getItem(ACTIVE_MODEL_ID_KEY)) || null)
   const workspaceCache = loadWorkspaceCache()
+  /** 会话级工作模式 (work/plan/free_fly): 后端无读取接口, 由本地缓存记忆, 缺失回退后端默认 'work' */
+  const sessionModes = reactive(loadModeCache())
+  /** 当前会话的工作模式 (缓存值不在注册表内时按 'work' 处理, 防旧缓存脏值让选择器失去高亮) */
+  const currentMode = computed(() => {
+    const m = sessionModes[currentSessionId.value]
+    return MODE_OPTIONS.some((o) => o.id === m) ? m : 'work'
+  })
+  /**
+   * 已在本地选定、但后端尚未生效的会话: 新会话的 LangGraph 检查点还没建立,
+   * POST /MiniCode/mode 会报「会话 xxx 不存在或未初始化」。本地先按选择展示,
+   * 等该会话首轮流式结束 (endStream, 检查点已建立) 后由 syncPendingMode 静默补同步。
+   */
+  const pendingModeSync = new Set()
   /* 「新建对话」空会话拦截状态: 聚焦输入框信号 (轻提示已统一走 toast store) */
   const inputFocusSignal = ref(0)
   /** 会话搜索聚焦信号: 全局快捷键 Ctrl+K → SessionList 搜索框 (跨组件通信) */
@@ -201,6 +248,9 @@ export const useChatStore = defineStore('chat', () => {
     streamingSessions.delete(sessionId)
     sessionStatus.delete(sessionId)
     if (streamingSessionId.value === sessionId) streamingSessionId.value = null
+    // 首轮结束后 LangGraph 检查点已建立: 补同步此前因「未初始化」延后的模式选择。
+    // 静默执行 (void): 不阻塞流收尾; 失败则保持 pending, 下轮流结束后自然重试
+    if (pendingModeSync.has(sessionId)) void syncPendingMode(sessionId)
   }
   /** 生成参数设置 (对应 requestcommon/settingsRequest.py: temperature/theme/think_level), 后端持久化 */
   const DEFAULT_SETTINGS = { temperature: 0.3, theme: true, think_level: 2 }
@@ -975,6 +1025,9 @@ export const useChatStore = defineStore('chat', () => {
     // 会话级审批不再全局清空: 只兜底清掉新 id 自身的残留 (uuid 理论上不会撞),
     // 别条会话挂着的待批准项必须保留 —— 旧版这里的全局置 null 会把别人的批准按钮抹掉
     pendingApprovals.delete(sessionId)
+    // 模式缓存同样只清新 id 自身的残留 (uuid 理论上不会撞), 新会话回到默认 'work'
+    pendingModeSync.delete(sessionId)
+    delete sessionModes[sessionId]
     sessions.value.unshift({
       id: sessionId,
       title: '新会话',
@@ -1206,6 +1259,7 @@ export const useChatStore = defineStore('chat', () => {
     pendingApprovals.delete(sessionId)
     interruptedSessions.delete(sessionId)
     historyTokens.delete(sessionId)
+    pendingModeSync.delete(sessionId)
 
     let deleted = true
     try {
@@ -1219,6 +1273,11 @@ export const useChatStore = defineStore('chat', () => {
     if (deleted && workspaceCache[sessionId]) {
       delete workspaceCache[sessionId]
       saveWorkspaceCache(workspaceCache)
+    }
+    // 与 workspaceCache 同构: 后端删除成功才清, 避免后端未生效时丢掉会话级设置
+    if (deleted && sessionModes[sessionId] !== undefined) {
+      delete sessionModes[sessionId]
+      saveModeCache(sessionModes)
     }
 
     if (currentSessionId.value === sessionId) {
@@ -1580,6 +1639,58 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * 切换指定会话的工作模式 (乐观更新 -> 同步后端 -> 失败回滚), 对应 POST /MiniCode/mode。
+   * @returns {Promise<'synced'|'deferred'>}
+   *   'synced'   后端已生效;
+   *   'deferred' 新会话检查点尚未建立, 已本地暂存, 首轮流式结束(endStream)后自动补同步。
+   * @throws 后端其他失败时回滚本地并抛出, 由调用方 toast 提示。
+   */
+  async function setSessionMode(sessionId, mode) {
+    if (!sessionId) throw new Error('当前没有可用的会话')
+    if (!MODE_OPTIONS.some((m) => m.id === mode)) throw new Error(`未知模式: ${mode}`)
+    const prev = sessionModes[sessionId] || 'work'
+    if (prev === mode) return 'synced'
+
+    // 乐观更新: 先让选择器立即响应 (与 setSessionWorkspace 同一模式)
+    sessionModes[sessionId] = mode
+    saveModeCache(sessionModes)
+
+    try {
+      await updateMode(sessionId, mode)
+      pendingModeSync.delete(sessionId)
+      return 'synced'
+    } catch (e) {
+      const msg = e?.message || String(e)
+      // 新会话还没有 LangGraph 检查点: 后端报「会话 xxx 不存在或未初始化」。
+      // 这不是用户可修复的错误 —— 保留本地选择并标记补同步, 界面按选择展示
+      if (/不存在或未初始化/.test(msg)) {
+        pendingModeSync.add(sessionId)
+        return 'deferred'
+      }
+      // 其他失败: 回滚本地, 保证界面与后端一致
+      if (prev === 'work') {
+        delete sessionModes[sessionId]
+      } else {
+        sessionModes[sessionId] = prev
+      }
+      saveModeCache(sessionModes)
+      console.error('切换会话模式失败', e)
+      throw e
+    }
+  }
+
+  /** 把因「检查点未建立」延后的模式选择补同步给后端; 仍失败则保持 pending, 下轮流结束后再试 */
+  async function syncPendingMode(sessionId) {
+    if (!pendingModeSync.has(sessionId)) return
+    try {
+      await updateMode(sessionId, sessionModes[sessionId] || 'work')
+      pendingModeSync.delete(sessionId)
+    } catch (e) {
+      console.warn('补同步会话模式失败, 将在下轮流式结束后重试', e)
+    }
+  }
+
+  /**
    * 后端契约 (service/workplaceService.py: choose_workplace): 会话级工作目录**只能绑定一次**。
    * 已经绑定的会话再调用 /MiniCode/workplace 会被拒绝
    * (BizException「已经选定目录，无法更改，请创建新对话」), 因此 UI 只在未绑定时给出选择入口,
@@ -1618,6 +1729,7 @@ export const useChatStore = defineStore('chat', () => {
     currentMessages,
     currentTitle,
     currentWorkspacePath,
+    currentMode,
     inputFocusSignal,
     searchFocusSignal,
     backendOnline,
@@ -1648,5 +1760,6 @@ export const useChatStore = defineStore('chat', () => {
     setSessionWorkspace,
     clearSessionWorkspace,
     canBindWorkspace,
+    setSessionMode,
   }
 })
