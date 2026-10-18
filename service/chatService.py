@@ -47,7 +47,7 @@ class ChatService:
             async for result in self._stream_graph(
                 session_id=session_id,
                 config=config,
-                input_or_command={"input": chat_request.message},
+                input_or_command={"input": chat_request.message,"mode": chat_request.mode},
                 record_operations=False,
             ):
                 yield result

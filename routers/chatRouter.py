@@ -1,5 +1,7 @@
 import asyncio
 import json
+from typing import Literal
+
 from fastapi import APIRouter, Depends, BackgroundTasks
 from fastapi.encoders import jsonable_encoder
 from loguru import logger
@@ -178,3 +180,5 @@ async def stop_chat(session_id: str, chat_service: ChatService = Depends(get_cha
         return Result(message="已停止对话")
     else:
         return Result(code=500, message="终止失败")
+
+

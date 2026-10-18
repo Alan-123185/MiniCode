@@ -13,13 +13,12 @@ from states.OverallState import OverAllState
 from langchain_core.messages import ToolMessage, HumanMessage, AIMessage, BaseMessage
 from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
-from tools.toolManage import tools_by_name, tools_need_to_confirm
 from utils.compressResult import _compress_read_result, _compress_search_code_result, _compress_run_bash_result
 from utils.dictToText import dict_to_text
 from utils.normalizeMCPresult import normalize_MCP_result
 from utils.errormanagerTool import compress_error
 from utils.commandSafe import is_command_safe
-
+from tools.toolManage import toolManage
 
 summary_service = summaryService()
 max_retry_time = settings.MAX_TOOL_CALLS
@@ -41,18 +40,20 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> dict:
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
         tool_call_id = tool_call["id"]
-        if tool_name not in tools_by_name:
-            logger.warning(f"未知工具名: {tool_name}，已注册: {list(tools_by_name.keys())}")
+        if tool_name not in toolManage.tools_by_name:
+            logger.warning(f"未知工具名: {tool_name}，已注册: {list(toolManage.tools_by_name.keys())}")
             output.append(
                 ToolMessage(
-                    content=f"[system Info] 工具 '{tool_name}' 不存在。可用工具: {list(tools_by_name.keys())}",
+                    content=f"[system Info] 工具 '{tool_name}' 不存在。可用工具: {list(toolManage.tools_by_name.keys())}",
                     tool_call_id=tool_call["id"],
                     name=tool_name,
                 )
             )
             continue
-
-        if tool_name in tools_need_to_confirm and not (
+        if state.mode == "free_fly":
+            # 在自由飞行模式下，允许所有工具调用
+            pass
+        elif tool_name in toolManage.tools_need_to_confirm and not (
             tool_name == "execute_command"
             and is_command_safe(tool_args.get("command", ""), tool_args.get("stdin_input", None))
         ):
@@ -90,7 +91,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> dict:
                 )
                 step.append(f"user refused tool:{tool_name}")
                 continue
-        pending_calls.append((tools_by_name[tool_name], tool_call))
+        pending_calls.append((toolManage.tools_by_name[tool_name], tool_call))
 
     """
     9.29
@@ -164,45 +165,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> dict:
         """
         降级工具调用结果，存入summary_service，方便后续的总结节点使用        
         """
-        if tool_name == "readfile":
-            compress_read_content = await _compress_read_result(tool_result=toolresult, tool_call_id=tool_call_id)
-            if not (compress_read_content == toolresult.error or compress_read_content == toolresult.content):
-                summary_service.add_Tool_summary(
-                    Summary(
-                        session_id=config.get("configurable", {}).get("thread_id"),
-                        tool_call_id=tool_call_id,
-                        content=toolresult.content,
-                        compressed_content=compress_read_content,
-                        message_type=settings.LLM_MESSAGE_TYPE_TOOL,
-                    )
-                )
-        if tool_name == "search_code_by_keyword":
-            compress_search_content = _compress_search_code_result(tool_result=toolresult, tool_call_id=tool_call_id)
-            if not (compress_search_content == toolresult.error or compress_search_content == toolresult.content):
-                summary_service.add_Tool_summary(
-                    Summary(
-                        session_id=config.get("configurable", {}).get("thread_id"),
-                        tool_call_id=tool_call_id,
-                        content=toolresult.content,
-                        compressed_content=compress_search_content,
-                        message_type=settings.LLM_MESSAGE_TYPE_TOOL,
-                    )
-                )
-        if tool_name == "run_code" or tool_name == "execute_command":
-            compress_bash_content = _compress_run_bash_result(tool_result=toolresult, tool_call_id=tool_call_id)
-            origin_content = toolresult.content
-            toolresult.content = compress_bash_content
-            if "调用get_original_content_by_tool_call_id查看原始内容" in compress_bash_content:
-                original_content = dict_to_text(json.loads(origin_content))
-                summary_service.add_Tool_summary(
-                    Summary(
-                        session_id=config.get("configurable", {}).get("thread_id"),
-                        tool_call_id=tool_call_id,
-                        content=original_content,
-                        compressed_content=compress_bash_content,
-                        message_type=settings.LLM_MESSAGE_TYPE_TOOL,
-                    )
-                )
+        await _quick_compress_tool_result(session_id=config.get("configurable", {}).get("thread_id"), tool_name=tool_name,tool_call_id=tool_call_id, toolresult=toolresult)
 
         # ================= 3. 处理执行结果 =================
         if toolresult.success:
@@ -321,6 +284,54 @@ def _emit_tool_status(event: toolstatusEvent):
         writer(event)
     except Exception as e:
         logger.warning(f"无法发送工具状态事件: {e}")
+
+
+
+
+async def _quick_compress_tool_result(session_id: str, tool_name: str, toolresult: toolResult,tool_call_id: str) -> None:
+    if tool_name == "readfile":
+        compress_read_content = await _compress_read_result(tool_result=toolresult, tool_call_id=tool_call_id)
+        if not (compress_read_content == toolresult.error or compress_read_content == toolresult.content):
+            summary_service.add_Tool_summary(
+                Summary(
+                    session_id=session_id,
+                    tool_call_id=tool_call_id,
+                    content=toolresult.content,
+                    compressed_content=compress_read_content,
+                    message_type=settings.LLM_MESSAGE_TYPE_TOOL,
+                )
+            )
+    if tool_name == "search_code_by_keyword":
+        compress_search_content = _compress_search_code_result(tool_result=toolresult, tool_call_id=tool_call_id)
+        if not (compress_search_content == toolresult.error or compress_search_content == toolresult.content):
+            summary_service.add_Tool_summary(
+                Summary(
+                    session_id=session_id,
+                    tool_call_id=tool_call_id,
+                    content=toolresult.content,
+                    compressed_content=compress_search_content,
+                    message_type=settings.LLM_MESSAGE_TYPE_TOOL,
+                )
+            )
+    if tool_name == "run_code" or tool_name == "execute_command":
+        compress_bash_content = _compress_run_bash_result(tool_result=toolresult, tool_call_id=tool_call_id)
+        origin_content = toolresult.content
+        toolresult.content = compress_bash_content
+        if "调用get_original_content_by_tool_call_id查看原始内容" in compress_bash_content:
+            original_content = dict_to_text(json.loads(origin_content))
+            summary_service.add_Tool_summary(
+                Summary(
+                    session_id=session_id,
+                    tool_call_id=tool_call_id,
+                    content=original_content,
+                    compressed_content=compress_bash_content,
+                    message_type=settings.LLM_MESSAGE_TYPE_TOOL,
+                )
+            )
+
+
+
+
 
 
 def _build_call_index(messages: list[BaseMessage]) -> dict[str, dict]:

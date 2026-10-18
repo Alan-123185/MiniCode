@@ -8,3 +8,4 @@ class degradeState(BaseModel):
     """
 
     degraded_messages: list[BaseMessage] = []
+    mode:str

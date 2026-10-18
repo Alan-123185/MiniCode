@@ -7,12 +7,12 @@ from fastapi import FastAPI
 from core.Result import Result
 from handler import register_exception_handlers
 from mapper.database import init_tables
-from tools.toolManage import init_tools
 from routers.sessionRouter import router as session_router
 from graphs.chat_graph import initialize_graph, close_graph
 from routers.workplaceRouter import router as workplace_router
 from routers.modelRouter import router as model_router
 from routers.chatRouter import router as chat_router
+from tools.toolManage import toolManage
 from utils.gitInstall import check_git
 
 
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     #  启动时：初始化 LangGraph 和异步数据库
     app.state.graph,app.state.db_conn=await initialize_graph()
 
-    await init_tools()  # ★ 确保工具列表初始化
+    await toolManage.init_tools()  # ★ 确保工具列表初始化
 
     yield  # 🏃 保持应用运行，处理请求
 

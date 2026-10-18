@@ -2,6 +2,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.constants import END
 from loguru import logger
 from config.data import settings
+from mode.modeRegistry import get_mode
 from prompt.aseembler import build_static_system_prompt, build_history_summary_prompt
 from states.OverallState import OverAllState
 from utils.MessageTool import count_tokens
@@ -11,9 +12,9 @@ def summerize_condition_node(state: OverAllState) -> str:
     # 条件1：消息总数超过最大条
     # 条件2：总token数超过限制
     # 满足任一条件即触发摘要
-    system_prompt = build_static_system_prompt()
+    system_prompt = get_mode(state.mode).get_prompt_template()
     history_summary_prompt = build_history_summary_prompt(state)
-    system_message = []
+    system_message = [SystemMessage(content=system_prompt)]
     if history_summary_prompt:
         system_message = [SystemMessage(content=system_prompt), HumanMessage(content=history_summary_prompt)]
     messages = state.messages or []

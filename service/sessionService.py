@@ -35,3 +35,4 @@ class sessionService:
 
     def update_name(self, session_id: str, name: str) -> None:
         self.sessionMapper.update_name(session_id=session_id, name=name)
+

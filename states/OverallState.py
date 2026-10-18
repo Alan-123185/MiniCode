@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Annotated
+from typing import Optional, Annotated, Literal
 from langgraph.graph.message import add_messages
 import operator
 from core.AgentResult import AgentResult
@@ -30,3 +30,5 @@ class OverAllState(BaseModel):  # 注意这里继承 BaseModel
     # 摘要与窗口（只保留一份消息，不再冗余）
     summary_state: summaryState = Field(default_factory=summaryState)
     last_summary_pos: int = 0  # 游标，用默认覆盖即可
+
+    mode:Literal["free_fly","work","plan"] = "work"

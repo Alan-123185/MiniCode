@@ -113,6 +113,10 @@ class Settings(BaseSettings):
     SANDBOX_NETWORK_ENABLED: bool = True  # 容器是否允许联网（pip/npm install 需要；严格安全场景可设 False）
     SANDBOX_IDLE_TTL_MINUTES: int = 120  # 容器空闲自动回收阈值（分钟），0 表示不自动回收
     SANDBOX_USER: str = "agent"  # 容器内执行命令的用户名（避免 root 执行权限过大）
+
+
+
+
     LLM_MAX_UNDEGREDED_MESSAGE_TOKEN: int = 20000  # 滑动窗口存储的最大未处理消息token数
     LLM_MAX_UP_MESSAGE_COUNT: int = 25  # 滑动窗口存储的最大上下文消息数
     LLM_MAX_UP_MESSAGE_TOKEN: int = 45000  # 滑动窗口存储的最大上下文消耗token数

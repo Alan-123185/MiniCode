@@ -2,8 +2,8 @@ import uuid
 from loguru import logger
 from config.modelConfig import model_config
 from exceptions import BizException
+from mode.modeRegistry import get_mode
 from states.degradeState import degradeState
-from tools.toolManage import tools
 
 
 async def llm_node(degrade_state: degradeState) -> dict:
@@ -14,6 +14,8 @@ async def llm_node(degrade_state: degradeState) -> dict:
         raise BizException(message="ERROR 请先选择模型")
     # 提示词得改一下
     response = None
+    mode=get_mode(degrade_state.mode)
+    tools=mode.get_tools()
     try:
         async for chunk in model.bind_tools(tools).astream(input_message):
             response = chunk if response is None else response + chunk
