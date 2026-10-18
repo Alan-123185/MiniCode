@@ -47,7 +47,7 @@ class ChatService:
             async for result in self._stream_graph(
                 session_id=session_id,
                 config=config,
-                input_or_command={"input": chat_request.message,"mode": chat_request.mode},
+                input_or_command={"input": chat_request.message},
                 record_operations=False,
             ):
                 yield result
@@ -313,6 +313,17 @@ class ChatService:
                     pass
 
         return True
+
+
+    async def update_mode(self, session_id: str, new_mode: str) -> None:
+        """更新会话的模式"""
+        config = create_chat_config(thread_id=session_id)
+        snapshot = await self.graph.aget_state(config)
+        if not snapshot.values:
+            raise BizException(message=f"会话 {session_id} 不存在或未初始化。")
+        # 更新状态
+        await self.graph.aupdate_state(config, {"mode": new_mode})
+
 
 
 def find_safe_message_index(messages: list[BaseMessage]) -> int:

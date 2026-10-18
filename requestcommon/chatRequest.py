@@ -7,4 +7,3 @@ class ChatRequest(BaseModel):
     message: str
     user_id: str = "user_local"
     session_id: str
-    mode:Optional[Literal["work", "free_fly", "plan"]] = "work"
