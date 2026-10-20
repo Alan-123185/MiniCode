@@ -6,8 +6,6 @@ from utils.MessageTool import count_tokens
 from utils.compressResult import forced_compress_tool_result
 
 
-summary_service = summaryService()
-
 
 def degrade_windows_l1(
     messages: list[BaseMessage], delta_tokens, config: RunnableConfig
@@ -25,7 +23,7 @@ def degrade_windows_l1(
         msg = messages[i]
         if delta_tokens > 0:
             old_tokens = count_tokens([msg])
-            new_msg = compress_message(msg, config.get("configurable", {}).get("thread_id"), summary_service)
+            new_msg = compress_message(msg, config.get("configurable", {}).get("thread_id"))
             latest_messages.append(new_msg)
             new_tokens = count_tokens([new_msg])
             delta_tokens = delta_tokens - (old_tokens - new_tokens)

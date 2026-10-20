@@ -144,33 +144,30 @@ async function submit() {
 <style scoped>
 .input-wrap {
   position: relative;
-  /* 悬浮输入区: 底部留白不贴底, 顶部渐隐让滚动内容自然过渡到输入卡片 */
-  padding: var(--space-3) var(--space-5) var(--space-5);
-  background: linear-gradient(to top, var(--bg-primary) 55%, transparent);
+  /* 输入区直接坐落于对话区底部: 纯色底, 无渐变无悬浮层 */
+  padding: var(--space-2) var(--space-5) var(--space-4);
+  background: var(--bg-primary);
   border: none;
 }
 
-/* 毛玻璃悬浮输入卡片: 与消息居中通道同宽, blur 模糊其下滚动内容 */
+/* 单一轻边框输入容器: 与消息居中通道同宽, 只有一层轮廓 */
 .input-box {
   display: flex;
   align-items: flex-end;
   gap: var(--space-3);
-  max-width: min(880px, 100%);
+  max-width: var(--content-max);
   margin: 0 auto;
-  background: var(--bg-glass);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 10px 12px 10px 14px;
-  box-shadow: var(--shadow-md);
+  padding: 9px 10px 9px 14px;
   transition: border-color var(--dur-base), box-shadow var(--dur-base);
 }
 
-/* 聚焦: 淡蓝发光边框 (一圈柔和光晕), 强化悬浮层级 */
+/* 聚焦: 一圈克制的强调色 ring, 与全局输入控件一致 */
 .input-box:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-ring), var(--shadow-md);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .input-box textarea {
@@ -178,9 +175,9 @@ async function submit() {
   border: none;
   background: transparent;
   resize: none;
-  padding: 6px 4px;
-  font-size: 14.5px;
-  line-height: 1.6;
+  padding: 5px 2px;
+  font-size: var(--fs-md);
+  line-height: 1.55;
   max-height: 160px;
   font-family: inherit;
 }
@@ -191,16 +188,19 @@ async function submit() {
   box-shadow: none;
 }
 
+/* 发送: 主交互, 强调色圆形按钮 (醒目但尺寸克制) */
 .send-btn {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--accent);
-  color: #fff;
+  /* 用主题反色而非硬编码白: 暗色主题的强调色偏亮, 白图标对比度不足 (3.1:1) */
+  color: var(--text-inverse);
+  border: none;
   border-radius: 50%;
 }
 
@@ -210,6 +210,13 @@ async function submit() {
 
 .send-btn:active:not(:disabled) {
   background: var(--accent-active);
+  opacity: 1;
+}
+
+.send-btn:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  opacity: 1;
 }
 
 .send-btn.sending {
@@ -227,23 +234,28 @@ async function submit() {
 
 .send-btn.stopping:active:not(:disabled) {
   background: var(--error-hover);
+  opacity: 1;
 }
 
 .spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  width: 15px;
+  height: 15px;
+  /* 轨道用 currentColor 淡化, 指示弧用满色: 随按钮文字色自适应明暗主题 */
+  border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
 
+/* 底部操作行: 目录 / 模式 / 快捷提示, 均为无框轻量控件。
+   允许换行: 极窄窗口下宁可让控件折到第二行, 也不横向溢出被裁掉 */
 .input-footer {
   margin-top: var(--space-2);
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  max-width: min(880px, 100%);
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-width: var(--content-max);
   margin-inline: auto;
   min-height: 26px;
 }
@@ -251,10 +263,10 @@ async function submit() {
 .fade-enter-active, .fade-leave-active { transition: opacity var(--dur-base) ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
-/* 快捷键提示: 更轻量的小字 (置于输入卡片下方, 弱化不抢焦点) */
+/* 快捷键提示: 最弱一档辅助文字 */
 .hint {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-tertiary);
   display: inline-flex;
   align-items: center;
@@ -262,7 +274,15 @@ async function submit() {
 }
 
 .hint kbd {
-  font-size: 10px;
-  opacity: 0.75;
+  font-size: var(--fs-xs);
+  opacity: 0.8;
+}
+
+/* 窄窗口: 侧栏占去 264px 后主区已放不下三个控件, 优先舍弃最弱的快捷键提示
+   (它只是辅助说明, 而目录/模式是必需操作), 避免底部操作行被挤到溢出 */
+@media (max-width: 780px) {
+  .hint {
+    display: none;
+  }
 }
 </style>

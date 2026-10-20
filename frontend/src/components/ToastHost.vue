@@ -64,7 +64,7 @@ const visible = computed(() => store.toasts.length > 0)
   gap: var(--space-2);
   max-width: min(520px, 88vw);
   padding: 8px 10px 8px 12px;
-  font-size: 13px;
+  font-size: var(--fs-base);
   line-height: 1.45;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
@@ -80,10 +80,11 @@ const visible = computed(() => store.toasts.length > 0)
   height: 16px;
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   border-radius: 50%;
-  color: #fff;
+  /* 主题反色: 暗色主题语义色偏亮, 白字形对比度不足 (2.3:1) */
+  color: var(--text-inverse);
 }
 
 .toast-text {
@@ -98,7 +99,7 @@ const visible = computed(() => store.toasts.length > 0)
   margin-left: 2px;
   display: grid;
   place-items: center;
-  font-size: 15px;
+  font-size: var(--fs-lg);
   line-height: 1;
   color: var(--text-tertiary);
   background: transparent;

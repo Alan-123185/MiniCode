@@ -4,7 +4,7 @@
     <div class="modal-panel" role="dialog" aria-modal="true" aria-label="设置">
       <div class="modal-header">
         <h3>设置</h3>
-        <button class="close-btn" title="关闭 (Esc)" aria-label="关闭设置" @click="close">
+        <button class="close-btn icon-btn danger" title="关闭 (Esc)" aria-label="关闭设置" @click="close">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -86,7 +86,7 @@
           <div class="btn-row">
             <button
               v-if="editingId === null"
-              class="primary-btn"
+              class="primary-btn btn-primary"
               :disabled="adding || listLoading"
               title="新增模型到后端数据库 (POST /MiniCode/add_model), 添加后立即生效"
               @click="addModelFromForm"
@@ -95,7 +95,7 @@
             </button>
             <button
               v-else
-              class="primary-btn"
+              class="primary-btn btn-primary"
               :disabled="updating || listLoading"
               title="保存对该模型的修改 (POST /MiniCode/update_model)"
               @click="updateModelFromForm"
@@ -104,7 +104,7 @@
             </button>
             <button
               v-if="editingId !== null"
-              class="ghost-btn"
+              class="ghost-btn btn-secondary"
               :disabled="updating"
               title="放弃修改, 退出编辑模式"
               @click="cancelEdit"
@@ -112,7 +112,7 @@
               取消编辑
             </button>
             <button
-              class="ghost-btn"
+              class="ghost-btn btn-secondary"
               :disabled="listLoading || updating"
               title="重新从后端拉取模型列表 (GET /MiniCode/get_model)"
               @click="reloadModels"
@@ -163,7 +163,7 @@
 
           <div class="btn-row">
             <button
-              class="primary-btn"
+              class="primary-btn btn-primary"
               :disabled="savingSettings"
               title="保存生成参数到后端 (POST /MiniCode/settings)"
               @click="saveAppSettings"
@@ -474,28 +474,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 
 .modal-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--fs-md);
   font-weight: 600;
 }
 
+/* 关闭按钮: 复用全局 .icon-btn.danger, 仅收窄命中区适配弹窗头部 */
 .close-btn {
   width: 26px;
   height: 26px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: var(--text-secondary);
-  border: none;
-  border-radius: var(--radius-xs);
-}
-
-.close-btn:hover:not(:disabled) {
-  color: var(--error);
-  background: var(--error-light);
-  box-shadow: none;
-  transform: none;
 }
 
 .modal-body {
@@ -505,7 +491,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 
 .modal-section h4 {
   margin: 0 0 var(--space-3);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -525,7 +511,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 .list-hint {
   margin: 0;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-tertiary);
   background: var(--bg-tertiary);
   border-radius: var(--radius-xs);
@@ -538,31 +524,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
   gap: 6px;
 }
 
-/* 行尾「编辑」图标按钮: 方正小图标, 与 App.vue 顶栏 icon-btn 同形态 */
+/* 行尾「编辑」图标按钮: 复用全局 .icon-btn, 高度对齐同行模型行 (34px) */
 .edit-model-btn {
-  flex: none;
   width: 30px;
   height: 34px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-tertiary);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-}
-
-.edit-model-btn:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-light);
-  border-color: var(--accent-border);
-  box-shadow: none;
-  transform: none;
-}
-
-.edit-model-btn:active:not(:disabled) {
-  transform: scale(0.94);
+  border-radius: var(--radius-sm);
 }
 
 .model-row {
@@ -610,7 +576,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 }
 
 .model-name {
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
@@ -619,7 +585,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 }
 
 .model-url {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -629,7 +595,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 .model-badge {
   flex: none;
   padding: 2px 6px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   line-height: 1.4;
   border-radius: 999px;
 }
@@ -655,7 +621,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 }
 
 .field label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-secondary);
 }
@@ -673,7 +639,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
@@ -694,7 +660,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 
 .field-hint {
   margin: 2px 0 0;
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   color: var(--text-tertiary);
 }
 
@@ -706,7 +672,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 .level-btn {
   flex: 1;
   padding: 6px 8px;
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   color: var(--text-secondary);
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
@@ -735,38 +701,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
   margin-top: var(--space-2);
 }
 
-.primary-btn {
-  background: var(--accent);
-  color: #fff;
-  font-weight: 500;
-  border-radius: var(--radius-xs);
-}
-
-.primary-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.primary-btn:active:not(:disabled) {
-  background: var(--accent-active);
-}
-
-/* 禁用态: 提交中 / 正在拉取列表, 挡掉重复点击 */
-.primary-btn:disabled {
-  cursor: not-allowed;
-  background: var(--bg-tertiary);
-  color: var(--text-tertiary);
-}
-
-.ghost-btn {
-  background: var(--bg-primary);
-  color: var(--accent);
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-xs);
-}
-
-.ghost-btn:hover:not(:disabled) {
-  background: var(--accent-light);
-}
+/* 主/次操作按钮复用全局 .btn-primary / .btn-secondary, 此处不再重复定义颜色与状态 */
 
 .modal-footer {
   padding: var(--space-2) var(--space-4);
@@ -778,11 +713,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   color: var(--text-tertiary);
 }
 
 .footer-hint kbd {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 </style>

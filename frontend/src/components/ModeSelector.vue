@@ -66,12 +66,14 @@ async function onPick(id) {
 </script>
 
 <style scoped>
+/* 无框分段控件: 轻底轨道 + 选中块, 不用整圈描边与逐格分隔线 */
 .mode-selector {
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-  overflow: hidden;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
   flex: none;
 }
 
@@ -79,39 +81,36 @@ async function onPick(id) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 9px;
-  font-size: 12px;
+  padding: 3px 10px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   line-height: 1.5;
   color: var(--text-secondary);
   background: transparent;
   border: none;
-  border-right: 1px solid var(--border-color);
-  transition: color var(--dur-base), background var(--dur-base);
-}
-
-.mode-btn:last-of-type {
-  border-right: none;
+  border-radius: var(--radius-xs);
+  transition: color var(--dur-fast), background var(--dur-fast);
 }
 
 .mode-btn:hover:not(:disabled):not(.active) {
-  color: var(--accent);
-  background: var(--accent-light);
+  color: var(--text-primary);
+  background: transparent;
 }
 
+/* 选中: 抬起的浅色块 + 主文字, 高度一眼可辨但不刺眼 */
 .mode-btn.active {
-  color: var(--accent);
-  background: var(--accent-light);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-xs);
 }
 
-/* 自由飞行是「跳过审批」的高风险模式, 激活时用警示色与普通模式区分 */
+/* 自由飞行是「跳过审批」的高风险模式, 选中时用警示色区分 */
 .mode-btn.active.danger {
   color: var(--warning);
-  background: rgba(217, 119, 6, 0.12);
 }
 
 .mode-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
 }
 

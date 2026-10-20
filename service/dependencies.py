@@ -1,7 +1,6 @@
 from fastapi.params import Depends
 from config.chatConfig import chat_config
 from config.dependencies import get_db, get_graph
-from mapper.database import DataBase
 from mapper.modelMapper import modelMapper
 from mapper.sessionMapper import sessionMapper
 from mapper.fileMapper import FileOperationMapper

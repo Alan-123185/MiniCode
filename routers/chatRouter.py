@@ -17,7 +17,7 @@ from service.dependencies import get_chat_service
 from utils.titleCreateTool import new_title
 
 router = APIRouter()
-
+router = APIRouter()
 
 def _info_result(interrupt_result):
     """把"仅提示"类事件 (interrupt_type_info) 转成下发前端的 Result。

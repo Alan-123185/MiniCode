@@ -1,5 +1,4 @@
 from langchain_core.messages import BaseMessage
-from pydantic import BaseModel
 
 from states.OverallState import OverAllState
 

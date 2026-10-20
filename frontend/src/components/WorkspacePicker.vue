@@ -71,31 +71,37 @@ defineExpose({ isElectron })
 </script>
 
 <style scoped>
+/* 输入区底部目录选择: 安静文本按钮, 与模式选择器/快捷键提示同处一行,
+   不再单独套一层描边容器 (输入区周围只保留 input-box 一层轮廓) */
 .workspace-picker {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 11px;
-  font-size: 12.5px;
+  gap: 5px;
+  padding: 4px 8px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-secondary);
   background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
+  border: none;
+  border-radius: var(--radius-sm);
 }
 
 .workspace-picker:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-light);
-  border-color: var(--accent-border);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border: none;
   box-shadow: none;
   transform: none;
 }
 
+/* 已绑定: 只读状态文本, 用强调色点出"已生效", 但不做底色块 */
 .workspace-picker.active {
-  color: var(--accent);
-  background: var(--accent-light);
-  border-color: var(--accent-border);
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.workspace-picker.active .picker-icon {
+  color: var(--success);
 }
 
 .workspace-picker:disabled {
@@ -110,8 +116,13 @@ defineExpose({ isElectron })
   cursor: default;
 }
 
+.workspace-picker.bound:hover:not(:disabled) {
+  background: transparent;
+}
+
 .picker-icon {
   flex: none;
+  opacity: 0.8;
 }
 
 .picker-spinner {

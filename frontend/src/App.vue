@@ -14,7 +14,6 @@
 
       <div class="titlebar-actions">
         <WorkspaceBadge />
-        <div class="action-divider" role="separator" aria-orientation="vertical"></div>
         <button
           class="icon-btn"
           :title="isDarkMode ? '切换到浅色主题 (Ctrl+Shift+L)' : '切换到深色主题 (Ctrl+Shift+L)'"
@@ -201,14 +200,14 @@ onBeforeUnmount(() => {
   background: var(--bg-primary);
 }
 
-/* ---------- 顶部工具栏 ---------- */
+/* ---------- 顶部工具栏: 轻量结构条, 无装饰分隔 ---------- */
 .titlebar {
   height: var(--topbar-height);
   min-height: var(--topbar-height);
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: 0 var(--space-4);
+  gap: var(--space-3);
+  padding: 0 var(--space-3) 0 var(--space-4);
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   user-select: none;
@@ -217,15 +216,13 @@ onBeforeUnmount(() => {
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding-right: var(--space-4);
-  border-right: 1px solid var(--border-color);
+  flex: none;
 }
 
 .brand-name {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--text-primary);
 }
 
@@ -241,51 +238,20 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 
 .titlebar-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   flex: none;
 }
 
-.action-divider {
-  width: 1px;
-  height: 18px;
-  margin: 0 var(--space-1);
-  background: var(--border-color);
-}
-
-/* 顶栏图标按钮 (设置 / 主题): 方正的桌面工具栏形态 */
-.icon-btn {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-}
-
-.icon-btn:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-light);
-  border-color: var(--accent-border);
-  box-shadow: none;
-  transform: none;
-}
-
-.icon-btn:active:not(:disabled) {
-  transform: scale(0.94);
-}
+/* 顶栏图标按钮: 复用全局 .icon-btn (无底无框, hover 才浮现), 此处不再重复定义 */
 
 /* ---------- 主工作区 ---------- */
 .app-body {
@@ -327,7 +293,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--space-4);
   padding: 0 var(--space-4);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-secondary);
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
@@ -342,30 +308,25 @@ onBeforeUnmount(() => {
 }
 
 .status-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex: none;
 }
 
 .status-dot.ok {
   background: var(--success);
-  box-shadow: 0 0 0 3px var(--success-light);
 }
 
 .status-dot.bad {
   background: var(--error);
-  box-shadow: 0 0 0 3px var(--error-light);
 }
 
+/* 运行环境标签: 纯文本, 不做徽章底色 */
 .status-mode {
-  padding: 0 6px;
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--accent);
-  background: var(--accent-light);
-  border-radius: 3px;
+  color: var(--text-secondary);
 }
 
 .status-text {
@@ -392,7 +353,7 @@ onBeforeUnmount(() => {
 }
 
 .kbd-hint {
-  opacity: 0.85;
+  color: var(--text-tertiary);
 }
 
 .kbd-hint kbd {

@@ -1,75 +1,80 @@
 /* =========================================================
-   MiniCode 全局样式 · Desktop-first 设计系统
-   设计基调: 简约 / 高级 (Linear & Raycast 质感)
-   —— 柔和阴影、克制圆角、低饱和度主色、细腻微交互
-   规范: 8pt 间距 / 圆角 6-8-12 / 阴影 3 级 / 动效 150-250ms
+   MiniCode 全局样式 · 统一设计规范 (现代专业开发者工具)
+   设计原则: 内容为中心 / 克制的强调色 / 轻边框 / 明确的明暗层次
+   —— 按钮默认安静 (透明底 + 轻 hover), 仅主操作使用强调色实底
+   —— 结构分区靠明暗 (标题栏/侧栏/状态栏 vs 对话主区), 不靠框线
+   规范: 字号 11/12/13/14/15/18/20 · 间距 4-8pt · 圆角 4/6/8 · 阴影仅弹层
    ========================================================= */
 
-/* ---------- 1. 设计 Token: 颜色 ---------- */
+/* ---------- 1. 设计 Token: 颜色 (浅色主题) ---------- */
 :root {
-  /* 中性色 50-900 (亮色主题) */
-  --gray-50: #f9fafb;
-  --gray-100: #f3f4f6;
-  --gray-200: #e5e7eb;
-  --gray-300: #d1d5db;
-  --gray-400: #9ca3af;
-  --gray-500: #6b7280;
-  --gray-600: #4b5563;
-  --gray-700: #374151;
-  --gray-800: #1f2937;
-  --gray-900: #111827;
-
-  /* 背景 / 前景 (语义映射) */
+  /* 背景层级: primary 对话主区 / secondary 结构区(顶栏·侧栏·状态栏) / tertiary 悬停与嵌套 / elevated 弹层 */
   --bg-primary: #ffffff;
-  --bg-secondary: var(--gray-50);
-  --bg-tertiary: var(--gray-100);
-  --bg-hover: rgba(15, 23, 42, 0.04);
-  /* 毛玻璃: 悬浮输入框半透明底 (配合 backdrop-filter 模糊) */
-  --bg-glass: rgba(255, 255, 255, 0.72);
+  --bg-secondary: #f6f7f9;
+  --bg-tertiary: #ecedf0;
+  --bg-elevated: #ffffff;
+  --bg-hover: rgba(20, 24, 32, 0.05);
 
-  --text-primary: var(--gray-800);
-  --text-secondary: var(--gray-500);
-  --text-tertiary: var(--gray-400);
+  /* 文字层级: 三档均满足 WCAG AA (>=4.5:1) —— tertiary 是最弱一档辅助文字,
+     仍须在 bg-tertiary/accent-light 这类浅底上可读, 故取 #5f6b7d 而非更浅的灰 */
+  --text-primary: #1b1f27;
+  --text-secondary: #5a6270;
+  --text-tertiary: #5f6b7d;
   --text-inverse: #ffffff;
 
-  /* 边框: 1px 低对比 */
-  --border-color: var(--gray-200);
-  --border-strong: var(--gray-300);
-  --accent-border: #c7d7f8;
+  /* 边框: 轻而明确, 只用于必要的分隔与控件轮廓 */
+  --border-color: #e2e5e9;
+  --border-strong: #d0d4da;
 
-  /* 主色: 低饱和度蓝 */
-  --accent: #4f7cf0;
-  --accent-hover: #3f6ce2;
-  --accent-active: #3459c7;
-  --accent-light: #eef3fe;
-  --accent-ring: rgba(79, 124, 240, 0.35);
+  /* 主强调色: 只用于选中 / 焦点 / 关键操作 / 状态指示。
+     取值需同时满足「白字压在强调色上」与「强调色作为文字压在浅底上」两向 AA */
+  --accent: #3f5fd8;
+  --accent-hover: #3552c4;
+  --accent-active: #2d47ab;
+  --accent-light: #eef1fe;
+  --accent-border: #ccd6fb;
+  --accent-ring: rgba(63, 95, 216, 0.3);
 
   /* 语义色: 成功 / 警告 / 错误 / 信息 */
-  --success: #34a97b;
-  --success-light: #e7f6ef;
-  --warning: #d97706;
-  --warning-light: #fdf3e3;
-  --error: #e05252;
-  --error-hover: #d93636;
-  --error-light: #fdecec;
-  --info: #4f7cf0;
-  --info-light: #eef3fe;
+  --success: #1f7a4d;
+  --success-light: #e9f6ef;
+  --warning: #8f5d0d;
+  --warning-light: #faf2e2;
+  --error: #c43535;
+  --error-hover: #b02c2c;
+  --error-light: #fbecec;
+  --info: #3f5fd8;
+  --info-light: #eef1fe;
 
   /* 代码块: 恒定深色 (亮暗主题一致, 代码阅读稳定) */
-  --code-bg: #161b26;
-  --code-fg: #dbe2ee;
-  --code-border: rgba(255, 255, 255, 0.08);
-  /* 行内代码: 背景随主题变化, 故文字色需一并切换, 保证在浅/深底上均可读 */
-  --code-inline-fg: #2f66c4;
-  --code-inline-bg: var(--gray-100);
+  --code-bg: #16181e;
+  --code-fg: #d9dde6;
+  --code-border: rgba(255, 255, 255, 0.07);
+  --code-inline-fg: #3a5fc0;
+  --code-inline-bg: #f0f2f5;
 
-  /* ---------- 2. 设计 Token: 排版 ---------- */
+  /* ---------- 2. 排版 ---------- */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New',
     monospace;
 
-  /* ---------- 3. 设计 Token: 间距 (8pt 系统, --space-1 为半格) ---------- */
+  /* 字号阶: xs 标注 / sm 辅助 / base 控件 / md 正文输入 / lg 消息正文 / xl 区块标题 / 2xl 页面标题
+     组件内一律引用变量, 不再出现 12.5px / 11.5px 这类脱离阶次的字面量 */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 15px;
+  --fs-xl: 18px;
+  --fs-2xl: 20px;
+
+  /* 行高: 紧凑(控件) / 常规(正文) / 宽松(长文阅读) */
+  --lh-tight: 1.35;
+  --lh-base: 1.5;
+  --lh-relaxed: 1.7;
+
+  /* ---------- 3. 间距 (8pt 系统, --space-1 为半格) ---------- */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -80,88 +85,79 @@
   --space-10: 40px;
   --space-12: 48px;
 
-  /* ---------- 4. 设计 Token: 圆角 6/8/12 ---------- */
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
+  /* ---------- 4. 圆角: 收敛为 4/6/8 ---------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
   --radius-pill: 999px;
 
-  /* ---------- 5. 设计 Token: 阴影 3 级 (+xs 兼容旧组件) ---------- */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.1);
-  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.16);
+  /* ---------- 5. 阴影: 仅弹层使用 ---------- */
+  --shadow-xs: 0 1px 2px rgba(16, 20, 28, 0.05);
+  --shadow-sm: 0 1px 2px rgba(16, 20, 28, 0.06);
+  --shadow-md: 0 6px 20px rgba(16, 20, 28, 0.12);
+  --shadow-lg: 0 16px 44px rgba(16, 20, 28, 0.18);
 
-  /* ---------- 6. 设计 Token: 动效 ---------- */
-  --dur-fast: 150ms;
-  --dur-base: 200ms;
-  --dur-slow: 250ms;
+  /* ---------- 6. 动效: 短促、无弹跳 ---------- */
+  --dur-fast: 120ms;
+  --dur-base: 160ms;
+  --dur-slow: 220ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* ---------- 7. 设计 Token: 布局骨架 ---------- */
-  --topbar-height: 48px;
+  /* ---------- 7. 布局骨架 ---------- */
+  --topbar-height: 46px;
   --statusbar-height: 28px;
-  --sidebar-width: 268px;
-  /* 手动折叠态侧边栏宽度 (App.vue 折叠按钮点击后收窄为图标栏) */
-  --sidebar-collapsed-width: 56px;
-  /* 页面整体最小可用宽度: 仅低于此值才允许整页横向滚动 */
+  --sidebar-width: 264px;
+  --sidebar-collapsed-width: 52px;
   --app-min-width: 360px;
+  /* 对话内容通道宽度: 消息列与输入框共用同一值, 保证左右边缘严格对齐。
+     760px 在 14px 字号下约 54 个汉字/行, 是长文与代码块都舒适的阅读宽度 */
+  --content-max: 760px;
 }
 
-/* ---------- 8. 暗色主题 (App.vue 切换 .dark-mode) ---------- */
+/* ---------- 8. 暗色主题 (App.vue 切换 .dark-mode) ----------
+   层次策略: 结构区 (顶栏/侧栏/状态栏) 比对话主区更暗, 形成明暗分区 */
 .dark-mode {
-  --gray-50: #1a1c22;
-  --gray-100: #22242c;
-  --gray-200: #2e313b;
-  --gray-300: #3c404d;
-  --gray-400: #6b7180;
-  --gray-500: #9aa1ac;
-  --gray-600: #b8bec8;
-  --gray-700: #d5d9e0;
-  --gray-800: #e8eaed;
-  --gray-900: #f4f5f7;
-
-  --bg-primary: #1d1f24;
-  --bg-secondary: #17181c;
-  --bg-tertiary: #26282f;
+  --bg-primary: #1b1d22;
+  --bg-secondary: #141619;
+  --bg-tertiary: #26292f;
+  --bg-elevated: #212429;
   --bg-hover: rgba(255, 255, 255, 0.05);
-  /* 毛玻璃: 悬浮输入框半透明底 (暗色) */
-  --bg-glass: rgba(29, 31, 36, 0.72);
 
-  --text-primary: #e8eaed;
-  --text-secondary: #9aa1ac;
-  --text-tertiary: #6b7180;
-  --text-inverse: #17181c;
+  --text-primary: #e6e8ec;
+  --text-secondary: #98a0ab;
+  --text-tertiary: #8b93a1;
+  --text-inverse: #141619;
 
-  --border-color: #33363e;
-  --border-strong: #454954;
-  --accent-border: #3a4f85;
+  --border-color: #2b2e35;
+  --border-strong: #3a3e46;
 
-  --accent: #6b93f5;
-  --accent-hover: #7fa1f7;
-  --accent-active: #5b7fe0;
-  --accent-light: #26314a;
-  --accent-ring: rgba(107, 147, 245, 0.4);
+  --accent: #6b8cf5;
+  --accent-hover: #7e9bf7;
+  --accent-active: #5b7ae0;
+  --accent-light: #232a3d;
+  --accent-border: #35415e;
+  --accent-ring: rgba(107, 140, 245, 0.35);
 
-  --success: #46bd8d;
-  --success-light: #1d3229;
-  --warning: #e8930c;
-  --warning-light: #33270f;
-  --error: #e06c6c;
-  --error-hover: #e88181;
-  --error-light: #3a2225;
+  --success: #4cbf8f;
+  --success-light: #1a2b23;
+  --warning: #d99a3a;
+  --warning-light: #2c2313;
+  --error: #e07070;
+  --error-hover: #e88282;
+  --error-light: #32201f;
+  --info: #6b8cf5;
+  --info-light: #232a3d;
 
-  --code-bg: #14161d;
+  --code-bg: #121419;
   --code-fg: #d5dae4;
   --code-border: rgba(255, 255, 255, 0.06);
-  --code-inline-fg: #8fbdf7;
-  --code-inline-bg: var(--bg-tertiary);
+  --code-inline-fg: #92b2f7;
+  --code-inline-bg: #26292f;
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.55);
 }
 
 /* ---------- 9. Reset ---------- */
@@ -179,13 +175,12 @@ body,
 
 body {
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1.5;
   color: var(--text-primary);
   background: var(--bg-primary);
   -webkit-font-smoothing: antialiased;
   transition: background-color var(--dur-slow) ease, color var(--dur-slow) ease;
-  /* 响应式: 仅窄于最小可用宽度时才出现整页横向滚动 */
   min-width: var(--app-min-width);
 }
 
@@ -204,60 +199,137 @@ textarea:focus-visible {
   outline: none;
 }
 
-/* ---------- 11. 全局按钮微交互 ---------- */
-/*
-  所有按钮默认获得:
-  - 平滑过渡        transition: all var(--dur-base) ease-in-out
-  - Hover 上浮      translateY(-1px) + 阴影加深 (呼吸感)
-  - Active 按压     scale(0.96), 松手快速回弹
-  组件内可用更高特异性的 scoped 规则定制背景色, 微交互自动继承。
-*/
+/* ---------- 11. 全局按钮规范 ----------
+   默认安静: 透明底、无边框、无位移, hover 仅一层轻底色。
+   主操作 (发送/批准/保存/删除确认) 由组件显式声明强调色实底。
+   次要操作 = 图标/文字 + 轻 hover, 不与内容争夺注意力。 */
 button {
   appearance: none;
   -webkit-appearance: none;
   font: inherit;
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
+  color: inherit;
+  background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 7px 14px;
+  padding: 6px 12px;
   cursor: pointer;
   user-select: none;
   outline: none;
-  transition: all var(--dur-base) ease-in-out;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease, opacity var(--dur-fast) ease;
 }
 
-/* Hover: 极轻微上浮 + 阴影加深, 营造"可点击"的呼吸感 */
 button:hover:not(:disabled) {
-  background: var(--bg-tertiary);
-  background-image: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.06),
-    rgba(0, 0, 0, 0.04)
-  );
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  background: var(--bg-hover);
 }
 
-/* Active: 明显按压反馈, 按下瞬时生效(短时长), 松开后由默认 200ms 回弹 */
 button:active:not(:disabled) {
-  transform: translateY(0) scale(0.96);
-  box-shadow: var(--shadow-xs);
-  transition-duration: 80ms;
+  opacity: 0.85;
 }
 
-/* 键盘可达性: 焦点环 */
-button:focus-visible {
-  box-shadow: 0 0 0 3px var(--accent-ring);
-  transform: none;
-}
-
-/* Disabled: 禁用态禁止一切动效 */
+/* 禁用态: 降权但不隐藏语义 */
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
-  transform: none !important;
-  box-shadow: none !important;
+  opacity: 0.5;
+}
+
+/* ---------- 11b. 按钮变体 (全局共享, 组件不再各自重复定义) ----------
+   三级权重, 全应用统一:
+     .btn-primary   主操作 (发送/批准/保存/删除确认) —— 强调色实底, 一屏最多一个
+     .btn-secondary 次要操作 (取消/刷新/重试) —— 轻描边, hover 仅一层底色
+     .btn-danger    破坏性操作 (删除) —— 错误色实底
+     .icon-btn      纯图标操作 (顶栏/行尾) —— 无底无框, hover 才浮现
+   组件只负责尺寸微调 (padding/font-size), 颜色与状态一律继承这里。 */
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: 6px 14px;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.btn-primary {
+  color: var(--text-inverse);
+  background: var(--accent);
+  border: 1px solid transparent;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-primary:active:not(:disabled) {
+  background: var(--accent-active);
+  opacity: 1;
+}
+
+.btn-primary:disabled {
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  opacity: 1;
+}
+
+.btn-secondary {
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.btn-danger {
+  color: var(--text-inverse);
+  background: var(--error);
+  border: 1px solid transparent;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--error-hover);
+}
+
+.btn-danger:active:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* 图标按钮: 28px 方形命中区, 无底无框, 只在 hover 时浮现一层底色 */
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.icon-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.icon-btn:active:not(:disabled) {
+  opacity: 0.75;
+}
+
+/* 危险图标按钮 (关闭/删除): hover 才染错误色 */
+.icon-btn.danger:hover:not(:disabled) {
+  color: var(--error);
+  background: var(--error-light);
 }
 
 /* ---------- 12. 输入控件 ---------- */
@@ -268,10 +340,15 @@ textarea {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: 7px 10px;
   outline: none;
   transition: border-color var(--dur-base) ease-in-out,
     box-shadow var(--dur-base) ease-in-out;
+}
+
+input:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--border-strong);
 }
 
 input:focus,
@@ -282,24 +359,21 @@ textarea:focus {
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--text-secondary);
-  opacity: 0.6;
+  color: var(--text-tertiary);
 }
 
-/* 键盘按键提示 (kbd): 快捷键说明的桌面端标准形态 */
+/* 键盘按键提示 (kbd): 无边框的轻底小块, 不做拟物描边 */
 kbd {
   display: inline-block;
-  min-width: 18px;
-  padding: 1px 5px;
+  min-width: 16px;
+  padding: 0 4px;
   font-family: var(--font-sans);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--fs-xs);
+  line-height: 17px;
   text-align: center;
   color: var(--text-secondary);
   background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-bottom-width: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 /* ---------- 13. 滚动条美化 (Linear 风格的纤细滚动条) ---------- */
@@ -330,9 +404,10 @@ kbd {
   background: rgba(150, 156, 168, 0.48);
 }
 
-/* ---------- 14. Markdown 正文样式 (全局, 供 v-html 渲染) ---------- */
+/* ---------- 14. Markdown 正文样式 (全局, 供 v-html 渲染) ----------
+   统一的阅读排版: 14px/1.7 正文, 标题分级清晰, 克制的强调色 */
 .md-body {
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1.7;
   word-break: break-word;
 }
@@ -351,52 +426,65 @@ kbd {
 .md-body h4,
 .md-body h5,
 .md-body h6 {
-  margin: 16px 0 8px;
+  margin: 18px 0 8px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: var(--lh-tight);
   color: var(--text-primary);
 }
 
-.md-body h1 { font-size: 20px; }
-.md-body h2 { font-size: 17px; }
-.md-body h3 { font-size: 15px; }
+/* 标题层级: 18/15/14/13 四级递减, 全部取自字号阶 (不再出现 16px 这类阶外值) */
+.md-body h1 {
+  font-size: var(--fs-xl);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.md-body h2 {
+  font-size: var(--fs-lg);
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.md-body h3 { font-size: var(--fs-md); }
 .md-body h4,
 .md-body h5,
-.md-body h6 { font-size: 14px; }
+.md-body h6 { font-size: var(--fs-base); }
 
 .md-body p {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 
 .md-body ul,
 .md-body ol {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   padding-left: 22px;
 }
 
 .md-body li {
-  margin: 2px 0;
+  margin: 3px 0;
+}
+
+.md-body li > p {
+  margin: 0;
 }
 
 .md-body a {
   color: var(--accent);
   text-decoration: none;
-  border-bottom: 1px solid var(--accent-border);
 }
 
 .md-body a:hover {
-  color: var(--accent-hover);
-  border-bottom-color: var(--accent);
+  text-decoration: underline;
 }
 
+/* 行内代码: 轻底无描边 */
 .md-body code {
-  padding: 2px 6px;
+  padding: 1.5px 5px;
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--code-inline-fg);
   background: var(--code-inline-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 /* 代码块: 恒定深色背景 + 右上角复制按钮 (结构由 ChatWindow 注入) */
@@ -406,47 +494,44 @@ kbd {
   overflow-x: auto;
   max-width: 100%;
   font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.6;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-relaxed);
   color: var(--code-fg);
   background: var(--code-bg);
-  border: 1px solid var(--code-border);
-  border-radius: var(--radius-sm);
 }
 
-.md-body pre code {
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: inherit;
-  font-size: inherit;
-}
-
+/* .md-code 包裹容器: 承载右上角复制按钮 */
 .md-code {
   position: relative;
-  margin: 8px 0;
+  margin: 10px 0;
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--code-bg);
+}
+
+.md-code pre {
+  border-radius: 0;
 }
 
 .md-code .md-copy-btn {
   position: absolute;
   top: 6px;
   right: 6px;
-  z-index: 1;
-  padding: 2px 8px;
-  font-size: 11px;
-  line-height: 16px;
-  color: rgba(219, 226, 238, 0.7);
+  padding: 3px 8px;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
+  border: none;
+  border-radius: var(--radius-xs);
   opacity: 0;
-  transform: translateY(-2px);
+  transition: opacity var(--dur-fast) ease, background var(--dur-fast) ease;
 }
 
 .md-code:hover .md-copy-btn,
 .md-code .md-copy-btn:focus-visible {
   opacity: 1;
-  transform: translateY(0);
 }
 
 .md-code .md-copy-btn:hover {
@@ -455,12 +540,10 @@ kbd {
 }
 
 .md-body blockquote {
-  margin: 8px 0;
-  padding: 6px 12px;
-  border-left: 3px solid var(--accent-border);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  margin: 10px 0;
+  padding: 4px 14px;
+  border-left: 3px solid var(--border-strong);
   color: var(--text-secondary);
-  background: var(--bg-secondary);
 }
 
 .md-body blockquote p {
@@ -468,9 +551,9 @@ kbd {
 }
 
 .md-body table {
-  margin: 8px 0;
+  margin: 10px 0;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--fs-base);
   display: block;
   max-width: 100%;
   overflow-x: auto;
@@ -484,13 +567,13 @@ kbd {
 }
 
 .md-body th {
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .md-body hr {
-  margin: 14px 0;
+  margin: 16px 0;
   border: none;
   border-top: 1px solid var(--border-color);
 }
@@ -498,6 +581,15 @@ kbd {
 .md-body img {
   max-width: 100%;
   border-radius: var(--radius-sm);
+}
+
+/* pre 内嵌 code: 覆盖行内代码的底色/内边距 */
+.md-body pre code {
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: inherit;
 }
 
 /* ---------- 15. 全局共享动画 (组件中被引用的 keyframes 统一定义) ---------- */

@@ -90,7 +90,7 @@ watch(
   position: relative;
   display: inline-flex;
   align-items: center;
-  max-width: 260px;
+  max-width: 240px;
   animation: badgeIn 0.35s var(--ease-out) both;
 }
 
@@ -105,25 +105,27 @@ watch(
   }
 }
 
+/* 顶栏目录指示: 无底色无描边的安静文本, 与主题/设置图标同一视觉权重。
+   已绑定时是只读状态文本, 未绑定时才是一个可点的次要操作。 */
 .badge-body {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
-  padding: 4px 10px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: var(--fs-sm);
   color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-pill);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
   box-shadow: none;
 }
 
 .badge-body:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-light);
-  border-color: var(--accent-border);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border: none;
   box-shadow: none;
   transform: none;
 }
@@ -136,7 +138,7 @@ watch(
 
 .badge-icon {
   flex: none;
-  opacity: 0.85;
+  opacity: 0.7;
 }
 
 .badge-text {
@@ -150,7 +152,7 @@ watch(
 .badge-pulse {
   position: absolute;
   inset: -2px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   pointer-events: none;
   opacity: 0;
 }
@@ -170,8 +172,15 @@ watch(
   }
 }
 
+/* 未绑定: 用虚线轮廓提示"这里可以点", 但仍是轻量文本按钮而非胶囊徽章 */
 .workspace-badge.empty .badge-body {
-  border-style: dashed;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-tertiary);
+}
+
+.workspace-badge.empty .badge-body:hover:not(:disabled) {
+  color: var(--text-secondary);
+  border-color: var(--text-tertiary);
   background: transparent;
 }
 </style>

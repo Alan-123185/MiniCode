@@ -11,7 +11,7 @@
         <p class="empty-title">开始一个新的对话吧</p>
         <p class="empty-sub">点击下方建议快速开始，或按 <kbd>Ctrl</kbd>+<kbd>N</kbd> 新建会话</p>
         <div class="suggestions">
-          <button v-for="s in suggestions" :key="s" class="chip" @click="quickAsk(s)">{{ s }}</button>
+          <button v-for="s in suggestions" :key="s" class="chip btn-secondary" @click="quickAsk(s)">{{ s }}</button>
         </div>
       </div>
 
@@ -21,33 +21,40 @@
         :class="[
           'message',
           message.role === 'user' ? 'user' : 'assistant',
-          { streaming: message.type === 'stream', failed: message.type === 'error' },
+          {
+            streaming: message.type === 'stream',
+            failed: message.type === 'error',
+            editing: editingIndex === index,
+          },
         ]"
       >
-        <button
-          class="msg-copy"
-          :title="`复制${message.role === 'user' ? '你的' : '这条'}消息`"
-          @click="copyMessage(message, $event)"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-        </button>
-        <!-- 用户消息: 编辑重发 (时间旅行, POST /MiniCode/editMessage) -->
-        <button
-          v-if="message.role === 'user' && !store.isCurrentSessionStreaming && editingIndex !== index"
-          class="msg-edit"
-          title="编辑并重新生成"
-          @click="startEdit(message, index)"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-          </svg>
-        </button>
         <div class="message-role">
-          {{ message.role === 'user' ? '你' : 'AI' }}
+          <span class="role-name">{{ message.role === 'user' ? '你' : 'AI' }}</span>
           <span v-if="message.status === 'sending'" class="sending-tag">发送中…</span>
+          <!-- 行内操作: 与角色标注同处一行, 不脱离内容通道 (旧实现绝对定位到框外, 窄屏会溢出) -->
+          <span class="msg-actions">
+            <button
+              class="msg-copy icon-btn"
+              :title="`复制${message.role === 'user' ? '你的' : '这条'}消息`"
+              @click="copyMessage(message, $event)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+            <!-- 用户消息: 编辑重发 (时间旅行, POST /MiniCode/editMessage) -->
+            <button
+              v-if="message.role === 'user' && !store.isCurrentSessionStreaming && editingIndex !== index"
+              class="msg-edit icon-btn"
+              title="编辑并重新生成"
+              @click="startEdit(message, index)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+              </svg>
+            </button>
+          </span>
         </div>
         <!-- 编辑态: textarea 内联编辑, 保存后从该消息重新生成 -->
         <div v-if="message.role === 'user' && editingIndex === index" class="msg-editor">
@@ -63,14 +70,14 @@
           ></textarea>
           <div class="msg-editor-actions">
             <button
-              class="msg-editor-save"
+              class="msg-editor-save btn-primary"
               :disabled="!editingText.trim() || editing"
               :title="'保存修改并从这条消息重新生成 (Ctrl+Enter)'"
               @click="saveEdit(message)"
             >
               {{ editing ? '重新生成中…' : '保存并重新生成' }}
             </button>
-            <button class="msg-editor-cancel" title="取消编辑 (Esc)" @click="cancelEdit">取消</button>
+            <button class="msg-editor-cancel btn-secondary" title="取消编辑 (Esc)" @click="cancelEdit">取消</button>
             <span class="msg-editor-hint">修改会从这条消息开始覆盖其后的对话</span>
           </div>
         </div>
@@ -78,7 +85,7 @@
         <div v-if="message.role === 'user' && message.status === 'failed'" class="send-failed">
           <span class="send-failed-text">发送失败{{ message.error ? `: ${message.error}` : '' }}</span>
           <button
-            class="retry-btn"
+            class="retry-btn btn-secondary"
             :disabled="store.isCurrentSessionStreaming"
             title="重新发送这条消息"
             @click="store.retrySend(message)"
@@ -150,12 +157,12 @@
         <span class="resume-icon" aria-hidden="true">⟲</span>
         <span class="resume-text">上次生成因异常中断, 可从最近的检查点继续</span>
         <button
-          class="resume-btn"
+          class="resume-btn btn-primary"
           :disabled="store.isCurrentSessionStreaming"
           title="从后端最近的安全检查点继续执行"
           @click="store.continueSession()"
         >继续生成</button>
-        <button class="resume-dismiss" title="忽略" @click="dismissResume">×</button>
+        <button class="resume-dismiss icon-btn" title="忽略" @click="dismissResume">×</button>
       </div>
     </transition>
 
@@ -172,8 +179,8 @@
         <template v-else>{{ activeApproval.message }}</template>
       </div>
       <div class="approval-actions">
-        <button :disabled="store.isCurrentSessionStreaming" @click="store.approve('yes')">批准</button>
-        <button :disabled="store.isCurrentSessionStreaming" class="reject" @click="store.approve('no')">拒绝</button>
+        <button class="btn-primary" :disabled="store.isCurrentSessionStreaming" @click="store.approve('yes')">批准</button>
+        <button class="reject btn-secondary" :disabled="store.isCurrentSessionStreaming" @click="store.approve('no')">拒绝</button>
       </div>
     </div>
     <MessageInput />
@@ -464,44 +471,54 @@ watch(
 .message-list {
   flex: 1;
   overflow-y: auto;
-  /* 内容通道居中: 宽屏两侧自适应留白, 视线不左右扫射; 底部预留悬浮输入区 */
-  padding: var(--space-5) max(var(--space-5), calc((100% - 880px) / 2)) var(--space-6);
+  /* 内容通道居中: 与输入框共用 --content-max, 左右边缘严格对齐, 视线不左右扫射 */
+  padding: var(--space-5) max(var(--space-5), calc((100% - var(--content-max)) / 2)) var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
-/* ---------- 消息气泡 ---------- */
+/* ---------- 消息: AI 回复融入背景, 用户消息为轻量浅底块 ----------
+   所有消息与输入框共用同一条内容通道 (--content-max), 左边缘严格对齐:
+   AI 回复占满通道宽度, 用户消息靠右但右边缘与通道右边缘重合。 */
 .message {
   position: relative;
-  /* 舒适阅读宽度: 最大 800px, 且不超出居中通道 82% */
-  max-width: min(800px, 82%);
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  line-height: 1.6;
+  width: 100%;
+  max-width: var(--content-max);
+  padding: 0;
+  border-radius: 0;
+  line-height: var(--lh-relaxed);
   word-break: break-word;
-  box-shadow: var(--shadow-xs);
-  animation: fadeUp 0.3s var(--ease-out) both;
+  animation: fadeUp 0.25s var(--ease-out) both;
 }
 
 .message.user {
   align-self: flex-end;
-  /* 用户: 靠右 + 淡蓝气泡 (低饱和主色浅底 + 深字, 与 AI 深灰气泡一眼区分) */
-  background: var(--accent-light);
+  /* 用户消息: 次级底色轻块, 无边框无阴影, 与 AI 纯文本形成克制的区分 */
+  width: auto;
+  max-width: min(560px, 88%);
+  padding: 8px 13px;
+  background: var(--bg-tertiary);
   color: var(--text-primary);
-  border: 1px solid var(--accent-border);
+  border: none;
+  border-radius: var(--radius-md);
   border-bottom-right-radius: var(--radius-xs);
 }
 
 .message.user .message-role {
-  color: var(--accent);
+  color: var(--text-tertiary);
+}
+
+/* 编辑态: 用户气泡从「贴合内容」放宽到整条通道, 否则内联编辑器 (min-width 280px)
+   会被 88% 的窄气泡挤到溢出。编辑是临时态, 放宽不影响常态阅读节奏 */
+.message.user.editing {
+  width: 100%;
+  max-width: var(--content-max);
 }
 
 .message.assistant {
-  /* AI 回复融入主背景: 去除气泡底色/边框/圆角/内边距, 块级容器水平居中 (文字仍左对齐) */
-  width: 100%;
-  max-width: min(800px, 82%);
-  margin: 0 auto;
+  /* AI 回复融入主背景: 去除气泡底色/边框/圆角/内边距, 与输入框同宽同左边缘 */
+  align-self: flex-start;
   background: transparent;
   border: none;
   border-radius: 0;
@@ -509,25 +526,56 @@ watch(
   padding: 0;
 }
 
-/* 出错的消息: 语义错误色 (仍为可见卡片, 需恢复内边距/圆角以区别于融入背景的普通 AI 回复) */
+/* 出错的消息: 语义错误底色, 轻描边而非红框 */
 .message.failed {
-  padding: 10px 14px;
+  padding: 8px 13px;
   border-radius: var(--radius-md);
   background: var(--error-light);
-  border: 1px solid var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 35%, transparent);
 }
 
 .message.failed .message-role {
   color: var(--error);
 }
 
+/* 角色标注行: 标注 + 行内操作按钮同处一行, 高度固定避免 hover 时内容跳动 */
 .message-role {
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 20px;
   margin-bottom: 4px;
-  opacity: 0.7;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
   font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* 行内操作: 默认隐形, hover 消息或键盘聚焦时才浮现 (不占视觉重量) */
+.msg-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--dur-fast) ease;
+}
+
+.message:hover .msg-actions,
+.message:focus-within .msg-actions {
+  opacity: 1;
+}
+
+/* 复制/编辑: 复用全局 .icon-btn, 收窄到 20px 以贴合标注行高度 */
+.msg-copy,
+.msg-edit {
+  width: 20px;
+  height: 20px;
+  color: var(--text-tertiary);
+}
+
+.msg-copy.copied {
+  color: var(--success);
+  opacity: 1;
 }
 
 .message-content {
@@ -562,115 +610,9 @@ watch(
   }
 }
 
-/* hover 命中区桥接: 复制/编辑按钮浮在气泡「外侧」(left/right: -30px), 与气泡边缘留有
- * 空隙。鼠标从气泡移向按钮时会先经过空隙而失去 .message:hover, 按钮立刻隐藏且
- * pointer-events: none, 于是永远移不上去 (只能停在文本上)。这里给气泡加一条透明
- * 伪元素, 把 hover 命中区延伸到按钮所在的一侧, 指针即可连续从气泡走到按钮。
- * 伪元素完全透明且层级低于按钮 (按钮 z-index: 2), 不改变视觉, 也不拦截按钮点击。 */
-.message.user::after,
-.message.assistant::after {
-  content: '';
-  position: absolute;
-  top: -4px;
-  /* 覆盖 copy (top: -2) 与 edit (top: 30) 两个按钮的纵向范围 */
-  height: 60px;
-  /* 与按钮的 -30px 偏移同宽, 恰好铺满气泡外侧到按钮的整条通道 */
-  width: 30px;
-}
-
-.message.user::after {
-  left: -30px;
-}
-
-.message.assistant::after {
-  right: -30px;
-}
-
-
-/* 消息复制按钮: hover 浮现于气泡外侧 (桌面鼠标交互) */
-.msg-copy {
-  position: absolute;
-  top: -2px;
-  padding: 3px 5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-tertiary);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-  box-shadow: var(--shadow-xs);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 2;
-  transition: opacity var(--dur-fast) ease, background var(--dur-fast) ease,
-    color var(--dur-fast) ease, transform var(--dur-base) ease-in-out;
-}
-
-.message.user .msg-copy {
-  left: -30px;
-}
-
-.message.assistant .msg-copy {
-  right: -30px;
-}
-
-.message:hover .msg-copy,
-.msg-copy:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.msg-copy:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-light);
-  border-color: var(--accent-border);
-  box-shadow: none;
-  transform: none;
-}
-
-.msg-copy.copied {
-  color: var(--success);
-  border-color: var(--success);
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* 编辑按钮: 与复制按钮同款, 排在其下方 */
-.msg-edit {
-  position: absolute;
-  top: 30px;
-  padding: 3px 5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-tertiary);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-  box-shadow: var(--shadow-xs);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 2;
-  transition: opacity var(--dur-fast) ease, background var(--dur-fast) ease,
-    color var(--dur-fast) ease;
-}
-
-.message.user .msg-edit {
-  left: -30px;
-}
-
-.message:hover .msg-edit,
-.msg-edit:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 .msg-edit:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-light);
-  border-color: var(--accent-border);
-  box-shadow: none;
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 /* ---------- 内联编辑器 (时间旅行) ---------- */
@@ -678,19 +620,21 @@ watch(
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  min-width: 280px;
+  /* 期望宽度 280px, 但允许被压缩: 极窄窗口下宁可窄一点, 也不撑破气泡横向溢出 */
+  width: 280px;
+  max-width: 100%;
 }
 
 .msg-editor-input {
   width: 100%;
   padding: 8px 10px;
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1.6;
   color: var(--text-primary);
   background: var(--bg-primary);
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   resize: vertical;
 }
 
@@ -703,64 +647,42 @@ watch(
 .msg-editor-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-.msg-editor-save {
-  padding: 5px 12px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: #fff;
-  background: var(--accent);
-  border-radius: var(--radius-xs);
-}
-
-.msg-editor-save:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.msg-editor-save:disabled {
-  cursor: not-allowed;
-  background: var(--bg-tertiary);
-  color: var(--text-tertiary);
-}
-
+/* 保存/取消: 复用全局 .btn-primary / .btn-secondary, 仅收窄内边距适配行内编辑器 */
+.msg-editor-save,
 .msg-editor-cancel {
   padding: 5px 12px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-}
-
-.msg-editor-cancel:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
+  flex: none;
 }
 
 .msg-editor-hint {
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   color: var(--text-tertiary);
+  /* 说明文字可换行, 不参与挤压按钮 */
+  min-width: 0;
 }
 
-/* ---------- 中断恢复横幅 ---------- */
+/* ---------- 中断恢复横幅: 轻量提示条, 非重框卡片 ---------- */
 .resume-card {
   margin: 0 var(--space-5) var(--space-3);
   padding: var(--space-2) var(--space-3);
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 13px;
-  color: var(--warning);
-  background: var(--warning-light, var(--bg-secondary));
-  border: 1px solid var(--warning, var(--border-color));
-  border-radius: var(--radius-md);
-  animation: fadeUp 0.3s var(--ease-out) both;
+  font-size: var(--fs-base);
+  color: var(--text-secondary);
+  background: var(--warning-light);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: var(--radius-sm);
+  animation: fadeUp 0.25s var(--ease-out) both;
 }
 
 .resume-icon {
-  font-size: 15px;
+  font-size: var(--fs-md);
+  color: var(--warning);
 }
 
 .resume-text {
@@ -770,15 +692,7 @@ watch(
 
 .resume-btn {
   padding: 4px 12px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: #fff;
-  background: var(--accent);
-  border-radius: var(--radius-xs);
-}
-
-.resume-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
+  font-size: var(--fs-sm);
 }
 
 .resume-btn:disabled {
@@ -786,17 +700,12 @@ watch(
   opacity: 0.6;
 }
 
+/* 忽略按钮: 复用全局 .icon-btn, 收窄命中区以贴合横幅高度 */
 .resume-dismiss {
-  padding: 0 6px;
-  font-size: 16px;
+  width: 22px;
+  height: 22px;
+  font-size: var(--fs-lg);
   line-height: 1;
-  color: var(--text-tertiary);
-  background: transparent;
-  border: none;
-}
-
-.resume-dismiss:hover {
-  color: var(--text-primary);
 }
 
 /* 流式输出时的闪烁光标 */
@@ -818,7 +727,7 @@ watch(
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--text-secondary);
+  background: var(--text-tertiary);
   animation: typingBounce 1.2s infinite;
 }
 
@@ -831,7 +740,7 @@ watch(
   align-items: center;
   gap: var(--space-2);
   padding: 4px 0;
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--text-secondary);
 }
 
@@ -858,14 +767,14 @@ watch(
 }
 
 /* ---------- 乐观发送状态标记 ---------- */
-/* 发送中: 角色行尾部的小标记 */
+/* 乐观发送状态标记 */
 .sending-tag {
   margin-left: 4px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
-  opacity: 0.85;
+  color: var(--text-tertiary);
 }
 
 /* 发送失败: 气泡内错误提示 + 重试入口 (消息不静默消失) */
@@ -874,21 +783,21 @@ watch(
   align-items: center;
   gap: 8px;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--error);
 }
 
 .retry-btn {
   padding: 2px 10px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--error);
-  background: transparent;
-  border: 1px solid var(--error);
-  border-radius: var(--radius-xs);
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
 }
 
 .retry-btn:hover:not(:disabled) {
+  color: var(--error);
   background: var(--error-light);
+  border-color: var(--error);
 }
 
 .retry-btn:disabled {
@@ -896,109 +805,71 @@ watch(
   cursor: not-allowed;
 }
 
-/* ---------- 空状态 ---------- */
+/* ---------- 空状态: 静态简洁图标, 不做装饰动画 ---------- */
 .empty-state {
   margin: auto;
   text-align: center;
   color: var(--text-secondary);
-  animation: fadeUp 0.4s var(--ease-out) both;
+  animation: fadeUp 0.3s var(--ease-out) both;
 }
 
 .empty-icon {
-  font-size: 40px;
-  color: var(--accent);
-  margin-top: -60px;
-  margin-bottom: var(--space-2);
-  animation: blink 2.5s infinite;
+  /* 装饰性字形 (✦), 不属于排版字号阶, 单独取值 */
+  font-size: 30px;
+  color: var(--text-tertiary);
+  margin-top: -48px;
+  margin-bottom: var(--space-3);
 }
 
 .morph-rotate {
   display: inline-block;
   position: relative;
   transform-origin: 50% 200%;
-  animation: slowRotate 8s linear infinite;
 }
 
-.icon-four, .icon-three {
+.icon-four,
+.icon-three {
   display: block;
   width: 40px;
   height: 40px;
 }
 
+/* 三叉形态叠层只在动画时有意义, 静态下隐藏, 仅保留 ✦ */
 .icon-three {
-  position: absolute;
-  top: 0;
-  left: 0;
-  background: var(--accent);
-  clip-path: polygon(
-    50% 5%, 58% 45%, 89% 72%,
-    50% 60%, 11% 72%, 42% 45%
-  );
-  animation: fadeSwap 4s ease-in-out infinite;
-}
-
-.icon-four {
-  animation: fadeSwapReverse 4s ease-in-out infinite;
-}
-
-@keyframes slowRotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes fadeSwap {
-  0%, 35% { opacity: 0; }
-  50%, 85% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-@keyframes fadeSwapReverse {
-  0%, 35% { opacity: 1; }
-  50%, 85% { opacity: 0; }
-  100% { opacity: 1; }
+  display: none;
 }
 
 .empty-title {
   margin: 0 0 var(--space-1);
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .empty-sub {
   margin: 0 0 var(--space-5);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 
 .empty-sub kbd {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 
 .suggestions {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-2);
   flex-wrap: wrap;
   justify-content: center;
-  max-width: 460px;
+  max-width: 480px;
 }
 
+/* 建议入口: 复用全局 .btn-secondary 的描边文字按钮形态, 仅放宽内边距 */
 .chip {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  padding: 8px 14px;
-  font-size: 13px;
-  box-shadow: var(--shadow-xs);
-  border-radius: var(--radius-pill);
+  padding: 7px 13px;
+  font-size: var(--fs-base);
 }
 
-.chip:hover:not(:disabled) {
-  background: var(--accent-light);
-  color: var(--accent);
-  border-color: var(--accent-border);
-}
-
-/* 回到底部按钮: 悬浮于消息列表右下 */
+/* 回到底部: 悬浮于消息列表右下, 轻投影的圆形图标钮 */
 .scroll-bottom-btn {
   position: absolute;
   right: 24px;
@@ -1010,27 +881,29 @@ watch(
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
-  background: var(--bg-primary);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-color);
   border-radius: 50%;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   z-index: 5;
 }
 
 .scroll-bottom-btn:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-light);
-  border-color: var(--accent-border);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
 }
 
-/* ---------- 工具调用折叠窗 (独立卡片容器 + 等宽字体, 与正文 sans 形成层次) ---------- */
+/* ---------- 工具调用折窗: 左侧细竖线做层次, 不包卡片 ---------- */
 .tool-trace {
-  margin: 0 0 var(--space-2);
+  margin: 2px 0 var(--space-2);
   max-width: 100%;
   font-family: var(--font-mono);
-  /* 极简折叠文本: 去除边框/底色/圆角, 融入主背景, 仅保留文字与图标 */
+  padding-left: 10px;
+  border-left: 2px solid var(--border-color);
   background: transparent;
-  border: none;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
   border-radius: 0;
 }
 
@@ -1042,7 +915,7 @@ watch(
   max-width: 100%;
   padding: 4px 6px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-secondary);
   background: transparent;
   border: none;
@@ -1102,7 +975,7 @@ watch(
   align-items: flex-start;
   gap: var(--space-2);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.5;
   color: var(--text-secondary);
 }
@@ -1150,37 +1023,37 @@ watch(
   word-break: break-word;
 }
 
-/* ---------- 审批卡片 ---------- */
+/* ---------- 审批卡片: 中性底 + 左侧警示竖线, 不用大面积强调色底 ---------- */
 .approval-card {
   margin: 0 var(--space-5) var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-md);
-  background: var(--accent-light);
-  box-shadow: var(--shadow-md);
-  animation: fadeUp 0.3s var(--ease-out) both;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  animation: fadeUp 0.25s var(--ease-out) both;
 }
 
 .approval-title {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--accent);
+  color: var(--warning);
   margin-bottom: var(--space-2);
 }
 
 .approval-icon {
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 
 .approval-message {
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   line-height: 1.6;
+  color: var(--text-primary);
   margin-bottom: var(--space-3);
 }
 
@@ -1192,7 +1065,7 @@ watch(
   max-height: 260px;
   overflow-y: auto;
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   line-height: 1.6;
   text-align: left;
   white-space: pre-wrap;
@@ -1205,30 +1078,25 @@ watch(
 
 .approval-actions {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
+/* 批准 = 主操作 (强调实底); 拒绝 = 次要操作 (文字描边), 权重分明 */
 .approval-actions button {
-  background: var(--accent);
-  color: #fff;
-  font-weight: 500;
-  border-radius: var(--radius-xs);
-}
-
-.approval-actions button:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.approval-actions button:active:not(:disabled) {
-  background: var(--accent-active);
+  padding: 5px 16px;
+  font-size: var(--fs-base);
 }
 
 .approval-actions .reject {
-  background: var(--error);
+  color: var(--error);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--error) 45%, transparent);
 }
 
 .approval-actions .reject:hover:not(:disabled) {
-  background: var(--error-hover);
+  color: var(--error);
+  background: var(--error-light);
+  border-color: var(--error);
 }
 
 /* 过渡 */

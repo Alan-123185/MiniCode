@@ -4,7 +4,7 @@
       <h3 v-if="!collapsed">会话</h3>
       <div class="header-actions">
         <button
-          class="collapse-btn"
+          class="collapse-btn icon-btn"
           :title="collapsed ? '展开侧边栏' : '折叠侧边栏'"
           :aria-label="collapsed ? '展开侧边栏' : '折叠侧边栏'"
           :aria-expanded="!collapsed"
@@ -15,7 +15,7 @@
             <line x1="9" y1="3" x2="9" y2="21"></line>
           </svg>
         </button>
-        <button class="new-btn" title="新建对话 (Ctrl+N)" @click="store.requestNewChat()">
+        <button class="new-btn icon-btn" title="新建对话 (Ctrl+N)" @click="store.requestNewChat()">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -80,7 +80,7 @@
           aria-label="等待你的批准"
         >待批准</span>
         <button
-          class="delete-btn"
+          class="delete-btn icon-btn"
           title="删除会话"
           aria-label="删除会话"
           @click.stop="requestDelete(session)"
@@ -150,8 +150,8 @@
           <span class="confirm-warn">删除后无法恢复。</span>
         </p>
         <div class="confirm-actions">
-          <button ref="cancelBtn" class="ghost-btn" @click="cancelDelete">取消 (Esc)</button>
-          <button class="danger-btn" @click="confirmDeleteSession">删除 (Enter)</button>
+          <button ref="cancelBtn" class="ghost-btn btn-secondary" @click="cancelDelete">取消 (Esc)</button>
+          <button class="danger-btn btn-danger" @click="confirmDeleteSession">删除 (Enter)</button>
         </div>
       </div>
     </teleport>
@@ -318,9 +318,9 @@ onBeforeUnmount(() => {
 
 .session-header h3 {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-tertiary);
 }
@@ -331,48 +331,11 @@ onBeforeUnmount(() => {
   padding: var(--space-3) var(--space-1) var(--space-2);
 }
 
-/* 折叠开关按钮: 与新建按钮同款小图标形态 */
-.collapse-btn {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-}
-
-.collapse-btn:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-light);
-  border-color: var(--accent-border);
-  box-shadow: none;
-  transform: none;
-}
-
-/* 新建按钮: 桌面工具栏小图标形态 */
+/* 折叠/新建按钮: 复用全局 .icon-btn, 仅把命中区收到 24px 以适配侧栏头部密度 */
+.collapse-btn,
 .new-btn {
   width: 24px;
   height: 24px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-}
-
-.new-btn:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--accent-light);
-  border-color: var(--accent-border);
-  box-shadow: none;
-  transform: none;
 }
 
 /* 搜索框 */
@@ -390,13 +353,12 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
+/* 搜索框: 融入侧栏的轻量输入 */
 .search-input {
   width: 100%;
   padding: 6px 26px 6px 28px;
-  font-size: 13px;
+  font-size: var(--fs-base);
   background: var(--bg-primary);
-  border-color: var(--border-color);
-  border-radius: var(--radius-xs);
 }
 
 .search-clear {
@@ -408,7 +370,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1;
   color: var(--text-tertiary);
   background: transparent;
@@ -438,17 +400,18 @@ li {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 7px 10px 7px 12px;
   cursor: pointer;
   border-radius: var(--radius-sm);
-  transition: background var(--dur-fast) ease;
-  color: var(--text-primary);
-  font-size: 13.5px;
+  transition: background var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+  color: var(--text-secondary);
+  font-size: var(--fs-base);
   animation: slideLeft 0.2s var(--ease-out) both;
 }
 
 li:hover {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 /* 键盘焦点环 (focus-visible 全局 outline 适配) */
@@ -457,10 +420,12 @@ li:focus-visible {
   outline-offset: -2px;
 }
 
+/* 选中会话: 浅色强调底 + 左侧 2px 指示条 (IDE 式选中, 不用厚重色块) */
 li.active {
   background: var(--accent-light);
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--text-primary);
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 li.active:hover {
@@ -470,13 +435,13 @@ li.active:hover {
 .session-empty {
   padding: var(--space-6) var(--space-4);
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-base);
   line-height: 1.9;
   color: var(--text-secondary);
 }
 
 .session-empty kbd {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 
 /* 侧边栏宽窄只由父组件传入的 collapsed prop 控制 (App.vue 折叠按钮手动切换),
@@ -508,31 +473,24 @@ li.active:hover {
   animation: typingBounce 1.2s infinite;
 }
 
-/* 待批准的会话: 标题尾部小徽标 (审批卡片跟随所属会话, 切走后靠它找回) */
+/* 待批准的会话: 标题尾部小标记 (纯文字色, 不做带框徽章) */
 .approval-badge {
   flex: none;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   line-height: 1;
   padding: 3px 5px;
   border-radius: var(--radius-xs);
   color: var(--warning);
   background: var(--warning-light);
-  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
 }
 
+/* 行尾删除: 默认隐形, hover/聚焦该行才浮现, 避免列表被一排 × 干扰 */
 .delete-btn {
-  background: transparent;
-  color: var(--text-tertiary);
-  padding: 0;
   width: 22px;
   height: 22px;
-  line-height: 22px;
-  text-align: center;
-  font-size: 14px;
-  border: none;
-  border-radius: 50%;
+  font-size: var(--fs-md);
+  line-height: 1;
   opacity: 0;
-  flex: none;
   transition: opacity var(--dur-fast) ease, background var(--dur-fast) ease;
 }
 
@@ -542,8 +500,8 @@ li:focus-within .delete-btn {
 }
 
 .delete-btn:hover:not(:disabled) {
-  background: var(--error);
-  color: #fff;
+  color: var(--error);
+  background: var(--error-light);
   transform: none;
   box-shadow: none;
 }
@@ -573,7 +531,7 @@ li:focus-within .delete-btn {
   gap: 8px;
   width: 100%;
   padding: 7px 10px;
-  font-size: 13px;
+  font-size: var(--fs-base);
   text-align: left;
   color: var(--text-primary);
   background: transparent;
@@ -660,14 +618,14 @@ li:focus-within .delete-btn {
 
 .confirm-dialog h4 {
   margin: 0 0 var(--space-2);
-  font-size: 14px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .confirm-dialog p {
   margin: 0 0 var(--space-4);
-  font-size: 13px;
+  font-size: var(--fs-base);
   line-height: 1.7;
   color: var(--text-secondary);
   word-break: break-all;
@@ -676,7 +634,7 @@ li:focus-within .delete-btn {
 .confirm-warn {
   display: block;
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--error);
 }
 
@@ -686,33 +644,9 @@ li:focus-within .delete-btn {
   gap: var(--space-2);
 }
 
-.ghost-btn {
-  padding: 6px 14px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-}
-
-.ghost-btn:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-  box-shadow: none;
-  transform: none;
-}
-
-.danger-btn {
-  padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #fff;
-  background: var(--error);
-  border: none;
-  border-radius: var(--radius-xs);
-}
-
-.danger-btn:hover:not(:disabled) {
-  background: var(--error-hover);
+/* 取消/删除: 复用全局 .btn-secondary / .btn-danger, 仅收窄内边距适配弹窗 */
+.confirm-actions .ghost-btn,
+.confirm-actions .danger-btn {
+  padding: 6px 16px;
 }
 </style>
