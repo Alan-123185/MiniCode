@@ -136,7 +136,7 @@ def search_code_by_keyword(
     if result.returncode > 1:
         return toolResult(
             success=False,
-            message=f"搜索出错: {truncate_output(smart_decode(result.stderr.strip()))}",
+            message=f"搜索出错: {truncate_output(smart_decode(result.stderr.strip()),settings.COMMAND_MAX_CHAR_COUNT, settings.COMMAND_HEAD_LINES, settings.COMMAND_TAIL_LINES)}",
             content="",
             tool_name="search_code_by_keyword",
         )
@@ -216,7 +216,7 @@ def search_file_by_keyword(query: str, config: RunnableConfig, file_type: str = 
     if result.returncode > 1:
         return toolResult(
             success=False,
-            message=f"搜索出错: {truncate_output(smart_decode(result.stderr.strip()))}",
+            message=f"搜索出错: {truncate_output(smart_decode(result.stderr.strip()), settings.COMMAND_MAX_CHAR_COUNT, settings.COMMAND_HEAD_LINES, settings.COMMAND_TAIL_LINES)}",
             content="",
             tool_name="search_file_by_keyword",
         )

@@ -1,13 +1,11 @@
 from typing import Optional
-
-from config.data import settings
 import re
 
 
 _CHAIN_SPLIT = re.compile(r"&&|\|\||\||;|&|\n|>>|>|<")  # 拆链式命令
 
 
-def is_command_safe(command: str, stdin_input: str | None = None) -> bool:
+def is_command_safe(command: str,white_list:list[str], stdin_input: str | None = None) -> bool:
     """
     判断 execute_command 的命令是否全部命中只读白名单。
     防绕过关键：按 && || | ; & 换行拆成多段，每一段都必须命中，
@@ -15,7 +13,7 @@ def is_command_safe(command: str, stdin_input: str | None = None) -> bool:
     """
     if stdin_input is not None:  # 带交互输入的不放行
         return False
-    patterns = [re.compile(p, re.IGNORECASE) for p in settings.SAFE_COMMAND_WHITELIST]
+    patterns = [re.compile(p, re.IGNORECASE) for p in white_list]
     segments = [s.strip() for s in _CHAIN_SPLIT.split(command) if s.strip()]
     if not segments:
         return False
@@ -24,8 +22,6 @@ def is_command_safe(command: str, stdin_input: str | None = None) -> bool:
 
 # 报错关键词：加词边界，避免 matched_error / error_count 之类误伤
 
-# 假设你的 settings 已经定义
-# from your_config import settings
 
 _ERROR_RE = re.compile(r"(?i)(?<![\w])(traceback|exception|error|failed|failure|fatal|panic|abort)(?![\w])")
 
@@ -124,17 +120,17 @@ def _extract_error_block(
     return "[error context]\n" + joined
 
 
-def truncate_output(text: str) -> str:
+def truncate_output(text: str,max_char_count:int,head_lines:int,tail_lines:int) -> str:
     if not text:
         return ""
 
-    max_chars = settings.COMMAND_MAX_CHAR_COUNT
+    max_chars = max_char_count
     if len(text) <= max_chars:
         return text
 
     lines = text.splitlines()
-    head_n = settings.COMMAND_HEAD_LINES
-    tail_n = settings.COMMAND_TAIL_LINES
+    head_n = head_lines
+    tail_n = tail_lines
     total = len(lines)
 
     if total <= head_n + tail_n:

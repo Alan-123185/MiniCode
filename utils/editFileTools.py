@@ -91,8 +91,8 @@ def file_edit_tool(file_path: str, old_content: str, new_content: str, config: R
             # 新增AST语法检查
             start_idx = match[0]
             end_idx = start_idx + n
-            normalize_file_lines, diff_text = _replace(
-                new_lines, normalize_file_lines, start_idx, end_idx, target_path, used_encoding, file_path
+            file_lines, diff_text = _replace(
+                new_lines, file_lines, start_idx, end_idx, target_path, used_encoding, file_path
             )
             error_list = _check_error(target_path)
             if not error_list:
@@ -253,6 +253,7 @@ def _exchange(
     file_path: str,
 ) -> toolResult:
     old_file_lines = file_content.splitlines()
+    original_content = file_content
     file_content = file_content.replace(old_content, new_content, 1)
     diff_text = "\n".join(
         unified_diff(
@@ -274,7 +275,7 @@ def _exchange(
     if error_list:
         # 回滚逻辑
         with open(target_path, "w", encoding=used_encoding, newline="") as f:
-            f.write(file_content.replace(new_content, old_content, 1))
+            f.write(original_content)
         error_messages = [
             f"error: {err.type} at {err.start_point}-{err.end_point},content: {err.text}" for err in error_list
         ]

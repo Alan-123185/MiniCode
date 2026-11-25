@@ -1,10 +1,10 @@
 import json
 import re
 from pathlib import Path
-
 from tree_sitter_analyzer.core._analysis_engine_errors import UnsupportedLanguageError
 from tree_sitter_analyzer.core.analysis_engine import UnifiedAnalysisEngine
 from tree_sitter_analyzer.core.request import AnalysisRequest
+from config.data import settings
 from config.sessionManager import sessionmanager
 from core.toolResult import toolResult
 from service.summaryService import summaryService
@@ -111,8 +111,8 @@ def _compress_run_bash_result(tool_result: toolResult, tool_call_id: str) -> str
         content = json.loads(tool_result.content)
         stdout = content["stdout"]
         stderr = content["stderr"]
-        out = truncate_output(stdout)
-        err = truncate_output(stderr)
+        out = truncate_output(stdout, settings.COMMAND_MAX_CHAR_COUNT, settings.COMMAND_HEAD_LINES, settings.COMMAND_TAIL_LINES)
+        err = truncate_output(stderr, settings.COMMAND_MAX_CHAR_COUNT, settings.COMMAND_HEAD_LINES, settings.COMMAND_TAIL_LINES)
         final_content = ""
         if stdout:
             final_content += f"--- 标准输出 (STDOUT) ---\n{out}\n"
