@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     def index_path(self) -> Path:
         return app_root() / "MCP" / "agent_search_mcp" / "dist" / "index.js"
 
+    MINIMEMO_PROJECT_DIR: Path | None = None
+    MINIMEMO_API_URL: str = "http://127.0.0.1:1314"
+    MINIMEMO_USER_ID: str = ""
+    MINIMEMO_AGENT_NAME: str = ""
+
     # On Windows, automatically detect all existing drive letters (C:\\, D:\\, ...)
     # so the config will include all system drives. On non-Windows platforms
     # default to an empty list.

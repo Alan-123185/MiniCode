@@ -12,7 +12,6 @@ __pycache__/
 .venv/
 .claude/
 # 测试和日志
-tests/__pycache__/
 *.log
 
 # SQLite 数据库文件
@@ -29,4 +28,5 @@ static/
 临时文件/
 扩展/
 数据库控制台/
-
+shots/
+*.dll
