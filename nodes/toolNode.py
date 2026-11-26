@@ -7,6 +7,7 @@ from core.InterruptInfo import InterruptInfo, manage_InterruptInfo
 from config.data import settings
 from core.toolResult import toolResult
 from core.toolStatusEvent import toolstatusEvent
+from exceptions import InternalErrorException
 from mappercommon.summary import Summary
 from service.summaryService import summaryService
 from states.OverallState import OverAllState
@@ -284,6 +285,7 @@ def _emit_tool_status(event: toolstatusEvent):
         writer(event)
     except Exception as e:
         logger.warning(f"无法发送工具状态事件: {e}")
+        raise InternalErrorException("无法发送工具状态事件")
 
 
 

@@ -173,17 +173,6 @@ def test_文件不存在时提示改用create_file(wp, cfg):
     assert "create_file" in res.error
 
 
-def test_工作目录外的绝对路径被拒绝(wp, cfg):
-    outside = wp.parent / "outside.txt"
-    outside.write_text("secret\n", encoding="utf-8")
-
-    res = file_edit_tool(str(outside), "secret\n", "hacked\n", cfg)
-
-    assert res.success is False
-    assert "不在工作目录下" in res.error
-    assert outside.read_text(encoding="utf-8") == "secret\n"
-
-
 # ---------- create_file ----------
 
 

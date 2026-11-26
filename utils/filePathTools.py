@@ -30,6 +30,8 @@ def absolutePathToRelative(file_path: str, config: RunnableConfig) -> Path:
 
 def is_path_safe(abs_path: Path, workplace: Path) -> bool:
     """检查路径是否安全，即是否在项目根目录下"""
+    abs_path= abs_path.resolve()
+    workplace = workplace.resolve()
     try:
         abs_path.relative_to(workplace)
         return True

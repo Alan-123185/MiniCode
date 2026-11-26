@@ -157,7 +157,6 @@ def test_写操作与白名单外命令拦截(command):
 
 # ---------- 拦截：空输入与交互输入 ----------
 
-
 @pytest.mark.parametrize("command", ["", "   ", "\n", "&&", ";"])
 def test_空命令或纯分隔符拦截(command):
     """拆不出任何有效段时，返回 False（默认拒绝而非默认放行）。"""
