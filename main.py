@@ -1,5 +1,4 @@
 import sys
-
 import log
 from contextlib import asynccontextmanager
 import uvicorn
@@ -39,11 +38,11 @@ app.include_router(chat_router)
 app.include_router(workplace_router)
 app.include_router(model_router)
 app.include_router(session_router)
+
+
 """
 the first version, a basical chat robot with some easy tools  2026.8.13
 """
-
-
 @app.get("/MiniCode/checkGit")
 async def checkgit():
     return Result(response=check_git())

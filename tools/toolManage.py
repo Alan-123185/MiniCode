@@ -62,8 +62,6 @@ class toolManage:
 
 
 
-
-
     @staticmethod
     def get_tools_by_name():
         return {tooln.name: tooln for tooln in toolManage.tools}
@@ -84,21 +82,30 @@ class toolManage:
 
     @staticmethod
     async def get_mcp_tools() -> list:
-        client = MultiServerMCPClient(
-            {
-                "agent-search": {
-                    "command": str(settings.node_path),
-                    "args": [
-                        str(settings.index_path),
-                    ],
-                    "transport": "stdio",
-                }
+        servers = {
+            "agent-search": {
+                "command": str(settings.node_path),
+                "args": [str(settings.index_path)],
+                "transport": "stdio",
             }
-        )
-        mcp_tools = await client.get_tools()
+        }
         allowed_names = {"free_search"}
-        mcp_tools = [tool for tool in mcp_tools if tool.name in allowed_names]
-        return mcp_tools
+        if settings.MINIMEMO_PROJECT_DIR is not None:
+            project_dir = settings.MINIMEMO_PROJECT_DIR.resolve()
+            servers["minimemo"] = {
+                "command": str(project_dir / ".venv" / "Scripts" / "python.exe"),
+                "args": [str(project_dir / "mcp_server.py")],
+                "transport": "stdio",
+                "env": {
+                    "MINIMEMO_API_URL": settings.MINIMEMO_API_URL,
+                    "MINIMEMO_USER_ID": settings.MINIMEMO_USER_ID,
+                    "MINIMEMO_AGENT_NAME": settings.MINIMEMO_AGENT_NAME
+                },
+            }
+            allowed_names.update({"search_memory"})
+
+        client = MultiServerMCPClient(servers)
+        return [tool for tool in await client.get_tools() if tool.name in allowed_names]
 
     @staticmethod
     def get_schema() -> str:
@@ -134,12 +141,4 @@ class toolManage:
         return json.dumps(ret, ensure_ascii=False)
 
 
-    # if __name__ == "__main__":
-    #     import asyncio
-    #
-    #     async def main():
-    #         tools = await create_tool()
-    #         for tool in tools:
-    #             print(f"Registered tool: {tool.name}")
-    #
-    #     asyncio.run(main())
+

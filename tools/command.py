@@ -1,5 +1,5 @@
 import json
-
+from typing import Optional
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -12,7 +12,6 @@ from utils.filePathTools import relativePathToAbsolute
 import os
 import subprocess
 from pathlib import Path
-
 
 INTERPRETERS = {
     ".py": "python {file}",
@@ -32,10 +31,8 @@ class ExecuteCommandInput(BaseModel):
     cwd: str = Field(default=".", description="命令执行的工作目录，相对路径或绝对路径，默认是 . 表示当前工作目录")
     stdin_input: str | None = Field(default=None, description="仅当命令需要交互式输入(如 input())时传入")
     time_out: int = Field(
-        default=settings.COMMAND_TIMEOUT,
-        ge=1,
-        le=600,
-        description=f"命令超时秒数，默认{settings.COMMAND_TIMEOUT}。凡 pip/npm install、编译、运行测试、下载等可能超过30秒的命令，必须传 timeout=300~600",
+        default=30, ge=1, le=600,
+        description="命令超时秒数，默认30。凡 pip/npm install、编译、运行测试、下载等可能超过30秒的命令，必须传 timeout=300~600"
     )
 
 
@@ -45,10 +42,8 @@ class RunCodeInput(BaseModel):
     cwd: str = Field(default=".", description="代码执行的工作目录，相对路径或绝对路径，默认是 . 表示当前工作目录")
     stdin_input: str | None = Field(default=None, description="仅当代码需要交互式输入(如 input())时传入")
     time_out: int = Field(
-        default=settings.COMMAND_TIMEOUT,
-        ge=1,
-        le=600,
-        description=f"代码执行超时秒数，默认{settings.COMMAND_TIMEOUT}。凡 pip/npm install、编译、运行测试、下载等可能超过30秒的命令，必须传 timeout=300~600",
+        default=30, ge=1, le=600,
+        description="代码执行超时秒数，默认30。凡 pip/npm install、编译、运行测试、下载等可能超过30秒的命令，必须传 timeout=300~600"
     )
 
 
@@ -100,7 +95,6 @@ def _run_bash(
             stdin=stdin_arg,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=env,
         )
 
         try:
@@ -124,7 +118,7 @@ def _run_bash(
                 success=False, content="", message=f"命令执行超时({time_out}秒)，已强制终止", tool_name=tool_name
             )
 
-        # 4. 解码输出（Git Bash 里基本是 UTF-8，smart_decode 仍能兜底意外字节）
+        # 5. 解码输出（Git Bash 里基本是 UTF-8，smart_decode 仍能兜底意外字节）
         stdout = smart_decode(stdout_b)
         stderr = smart_decode(stderr_b)
 
@@ -184,14 +178,17 @@ def run_code(
       - 编写并运行临时脚本
       - 运行 pytest / unittest
     请优先使用本工具，而不是 execute_command。
+    
     【与 execute_command 的区别】
       - execute_command：执行已有命令或单行查询（如 `python -c "..."`、`dir`、`findstr`）。
       - run_code：写入你编写的完整脚本文件并执行。适合多行、需要 import、需要定义函数/类的实验代码。
+
     【典型使用模式】
       1. 写一个最小复现脚本（如 repro.py），运行，观察现象。
       2. 根据现象修改源码。
       3. 再次运行同一个 repro.py，确认现象消失。
       4. 写一个回归测试脚本，运行确认通过。
+    
     【文件位置】
       脚本会被写入 .MiniCode/{session_id}/{filename}。
       这是临时工作目录，不会污染项目源码，可以放心创建、覆盖、删除临时脚本。
@@ -224,6 +221,6 @@ def run_code(
 
 
 if __name__ == "__main__":
-    print(settings.GIT_BASH_PATH)
-    result = _run_bash("echo Hello World", ".", 5, None, "test")
+    # 演示用法：直接指定 git_bash_path
+    result = _run_bash("echo Hello World", ".", 5, None, "test", git_bash_path=None)
     print(result)

@@ -7,6 +7,7 @@ from core.InterruptInfo import InterruptInfo, manage_InterruptInfo
 from config.data import settings
 from core.toolResult import toolResult
 from core.toolStatusEvent import toolstatusEvent
+from exceptions import InternalErrorException
 from mappercommon.summary import Summary
 from service.summaryService import summaryService
 from states.OverallState import OverAllState
@@ -55,7 +56,7 @@ async def tool_node(state: OverAllState, config: RunnableConfig) -> dict:
             pass
         elif tool_name in toolManage.tools_need_to_confirm and not (
             tool_name == "execute_command"
-            and is_command_safe(tool_args.get("command", ""), tool_args.get("stdin_input", None))
+            and is_command_safe(command=tool_args.get("command", ""), stdin_input=tool_args.get("stdin_input", None),white_list=settings.SAFE_COMMAND_WHITELIST)
         ):
             # interrupt 会暂停图的执行，等待外部通过 update_state 或 Command 恢复
             decision = interrupt(
@@ -284,6 +285,7 @@ def _emit_tool_status(event: toolstatusEvent):
         writer(event)
     except Exception as e:
         logger.warning(f"无法发送工具状态事件: {e}")
+        raise InternalErrorException("无法发送工具状态事件")
 
 
 

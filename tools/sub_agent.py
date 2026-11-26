@@ -29,6 +29,11 @@ class searchSubAgentTask(BaseModel):
     expected_output: str | None = Field(None, description="子代理预期的输出格式或结果，可选")
 
 
+
+"""
+11.25
+子代理工具可以进行适当增强
+"""
 @tool(args_schema=searchSubAgentTask)
 async def search_sub_agent(
     config: RunnableConfig,
@@ -41,7 +46,8 @@ async def search_sub_agent(
     """
     创建并执行一个只读的代码探索型子代理，该工具会根据主代理提供的任务描述、
     背景、范围、约束和输出要求， 构造一个以代码搜索与定位为核心的子代理，
-    执行针对仓库和代码依赖的只读分析。
+    执行针对仓库和代码依赖的只读分析，这样，能够大幅度缓解你的上下文压力，
+    让你专注于高层次的任务规划和决策，而无需直接处理大量代码细节。
 
     【使用场景】：
     - 需要理解项目结构、模块依赖、调用关系或数据流时。

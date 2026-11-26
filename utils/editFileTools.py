@@ -7,10 +7,9 @@ from tree_sitter import Tree, Node
 from tree_sitter_language_pack import get_parser
 
 from config.data import settings
-from config.sessionManager import sessionmanager
 from core.toolResult import toolResult
 from utils.errormanagerTool import compress_error
-from utils.filePathTools import relativePathToAbsolute, is_path_safe
+from utils.filePathTools import relativePathToAbsolute
 from utils.normalCodeTool import normalize_line
 
 encodings_to_try = settings.ENCODINGS_TO_TRY
@@ -43,15 +42,6 @@ def file_edit_tool(file_path: str, old_content: str, new_content: str, config: R
             success=False,
             error=f"文件 '{target_path}' 不存在。如想增加文件请调用create_file工具",
             tool_name="file_edit",
-        )
-    if (
-        is_path_safe(
-            target_path, Path(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace)
-        )
-        is False
-    ):
-        return toolResult(
-            success=False, error=f"文件 '{target_path}' 不在工作目录下，无法编辑。", tool_name="file_edit"
         )
     file_content = None
     new_lines = new_content.splitlines(keepends=True)
@@ -91,8 +81,8 @@ def file_edit_tool(file_path: str, old_content: str, new_content: str, config: R
             # 新增AST语法检查
             start_idx = match[0]
             end_idx = start_idx + n
-            normalize_file_lines, diff_text = _replace(
-                new_lines, normalize_file_lines, start_idx, end_idx, target_path, used_encoding, file_path
+            file_lines, diff_text = _replace(
+                new_lines, file_lines, start_idx, end_idx, target_path, used_encoding, file_path
             )
             error_list = _check_error(target_path)
             if not error_list:
@@ -151,15 +141,6 @@ def create_file_tool(file_path: str, content: str, config: RunnableConfig) -> to
             content="",
             tool_name="create_file",
         )
-    if (
-        is_path_safe(
-            target_path, Path(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace)
-        )
-        is False
-    ):
-        return toolResult(
-            success=False, error=f"文件 '{target_path}' 不在工作目录下，无法编辑。", tool_name="create_file"
-        )
 
     try:
         parent_dir = os.path.dirname(target_path)
@@ -215,15 +196,6 @@ def delete_file_tool(file_path: str, config: RunnableConfig) -> toolResult:
     target_path = relativePathToAbsolute(file_path, config)
     if not os.path.exists(target_path):
         return toolResult(success=False, error=f"文件 '{target_path}' 不存在，无法删除。", tool_name="delete_file")
-    if (
-        is_path_safe(
-            target_path, Path(sessionmanager.get_session(config.get("configurable", {}).get("thread_id")).workplace)
-        )
-        is False
-    ):
-        return toolResult(
-            success=False, error=f"文件 '{target_path}' 不在工作目录下，无法编辑。", tool_name="delete_file"
-        )
     old_content = ""
     try:
         for enc in encodings_to_try:
@@ -253,6 +225,7 @@ def _exchange(
     file_path: str,
 ) -> toolResult:
     old_file_lines = file_content.splitlines()
+    original_content = file_content
     file_content = file_content.replace(old_content, new_content, 1)
     diff_text = "\n".join(
         unified_diff(
@@ -274,7 +247,7 @@ def _exchange(
     if error_list:
         # 回滚逻辑
         with open(target_path, "w", encoding=used_encoding, newline="") as f:
-            f.write(file_content.replace(new_content, old_content, 1))
+            f.write(original_content)
         error_messages = [
             f"error: {err.type} at {err.start_point}-{err.end_point},content: {err.text}" for err in error_list
         ]
