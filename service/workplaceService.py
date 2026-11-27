@@ -11,7 +11,7 @@ class WorkplaceService:
         self.graph = graph
         self.sessionMapper = sessionMappper
 
-    async def choose_workplace(self, request: workplaceRequest) -> None:
+    async def choose_workplace(self, request:workplaceRequest) -> None:
         config = create_chat_config(thread_id=request.session_id)
         session_dict = self.sessionMapper.query_session_by_session_id(request.session_id)
         new_session = Session(
