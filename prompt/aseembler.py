@@ -8,14 +8,10 @@ from prompt.staticPrompt.Task import Task_pro
 from prompt.staticPrompt.Tone import Tone_pro
 from prompt.staticPrompt.Usetool import UseTool_pro
 from states.OverallState import OverAllState
-from utils.dictToText import dict_to_text
-
 
 """
 文首静态提示词组装
 """
-
-
 def build_static_system_prompt() -> str:
     parts = [
         Intro_pro,
@@ -34,7 +30,7 @@ def build_static_system_prompt() -> str:
 创建并返回一个摘要历史作为动态提示词 包含当前的摘要状态信息。
 """
 def build_history_summary_prompt(state: OverAllState) -> str:
-    body = dict_to_text(state.summary_state.model_dump()).strip()
+    body = (state.summary_state or "").strip()
     if not body:
         return ""
-    return history_Summary_pro.format(history_summary=dict_to_text(state.summary_state.model_dump()))
+    return history_Summary_pro.format(history_summary=body)
